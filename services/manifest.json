@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "name": "zero-ai-daemon",
+      "autostart": true
+    },
+    {
+      "name": "cure-firewall",
+      "autostart": true
+    }
+  ]
+}

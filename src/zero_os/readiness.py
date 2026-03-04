@@ -1,0 +1,70 @@
+"""OS readiness and gap-fix scaffolding."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+
+def os_readiness(cwd: str) -> dict:
+    base = Path(cwd).resolve()
+    checks = {
+        "drivers_manifest": (base / "drivers" / "manifest.json").exists(),
+        "apps_registry": (base / "apps" / "registry.json").exists(),
+        "services_manifest": (base / "services" / "manifest.json").exists(),
+        "security_policy": (base / "security" / "policy.json").exists(),
+        "system_profile": (base / "zero_os_config" / "system_profile.json").exists(),
+        "ci_pipeline": (base / ".github" / "workflows" / "ci.yml").exists(),
+    }
+    score = int(sum(1 for v in checks.values() if v) * 100 / len(checks))
+    missing = [k for k, v in checks.items() if not v]
+    return {"score": score, "checks": checks, "missing": missing}
+
+
+def apply_missing_fix(cwd: str) -> dict:
+    base = Path(cwd).resolve()
+    created = []
+
+    targets = {
+        base / "drivers" / "manifest.json": {
+            "version": 1,
+            "drivers": [
+                {"name": "generic-fs", "status": "active"},
+                {"name": "generic-net", "status": "active"},
+                {"name": "generic-display", "status": "planned"},
+            ],
+        },
+        base / "apps" / "registry.json": {
+            "version": 1,
+            "apps": [],
+        },
+        base / "services" / "manifest.json": {
+            "version": 1,
+            "services": [
+                {"name": "zero-ai-daemon", "autostart": True},
+                {"name": "cure-firewall", "autostart": True},
+            ],
+        },
+        base / "security" / "policy.json": {
+            "version": 1,
+            "policies": {
+                "mark_strict_default": True,
+                "net_strict_default": True,
+                "signed_beacons_required": True,
+            },
+        },
+        base / "zero_os_config" / "system_profile.json": {
+            "name": "zero-os",
+            "mode": "specialized",
+            "goal": "secure recursive intelligence runtime",
+        },
+    }
+
+    for path, payload in targets.items():
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            created.append(str(path))
+
+    return {"created": created, "created_count": len(created)}
+

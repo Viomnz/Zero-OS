@@ -165,6 +165,19 @@ class CoreRoutingTests(unittest.TestCase):
         result = highway.dispatch("code intake alien.zzz", cwd=str(self.base))
         self.assertIn("language_guess: unknown-format", result.summary)
 
+    def test_os_readiness_and_missing_fix(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        before = highway.dispatch("os readiness", cwd=str(self.base))
+        self.assertIn("os_readiness_score:", before.summary)
+        fix = highway.dispatch("os missing fix", cwd=str(self.base))
+        self.assertIn("created_count:", fix.summary)
+        after = highway.dispatch("os readiness", cwd=str(self.base))
+        self.assertIn("drivers_manifest\": true", after.summary.lower())
+        self.assertIn("apps_registry\": true", after.summary.lower())
+        self.assertIn("services_manifest\": true", after.summary.lower())
+        self.assertIn("security_policy\": true", after.summary.lower())
+        self.assertIn("system_profile\": true", after.summary.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

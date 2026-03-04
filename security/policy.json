@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "policies": {
+    "mark_strict_default": true,
+    "net_strict_default": true,
+    "signed_beacons_required": true
+  }
+}

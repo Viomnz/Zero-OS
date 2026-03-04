@@ -87,6 +87,8 @@ python src/main.py "mark strict show"
 python src/main.py "mark status src/main.py"
 python src/main.py "audit status"
 python src/main.py "code intake src/main.py"
+python src/main.py "os readiness"
+python src/main.py "os missing fix"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 

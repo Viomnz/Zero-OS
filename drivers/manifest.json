@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "drivers": [
+    {
+      "name": "generic-fs",
+      "status": "active"
+    },
+    {
+      "name": "generic-net",
+      "status": "active"
+    },
+    {
+      "name": "generic-display",
+      "status": "planned"
+    }
+  ]
+}
