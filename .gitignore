@@ -1,3 +1,4 @@
 __pycache__/
 *.py[cod]
 .zero_os/
+ai_from_scratch/checkpoint.json
