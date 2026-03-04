@@ -11,7 +11,8 @@ def main() -> None:
     parser.add_argument("task", help="Natural-language task for Zero OS")
     args = parser.parse_args()
 
-    result = Highway().dispatch(args.task, cwd=os.getcwd())
+    cwd = os.getcwd()
+    result = Highway(cwd=cwd).dispatch(args.task, cwd=cwd)
     print(f"lane={result.capability}")
     print(result.summary)
 

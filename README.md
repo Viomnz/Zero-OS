@@ -40,6 +40,7 @@ Behavior is tuned by both user mode and performance profile.
 - `web`: live search and URL fetch
 - `system`: local environment info
 - `memory`: persistent memory store
+- `plugins/*`: optional custom lanes loaded from local `plugins/` files
 - `fallback`: unmatched tasks
 
 ## Commands
@@ -70,6 +71,22 @@ python src/main.py "list files"
 python src/main.py "whoami"
 python src/main.py "core status"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
+```
+
+## Safety model
+- File actions are restricted to the current workspace path.
+- Protected internals (`.git`, `.zero_os`, `__pycache__`) cannot be deleted by file commands.
+
+## Plugin model
+- Drop Python files in `plugins/`.
+- Each plugin should expose `get_capability()` returning an object with:
+  - `name`
+  - `can_handle(task) -> bool`
+  - `run(task) -> Result`
+
+## Tests
+```powershell
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 ## Memory storage

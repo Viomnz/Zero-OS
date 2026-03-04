@@ -11,6 +11,7 @@ from zero_os.capabilities.system import SystemCapability
 from zero_os.capabilities.web import WebCapability
 from zero_os.core import CORE_POLICY, CorePolicy, run_survival_protocols
 from zero_os.performance import detect_hardware, profile_from_hardware
+from zero_os.plugins import load_plugins
 from zero_os.state import get_mode
 from zero_os.state import get_profile_setting
 from zero_os.types import Capability, Result, Task
@@ -19,8 +20,10 @@ from zero_os.types import Capability, Result, Task
 class Highway:
     """One path in, one routing decision, one unified result."""
 
-    def __init__(self) -> None:
+    def __init__(self, cwd: str = ".") -> None:
         self.core: CorePolicy = CORE_POLICY
+        self._cwd = cwd
+        self._plugin_capabilities: tuple[Capability, ...] = load_plugins(cwd)
         self._non_agent_capabilities: tuple[Capability, ...] = (
             ModeCapability(),
             ProfileCapability(),
@@ -28,6 +31,7 @@ class Highway:
             WebCapability(),
             SystemCapability(),
             MemoryCapability(),
+            *self._plugin_capabilities,
         )
         self.capabilities: tuple[Capability, ...] = (
             AgentCapability(self._dispatch_non_agent),

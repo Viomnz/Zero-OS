@@ -38,7 +38,6 @@ class CodeCapability:
 
     def run(self, task: Task) -> Result:
         text = task.text.strip()
-        lowered = text.lower()
         base = Path(task.cwd)
         commands = [c.strip() for c in re.split(r"\s+then\s+|;", text, flags=re.IGNORECASE) if c.strip()]
 
@@ -60,7 +59,9 @@ class CodeCapability:
         if create:
             rel_path = create.group(1).strip().strip("\"'")
             content = create.group(2)
-            file_path = (base / rel_path).resolve()
+            file_path = self._safe_path(base, rel_path)
+            if file_path is None:
+                return "Blocked: path escapes workspace."
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content + "\n", encoding="utf-8")
             return f"Created file: {file_path}"
@@ -71,7 +72,9 @@ class CodeCapability:
         if append:
             rel_path = append.group(1).strip().strip("\"'")
             content = append.group(2)
-            file_path = (base / rel_path).resolve()
+            file_path = self._safe_path(base, rel_path)
+            if file_path is None:
+                return "Blocked: path escapes workspace."
             file_path.parent.mkdir(parents=True, exist_ok=True)
             with file_path.open("a", encoding="utf-8") as handle:
                 handle.write(content + "\n")
@@ -82,7 +85,9 @@ class CodeCapability:
         )
         if read:
             rel_path = read.group(1).strip().strip("\"'")
-            file_path = (base / rel_path).resolve()
+            file_path = self._safe_path(base, rel_path)
+            if file_path is None:
+                return "Blocked: path escapes workspace."
             if not file_path.exists():
                 return f"File not found: {file_path}"
             data = file_path.read_text(encoding="utf-8", errors="replace")
@@ -92,14 +97,18 @@ class CodeCapability:
         mkdir = re.match(r"^(?:mkdir|create folder|new folder)\s+(.+)$", text, flags=re.IGNORECASE)
         if mkdir:
             rel_path = mkdir.group(1).strip().strip("\"'")
-            dir_path = (base / rel_path).resolve()
+            dir_path = self._safe_path(base, rel_path)
+            if dir_path is None:
+                return "Blocked: path escapes workspace."
             dir_path.mkdir(parents=True, exist_ok=True)
             return f"Created folder: {dir_path}"
 
         rename = re.match(r"^(?:rename|move)\s+(.+?)\s+to\s+(.+)$", text, flags=re.IGNORECASE)
         if rename:
-            src = (base / rename.group(1).strip().strip("\"'")).resolve()
-            dst = (base / rename.group(2).strip().strip("\"'")).resolve()
+            src = self._safe_path(base, rename.group(1).strip().strip("\"'"))
+            dst = self._safe_path(base, rename.group(2).strip().strip("\"'"))
+            if src is None or dst is None:
+                return "Blocked: path escapes workspace."
             if not src.exists():
                 return f"Source not found: {src}"
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -108,8 +117,10 @@ class CodeCapability:
 
         copy = re.match(r"^copy\s+(.+?)\s+to\s+(.+)$", text, flags=re.IGNORECASE)
         if copy:
-            src = (base / copy.group(1).strip().strip("\"'")).resolve()
-            dst = (base / copy.group(2).strip().strip("\"'")).resolve()
+            src = self._safe_path(base, copy.group(1).strip().strip("\"'"))
+            dst = self._safe_path(base, copy.group(2).strip().strip("\"'"))
+            if src is None or dst is None:
+                return "Blocked: path escapes workspace."
             if not src.exists():
                 return f"Source not found: {src}"
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +132,11 @@ class CodeCapability:
 
         delete = re.match(r"^(?:delete|remove)\s+(.+)$", text, flags=re.IGNORECASE)
         if delete:
-            target = (base / delete.group(1).strip().strip("\"'")).resolve()
+            target = self._safe_path(base, delete.group(1).strip().strip("\"'"))
+            if target is None:
+                return "Blocked: path escapes workspace."
+            if self._is_protected(target):
+                return f"Blocked: protected path {target}"
             if not target.exists():
                 return f"Target not found: {target}"
             if target.is_dir():
@@ -140,7 +155,20 @@ class CodeCapability:
                 "- rename <src> to <dst>\n"
                 "- copy <src> to <dst>\n"
                 "- delete <path>\n"
-                "- chain commands with `then` or `;`",
+                "- chain commands with `then` or `;`"
             )
 
         return f"Code lane received: {text}"
+
+    def _safe_path(self, base: Path, rel_path: str) -> Path | None:
+        candidate = (base / rel_path).resolve()
+        base_resolved = base.resolve()
+        try:
+            candidate.relative_to(base_resolved)
+        except ValueError:
+            return None
+        return candidate
+
+    def _is_protected(self, path: Path) -> bool:
+        protected_names = {".git", ".zero_os", "__pycache__"}
+        return any(part in protected_names for part in path.parts)
