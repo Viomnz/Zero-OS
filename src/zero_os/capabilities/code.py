@@ -16,6 +16,8 @@ class CodeCapability:
 
     def can_handle(self, task: Task) -> bool:
         text = task.text.lower().strip()
+        if text.startswith("code intake "):
+            return False
         keys = (
             "code",
             "build",

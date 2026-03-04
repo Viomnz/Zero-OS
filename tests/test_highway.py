@@ -150,6 +150,21 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("audit entries:", status.summary)
         self.assertIn("chain_valid: True", status.summary)
 
+    def test_code_intake_known_language(self) -> None:
+        f = self.base / "m.py"
+        f.write_text("import os\n\ndef x():\n    return 1\n", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("code intake m.py", cwd=str(self.base))
+        self.assertIn("language_guess: python", result.summary)
+        self.assertIn("report:", result.summary)
+
+    def test_code_intake_unknown_format(self) -> None:
+        f = self.base / "alien.zzz"
+        f.write_text("@@@ QX-77 :: proto\nnodes=>alpha,beta\n", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("code intake alien.zzz", cwd=str(self.base))
+        self.assertIn("language_guess: unknown-format", result.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

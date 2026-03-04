@@ -28,6 +28,7 @@ from zero_os.state import (
     set_profile_setting,
 )
 from zero_os.types import Result, Task
+from zero_os.universal_code_intake import intake_code
 
 
 class SystemCapability:
@@ -55,6 +56,7 @@ class SystemCapability:
             "net strict",
             "net policy",
             "audit status",
+            "code intake",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -128,6 +130,25 @@ class SystemCapability:
 
         if text.strip() == "audit status":
             return Result(self.name, audit_status(task.cwd))
+
+        code_intake = re.match(r"^code intake\s+(.+)$", text.strip(), flags=re.IGNORECASE)
+        if code_intake:
+            rel = code_intake.group(1).strip().strip("\"'")
+            r = intake_code(task.cwd, rel)
+            return Result(
+                self.name,
+                (
+                    f"target: {r.target}\n"
+                    f"exists: {r.exists}\n"
+                    f"language_guess: {r.language_guess}\n"
+                    f"bytes_size: {r.bytes_size}\n"
+                    f"line_count: {r.line_count}\n"
+                    f"token_count: {r.token_count}\n"
+                    f"ascii_ratio: {r.ascii_ratio:.3f}\n"
+                    f"sha256: {r.sha256}\n"
+                    f"report: {r.report_path}"
+                ),
+            )
 
         if text.strip() == "net policy show":
             policy = load_net_policy(cwd)
@@ -262,5 +283,6 @@ class SystemCapability:
             "- mark status <path>\n"
             "- net strict on|off|show\n"
             "- net policy show|allow|deny|remove <domain>\n"
-            "- audit status",
+            "- audit status\n"
+            "- code intake <path>",
         )
