@@ -96,6 +96,13 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 - Open [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html) in your browser.
 - It auto-refreshes runtime files every 5 seconds.
 
+## One-command launcher
+- Run:
+```powershell
+.\zero_os_launcher.ps1 menu
+```
+- It includes options to start/stop dashboard server, control daemon, queue scan/tasks, check readiness, and view monitor/output.
+
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).
 - File beacons use signed schema `zero-os-beacon-v3`.
