@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.capabilities.code import CodeCapability
+from zero_os.state import set_mark_strict
 from zero_os.types import Task
 
 
@@ -43,6 +44,14 @@ class CodeSafetyTests(unittest.TestCase):
         self.assertIn("1. Created file:", result.summary)
         self.assertIn("2. Appended to file:", result.summary)
         self.assertIn("3.", result.summary)
+
+    def test_strict_mode_blocks_unmarked_read(self) -> None:
+        f = self.base / "a.txt"
+        f.write_text("x", encoding="utf-8")
+        set_mark_strict(str(self.base), True)
+        task = Task(text="read file a.txt", cwd=str(self.base))
+        result = self.cap.run(task)
+        self.assertIn("Blocked: unmarked file in strict mode", result.summary)
 
 
 if __name__ == "__main__":

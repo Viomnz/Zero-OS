@@ -74,6 +74,17 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("survived: True", result.summary)
         self.assertTrue((self.base / ".zero_os" / "beacons" / "sample2.beacon.json").exists())
 
+    def test_mark_strict_toggle_and_status(self) -> None:
+        target = self.base / "safe.txt"
+        target.write_text("ok", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        on = highway.dispatch("mark strict on", cwd=str(self.base))
+        self.assertIn("True", on.summary)
+        show = highway.dispatch("mark strict show", cwd=str(self.base))
+        self.assertIn("True", show.summary)
+        status = highway.dispatch("mark status safe.txt", cwd=str(self.base))
+        self.assertIn("exists: True", status.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

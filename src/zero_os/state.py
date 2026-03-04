@@ -79,3 +79,34 @@ def set_profile_setting(cwd: str, profile: str) -> str:
         data["user_mode"] = DEFAULT_MODE
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return normalized
+
+
+def get_mark_strict(cwd: str) -> bool:
+    path = _state_path(cwd)
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return False
+    return bool(data.get("mark_strict", False))
+
+
+def set_mark_strict(cwd: str, enabled: bool) -> bool:
+    path = _state_path(cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data: dict[str, str | bool] = {}
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except json.JSONDecodeError:
+            data = {}
+    if "user_mode" not in data:
+        data["user_mode"] = DEFAULT_MODE
+    if "performance_profile" not in data:
+        data["performance_profile"] = "auto"
+    data["mark_strict"] = bool(enabled)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return bool(enabled)

@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from zero_os.state import get_mark_strict
 from zero_os.types import Result, Task
 
 
@@ -39,16 +40,17 @@ class CodeCapability:
     def run(self, task: Task) -> Result:
         text = task.text.strip()
         base = Path(task.cwd)
+        strict = get_mark_strict(task.cwd)
         commands = [c.strip() for c in re.split(r"\s+then\s+|;", text, flags=re.IGNORECASE) if c.strip()]
 
         if len(commands) > 1:
             lines: list[str] = []
             for i, cmd in enumerate(commands, start=1):
-                lines.append(f"{i}. {self._execute_single(cmd, base)}")
+                lines.append(f"{i}. {self._execute_single(cmd, base, strict)}")
             return Result(self.name, "\n".join(lines))
-        return Result(self.name, self._execute_single(text, base))
+        return Result(self.name, self._execute_single(text, base, strict))
 
-    def _execute_single(self, text: str, base: Path) -> str:
+    def _execute_single(self, text: str, base: Path, strict: bool) -> str:
         lowered = text.lower().strip()
 
         create = re.match(
@@ -75,6 +77,8 @@ class CodeCapability:
             file_path = self._safe_path(base, rel_path)
             if file_path is None:
                 return "Blocked: path escapes workspace."
+            if strict and not self._has_beacon(base, file_path):
+                return f"Blocked: unmarked file in strict mode {file_path}"
             file_path.parent.mkdir(parents=True, exist_ok=True)
             with file_path.open("a", encoding="utf-8") as handle:
                 handle.write(content + "\n")
@@ -88,6 +92,8 @@ class CodeCapability:
             file_path = self._safe_path(base, rel_path)
             if file_path is None:
                 return "Blocked: path escapes workspace."
+            if strict and not self._has_beacon(base, file_path):
+                return f"Blocked: unmarked file in strict mode {file_path}"
             if not file_path.exists():
                 return f"File not found: {file_path}"
             data = file_path.read_text(encoding="utf-8", errors="replace")
@@ -109,6 +115,8 @@ class CodeCapability:
             dst = self._safe_path(base, rename.group(2).strip().strip("\"'"))
             if src is None or dst is None:
                 return "Blocked: path escapes workspace."
+            if strict and not self._has_beacon(base, src):
+                return f"Blocked: unmarked source in strict mode {src}"
             if not src.exists():
                 return f"Source not found: {src}"
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +129,8 @@ class CodeCapability:
             dst = self._safe_path(base, copy.group(2).strip().strip("\"'"))
             if src is None or dst is None:
                 return "Blocked: path escapes workspace."
+            if strict and src.is_file() and not self._has_beacon(base, src):
+                return f"Blocked: unmarked source in strict mode {src}"
             if not src.exists():
                 return f"Source not found: {src}"
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -137,6 +147,8 @@ class CodeCapability:
                 return "Blocked: path escapes workspace."
             if self._is_protected(target):
                 return f"Blocked: protected path {target}"
+            if strict and target.is_file() and not self._has_beacon(base, target):
+                return f"Blocked: unmarked target in strict mode {target}"
             if not target.exists():
                 return f"Target not found: {target}"
             if target.is_dir():
@@ -172,3 +184,7 @@ class CodeCapability:
     def _is_protected(self, path: Path) -> bool:
         protected_names = {".git", ".zero_os", "__pycache__"}
         return any(part in protected_names for part in path.parts)
+
+    def _has_beacon(self, base: Path, path: Path) -> bool:
+        beacon = base.resolve() / ".zero_os" / "beacons" / f"{path.stem}.beacon.json"
+        return beacon.exists()

@@ -10,7 +10,7 @@ import re
 from zero_os.core import CORE_POLICY
 from zero_os.cure_firewall import run_cure_firewall
 from zero_os.law_store import law_export, law_status
-from zero_os.state import set_mode, set_profile_setting
+from zero_os.state import get_mark_strict, set_mark_strict, set_mode, set_profile_setting
 from zero_os.types import Result, Task
 
 
@@ -34,6 +34,8 @@ class SystemCapability:
             "law status",
             "law export",
             "cure firewall",
+            "mark strict",
+            "mark status",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -82,6 +84,29 @@ class SystemCapability:
 
         if text.strip() == "law export":
             return Result(self.name, law_export(task.cwd))
+
+        if text.strip() == "mark strict show":
+            return Result(self.name, f"mark strict: {get_mark_strict(task.cwd)}")
+
+        if text.strip() == "mark strict on":
+            set_mark_strict(task.cwd, True)
+            return Result(self.name, "mark strict: True")
+
+        if text.strip() == "mark strict off":
+            set_mark_strict(task.cwd, False)
+            return Result(self.name, "mark strict: False")
+
+        mark_status = re.match(r"^mark status\s+(.+)$", text.strip(), flags=re.IGNORECASE)
+        if mark_status:
+            rel = mark_status.group(1).strip().strip("\"'")
+            target = (cwd / rel).resolve()
+            beacon = cwd / ".zero_os" / "beacons" / f"{target.stem}.beacon.json"
+            exists = target.exists()
+            marked = beacon.exists()
+            return Result(
+                self.name,
+                f"target: {target}\nexists: {exists}\nmarked: {marked}\nbeacon: {beacon}",
+            )
 
         cure = re.match(
             r"^cure firewall run\s+(.+?)\s+pressure\s+(\d+)$",
@@ -146,5 +171,7 @@ class SystemCapability:
             "- plugin scaffold <name>\n"
             "- law status\n"
             "- law export\n"
-            "- cure firewall run <path> pressure <0-100>",
+            "- cure firewall run <path> pressure <0-100>\n"
+            "- mark strict on|off|show\n"
+            "- mark status <path>",
         )
