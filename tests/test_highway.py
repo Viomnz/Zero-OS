@@ -39,6 +39,20 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("Plugin scaffold created", result.summary)
         self.assertTrue((self.base / "plugins" / "sample.py").exists())
 
+    def test_law_status_and_export(self) -> None:
+        laws = self.base / "laws"
+        laws.mkdir(parents=True, exist_ok=True)
+        (laws / "recursion_law.txt").write_text("LAW-TEXT", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+
+        status = highway.dispatch("law status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("SHA256:", status.summary)
+
+        exported = highway.dispatch("law export", cwd=str(self.base))
+        self.assertEqual("system", exported.capability)
+        self.assertEqual("LAW-TEXT", exported.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

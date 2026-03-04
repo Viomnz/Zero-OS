@@ -8,6 +8,7 @@ import getpass
 import re
 
 from zero_os.core import CORE_POLICY
+from zero_os.law_store import law_export, law_status
 from zero_os.state import set_mode, set_profile_setting
 from zero_os.types import Result, Task
 
@@ -29,6 +30,8 @@ class SystemCapability:
             "time",
             "auto upgrade",
             "plugin scaffold",
+            "law status",
+            "law export",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -72,6 +75,12 @@ class SystemCapability:
                 ),
             )
 
+        if text.strip() == "law status":
+            return Result(self.name, law_status(task.cwd))
+
+        if text.strip() == "law export":
+            return Result(self.name, law_export(task.cwd))
+
         scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
         if scaffold:
             plugin_name = scaffold.group(1)
@@ -112,5 +121,7 @@ class SystemCapability:
             "- date/time\n"
             "- core status\n"
             "- auto upgrade\n"
-            "- plugin scaffold <name>",
+            "- plugin scaffold <name>\n"
+            "- law status\n"
+            "- law export",
         )
