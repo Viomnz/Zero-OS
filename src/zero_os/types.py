@@ -14,6 +14,7 @@ class Task:
     cwd: str = "."
     mode: str = "casual"
     performance_profile: str = "balanced"
+    recursion_depth: int = 0
 
 
 @dataclass

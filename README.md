@@ -8,6 +8,14 @@ Zero-OS runs on one **main highway**: a single dispatcher that routes every requ
 - Policy source: `src/zero_os/core.py`
 
 The core policy is frozen and loaded as a runtime constant.
+The unified entity is explicitly merged from: Zero OS base, Zero AI Instances,
+Compressed Data Units, and Zero OS Universe (OSU).
+
+Survival protocols are enforced before dispatch:
+- immutable-laws
+- single-entity-unification
+- recursion-law-enforcement
+- survival-first-execution
 
 ## User modes (switch anytime)
 - `casual`: shorter outputs, agent executes up to 3 chained steps.
@@ -60,6 +68,7 @@ python src/main.py "remember zero os is immutable core"
 python src/main.py "recall immutable"
 python src/main.py "list files"
 python src/main.py "whoami"
+python src/main.py "core status"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 

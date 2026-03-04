@@ -9,7 +9,7 @@ from zero_os.capabilities.mode import ModeCapability
 from zero_os.capabilities.profile import ProfileCapability
 from zero_os.capabilities.system import SystemCapability
 from zero_os.capabilities.web import WebCapability
-from zero_os.core import CORE_POLICY, CorePolicy
+from zero_os.core import CORE_POLICY, CorePolicy, run_survival_protocols
 from zero_os.performance import detect_hardware, profile_from_hardware
 from zero_os.state import get_mode
 from zero_os.state import get_profile_setting
@@ -46,7 +46,11 @@ class Highway:
             cwd=cwd,
             mode=mode,
             performance_profile=active_profile,
+            recursion_depth=0,
         )
+        survival_state, survival_msg = run_survival_protocols(self.core, task)
+        if survival_state != "ok":
+            return Result("core", survival_msg)
         for capability in self.capabilities:
             if capability.can_handle(task):
                 return capability.run(task)
@@ -68,7 +72,11 @@ class Highway:
             cwd=cwd,
             mode=mode,
             performance_profile=active_profile,
+            recursion_depth=1,
         )
+        survival_state, survival_msg = run_survival_protocols(self.core, task)
+        if survival_state != "ok":
+            return Result("core", survival_msg)
         for capability in self._non_agent_capabilities:
             if capability.can_handle(task):
                 return capability.run(task)
