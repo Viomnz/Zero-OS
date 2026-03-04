@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -58,30 +57,25 @@ class WebCapability:
             limit = {"low": 5, "balanced": 8, "high": 12}.get(profile, 8)
         else:
             limit = {"low": 2, "balanced": 3, "high": 5}.get(profile, 3)
-        params = urlencode(
-            {
-                "action": "opensearch",
-                "search": query,
-                "limit": limit,
-                "namespace": 0,
-                "format": "json",
-            }
-        )
-        url = f"https://en.wikipedia.org/w/api.php?{params}"
+        params = urlencode({"q": query})
+        url = f"https://duckduckgo.com/html/?{params}"
         request = Request(url, headers={"User-Agent": "Zero-OS/0.1"})
         with urlopen(request, timeout=10) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            html = response.read().decode("utf-8", errors="replace")
 
-        titles = payload[1]
-        descriptions = payload[2]
-        links = payload[3]
-        if not titles:
+        # Lightweight HTML extraction of top links; avoids external API contracts.
+        matches = re.findall(
+            r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+            html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not matches:
             return Result(self.name, f'No results for "{query}".')
 
         lines = [f'Results for "{query}":']
-        for title, description, link in zip(titles, descriptions, links):
-            desc = description or "No description"
-            lines.append(f"- {title}: {desc} ({link})")
+        for link, raw_title in matches[:limit]:
+            title = re.sub(r"<[^>]+>", "", raw_title).strip()
+            lines.append(f"- {title} ({link})")
         return Result(self.name, "\n".join(lines))
 
     def _fetch(self, url: str, mode: str, profile: str) -> Result:

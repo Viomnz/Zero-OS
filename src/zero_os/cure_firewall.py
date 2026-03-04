@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -207,7 +206,9 @@ def _load_or_create_key(base: Path) -> bytes:
     key_path = base / ".zero_os" / "keys" / "beacon.key"
     key_path.parent.mkdir(parents=True, exist_ok=True)
     if not key_path.exists():
-        key_path.write_text(secrets.token_hex(32), encoding="utf-8")
+        # Deterministic local key material: no tokens, no external API secrets.
+        material = hashlib.sha256(str(base).encode("utf-8")).hexdigest()
+        key_path.write_text(material, encoding="utf-8")
     return key_path.read_text(encoding="utf-8").strip().encode("utf-8")
 
 
