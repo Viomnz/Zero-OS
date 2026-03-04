@@ -3,6 +3,7 @@ import tempfile
 import shutil
 import unittest
 import json
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -177,6 +178,28 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("services_manifest\": true", after.summary.lower())
         self.assertIn("security_policy\": true", after.summary.lower())
         self.assertIn("system_profile\": true", after.summary.lower())
+
+    def test_os_readiness_json(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("os readiness --json", cwd=str(self.base))
+        data = json.loads(result.summary)
+        self.assertIn("score", data)
+        self.assertIn("checks", data)
+        self.assertIn("missing", data)
+
+    def test_boot_gate_blocks_below_threshold(self) -> None:
+        env = dict(**__import__("os").environ)
+        env["ZERO_OS_BOOT_MIN_SCORE"] = "100"
+        main_py = ROOT / "src" / "main.py"
+        proc = subprocess.run(
+            ["python", str(main_py), "core status"],
+            cwd=str(self.base),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(2, proc.returncode)
+        self.assertIn("boot blocked", proc.stdout)
 
 
 if __name__ == "__main__":

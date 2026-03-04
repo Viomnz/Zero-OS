@@ -145,6 +145,10 @@ class SystemCapability:
                 ),
             )
 
+        if text.strip() == "os readiness --json":
+            r = os_readiness(task.cwd)
+            return Result(self.name, json.dumps(r, indent=2))
+
         if text.strip() == "os missing fix":
             r = apply_missing_fix(task.cwd)
             return Result(
@@ -310,5 +314,6 @@ class SystemCapability:
             "- audit status\n"
             "- code intake <path>\n"
             "- os readiness\n"
+            "- os readiness --json\n"
             "- os missing fix",
         )

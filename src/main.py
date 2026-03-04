@@ -5,6 +5,7 @@ import os
 import sys
 
 from zero_os.highway import Highway
+from zero_os.readiness import os_readiness
 
 
 def main() -> None:
@@ -15,6 +16,23 @@ def main() -> None:
     args = parser.parse_args()
 
     cwd = os.getcwd()
+    min_score = int(os.getenv("ZERO_OS_BOOT_MIN_SCORE", "0"))
+    if min_score > 0:
+        readiness = os_readiness(cwd)
+        if readiness["score"] < min_score and args.task.strip().lower() not in {
+            "os readiness",
+            "os readiness --json",
+            "os missing fix",
+        }:
+            print("lane=core")
+            print(
+                "boot blocked: os readiness below threshold\n"
+                f"required_score={min_score}\n"
+                f"current_score={readiness['score']}\n"
+                "run: os missing fix"
+            )
+            raise SystemExit(2)
+
     result = Highway(cwd=cwd).dispatch(args.task, cwd=cwd)
     print(f"lane={result.capability}")
     print(result.summary)
