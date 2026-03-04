@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import getpass
+import re
 
 from zero_os.core import CORE_POLICY
+from zero_os.state import set_mode, set_profile_setting
 from zero_os.types import Result, Task
 
 
@@ -25,6 +27,8 @@ class SystemCapability:
             "whoami",
             "date",
             "time",
+            "auto upgrade",
+            "plugin scaffold",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -55,6 +59,41 @@ class SystemCapability:
                 ),
             )
 
+        if "auto upgrade" in text:
+            mode = set_mode(task.cwd, "heavy")
+            profile = set_profile_setting(task.cwd, "auto")
+            return Result(
+                self.name,
+                (
+                    "Auto-upgrade complete:\n"
+                    f"- mode: {mode}\n"
+                    f"- performance profile: {profile}\n"
+                    "- core: immutable + no-auth active"
+                ),
+            )
+
+        scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
+        if scaffold:
+            plugin_name = scaffold.group(1)
+            plugin_dir = cwd / "plugins"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            plugin_path = plugin_dir / f"{plugin_name}.py"
+            if plugin_path.exists():
+                return Result(self.name, f"Plugin already exists: {plugin_path}")
+            template = (
+                "from zero_os.types import Result\n\n"
+                f"class {plugin_name.title().replace('_', '').replace('-', '')}Capability:\n"
+                f"    name = \"{plugin_name}\"\n\n"
+                "    def can_handle(self, task):\n"
+                f"        return task.text.lower().startswith(\"{plugin_name} \")\n\n"
+                "    def run(self, task):\n"
+                f"        return Result(self.name, \"{plugin_name} plugin executed\")\n\n"
+                "def get_capability():\n"
+                f"    return {plugin_name.title().replace('_', '').replace('-', '')}Capability()\n"
+            )
+            plugin_path.write_text(template, encoding="utf-8")
+            return Result(self.name, f"Plugin scaffold created: {plugin_path}")
+
         if "current dir" in text or "current directory" in text or "pwd" in text:
             return Result(self.name, str(cwd))
 
@@ -70,5 +109,8 @@ class SystemCapability:
             "- list files\n"
             "- current directory\n"
             "- whoami\n"
-            "- date/time",
+            "- date/time\n"
+            "- core status\n"
+            "- auto upgrade\n"
+            "- plugin scaffold <name>",
         )

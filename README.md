@@ -70,6 +70,8 @@ python src/main.py "recall immutable"
 python src/main.py "list files"
 python src/main.py "whoami"
 python src/main.py "core status"
+python src/main.py "auto upgrade"
+python src/main.py "plugin scaffold mylane"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 
