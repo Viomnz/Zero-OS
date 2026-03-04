@@ -22,6 +22,21 @@ python ai_from_scratch/generate.py --prompt "self awareness pressure balance" --
   - Law 3: balance/harmony/stability
 - If no sample passes within `--max-attempts`, output is marked blocked.
 
+## Always-on daemon
+Run Zero-AI continuously in background:
+
+```powershell
+python ai_from_scratch/daemon_ctl.py start
+python ai_from_scratch/daemon_ctl.py status
+python ai_from_scratch/daemon_ctl.py task --prompt "self awareness pressure balance"
+python ai_from_scratch/daemon_ctl.py stop
+```
+
+Runtime files:
+- `.zero_os/runtime/zero_ai_heartbeat.json`
+- `.zero_os/runtime/zero_ai_tasks.txt`
+- `.zero_os/runtime/zero_ai_output.txt`
+
 ## Next upgrades
 1. Add MLP hidden layer
 2. Add multi-head attention block
