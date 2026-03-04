@@ -101,6 +101,16 @@ class CoreRoutingTests(unittest.TestCase):
         verify = highway.dispatch("cure firewall verify tamper.txt", cwd=str(self.base))
         self.assertIn("signature_valid: False", verify.summary)
 
+    def test_beacon_content_drift_detected(self) -> None:
+        target = self.base / "drift.txt"
+        target.write_text("initial", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("cure firewall run drift.txt pressure 80", cwd=str(self.base))
+        target.write_text("changed", encoding="utf-8")
+        verify = highway.dispatch("cure firewall verify drift.txt", cwd=str(self.base))
+        self.assertIn("signature_valid: False", verify.summary)
+        self.assertIn("content drift detected", verify.summary)
+
     def test_cure_firewall_net_beacon_and_verify(self) -> None:
         highway = Highway(cwd=str(self.base))
         run = highway.dispatch(
@@ -120,6 +130,25 @@ class CoreRoutingTests(unittest.TestCase):
         result = highway.dispatch("fetch https://example.com", cwd=str(self.base))
         self.assertEqual("web", result.capability)
         self.assertIn("Blocked by net strict mode", result.summary)
+
+    def test_net_policy_deny_blocks_net_run(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("net policy deny example.com", cwd=str(self.base))
+        run = highway.dispatch(
+            "cure firewall net run https://example.com pressure 80",
+            cwd=str(self.base),
+        )
+        self.assertIn("survived: False", run.summary)
+        self.assertIn("domain denied by policy", run.summary)
+
+    def test_audit_status_chain(self) -> None:
+        target = self.base / "audit.txt"
+        target.write_text("x", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("cure firewall run audit.txt pressure 80", cwd=str(self.base))
+        status = highway.dispatch("audit status", cwd=str(self.base))
+        self.assertIn("audit entries:", status.summary)
+        self.assertIn("chain_valid: True", status.summary)
 
 
 if __name__ == "__main__":

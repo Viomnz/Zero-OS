@@ -79,17 +79,24 @@ python src/main.py "cure firewall verify src/main.py"
 python src/main.py "cure firewall net run https://example.com pressure 80"
 python src/main.py "cure firewall net verify https://example.com"
 python src/main.py "net strict on"
+python src/main.py "net policy show"
+python src/main.py "net policy allow example.com"
+python src/main.py "net policy deny bad.example"
 python src/main.py "mark strict on"
 python src/main.py "mark strict show"
 python src/main.py "mark status src/main.py"
+python src/main.py "audit status"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).
-- Beacons use signed schema `zero-os-beacon-v2` and can be verified.
-- Internet URL beacons use signed schema `zero-os-net-beacon-v2`.
+- File beacons use signed schema `zero-os-beacon-v3`.
+- Internet URL beacons use signed schema `zero-os-net-beacon-v3`.
 - With `net strict on`, fetch only works for signature-verified URLs.
+- Beacons include policy version pinning, expiry windows, and revocation checks.
+- File beacons bind to path/hash/size/mtime and fail on content drift.
+- Signed audit chain is appended to `.zero_os/audit.log`.
 
 ## Safety model
 - File actions are restricted to the current workspace path.

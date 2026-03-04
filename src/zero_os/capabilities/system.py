@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from pathlib import Path
 import getpass
 import re
 
 from zero_os.core import CORE_POLICY
-from zero_os.cure_firewall import run_cure_firewall, run_cure_firewall_net, verify_beacon, verify_beacon_net
+from zero_os.cure_firewall import (
+    audit_status,
+    load_net_policy,
+    run_cure_firewall,
+    run_cure_firewall_net,
+    set_net_policy,
+    verify_beacon,
+    verify_beacon_net,
+)
 from zero_os.law_store import law_export, law_status
 from zero_os.state import (
     get_mark_strict,
@@ -44,6 +53,8 @@ class SystemCapability:
             "mark strict",
             "mark status",
             "net strict",
+            "net policy",
+            "audit status",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -114,6 +125,20 @@ class SystemCapability:
         if text.strip() == "net strict off":
             set_net_strict(task.cwd, False)
             return Result(self.name, "net strict: False")
+
+        if text.strip() == "audit status":
+            return Result(self.name, audit_status(task.cwd))
+
+        if text.strip() == "net policy show":
+            policy = load_net_policy(cwd)
+            return Result(self.name, json.dumps(policy, indent=2))
+
+        net_policy = re.match(r"^net policy (allow|deny|remove)\s+([a-z0-9.-]+)$", text.strip(), flags=re.IGNORECASE)
+        if net_policy:
+            mode = net_policy.group(1).lower()
+            host = net_policy.group(2).lower()
+            policy = set_net_policy(cwd, host, mode)
+            return Result(self.name, f"net policy updated ({mode} {host})\n{json.dumps(policy, indent=2)}")
 
         mark_status = re.match(r"^mark status\s+(.+)$", text.strip(), flags=re.IGNORECASE)
         if mark_status:
@@ -235,5 +260,7 @@ class SystemCapability:
             "- cure firewall net verify <url>\n"
             "- mark strict on|off|show\n"
             "- mark status <path>\n"
-            "- net strict on|off|show",
+            "- net strict on|off|show\n"
+            "- net policy show|allow|deny|remove <domain>\n"
+            "- audit status",
         )
