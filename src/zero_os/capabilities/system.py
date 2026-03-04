@@ -13,7 +13,17 @@ class SystemCapability:
     name = "system"
 
     def can_handle(self, task: Task) -> bool:
-        keys = ("folder", "system", "os", "run", "list files", "pwd", "whoami", "date", "time")
+        keys = (
+            "system",
+            "list files",
+            "show files",
+            "current directory",
+            "current dir",
+            "pwd",
+            "whoami",
+            "date",
+            "time",
+        )
         text = task.text.lower()
         return any(k in text for k in keys)
 

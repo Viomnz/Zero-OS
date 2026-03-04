@@ -1,30 +1,39 @@
 # Zero-OS
 
-Zero-OS uses a **main highway** architecture: one entry point routes every request to the right capability lane.
+Zero-OS runs on one **main highway**: a single dispatcher that routes every request to capability lanes.
 
-## Current highway lanes
-- `code`: coding and file actions
-- `web`: internet/search/browser tasks (stub lane)
+## Core policy (immutable)
+- Immutable core: `true`
+- Authentication required: `false`
+- Policy source: `src/zero_os/core.py`
+
+The core policy is frozen and loaded as a runtime constant.
+
+## Lanes
+- `agent`: plan/chain multiple steps in one request
+- `code`: create, append, and read files
+- `web`: live search and URL fetch
 - `system`: local environment info
-- `memory`: memory-intent lane (stub lane)
+- `memory`: persistent memory store
 - `fallback`: unmatched tasks
 
-## Run
+## Commands
 ```powershell
 python src/main.py "create file notes/plan.txt with main highway online"
 python src/main.py "append to notes/plan.txt: next add agents"
 python src/main.py "read file notes/plan.txt"
+python src/main.py "search Python programming language"
+python src/main.py "fetch https://example.com"
+python src/main.py "remember zero os is immutable core"
+python src/main.py "recall immutable"
 python src/main.py "list files"
 python src/main.py "whoami"
+python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 
-## What is real now
-- `code` can create, append, and read files.
-- `system` can list files, show current directory, show user, and show date/time.
+## Memory storage
+- Path: `.zero_os/memory.json`
+- Local only and ignored by git.
 
 ## Extend
-Add a new file under `src/zero_os/capabilities/` with:
-1. `can_handle(task)` keyword or rule matching
-2. `run(task)` returning a unified `Result`
-
-Then register it in `src/zero_os/highway.py`.
+Add lane files in `src/zero_os/capabilities/` and register them in `src/zero_os/highway.py`.
