@@ -2,6 +2,7 @@ import sys
 import tempfile
 import shutil
 import unittest
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,7 +73,10 @@ class CoreRoutingTests(unittest.TestCase):
         )
         self.assertEqual("system", result.capability)
         self.assertIn("survived: True", result.summary)
+        self.assertIn("score:", result.summary)
         self.assertTrue((self.base / ".zero_os" / "beacons" / "sample2.beacon.json").exists())
+        verify = highway.dispatch("cure firewall verify sample2.txt", cwd=str(self.base))
+        self.assertIn("signature_valid: True", verify.summary)
 
     def test_mark_strict_toggle_and_status(self) -> None:
         target = self.base / "safe.txt"
@@ -84,6 +88,18 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("True", show.summary)
         status = highway.dispatch("mark status safe.txt", cwd=str(self.base))
         self.assertIn("exists: True", status.summary)
+
+    def test_beacon_signature_tamper_detected(self) -> None:
+        target = self.base / "tamper.txt"
+        target.write_text("hello", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("cure firewall run tamper.txt pressure 80", cwd=str(self.base))
+        beacon = self.base / ".zero_os" / "beacons" / "tamper.beacon.json"
+        data = json.loads(beacon.read_text(encoding="utf-8"))
+        data["digest"] = "deadbeef"
+        beacon.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        verify = highway.dispatch("cure firewall verify tamper.txt", cwd=str(self.base))
+        self.assertIn("signature_valid: False", verify.summary)
 
 
 if __name__ == "__main__":

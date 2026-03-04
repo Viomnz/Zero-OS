@@ -8,7 +8,7 @@ import getpass
 import re
 
 from zero_os.core import CORE_POLICY
-from zero_os.cure_firewall import run_cure_firewall
+from zero_os.cure_firewall import run_cure_firewall, verify_beacon
 from zero_os.law_store import law_export, law_status
 from zero_os.state import get_mark_strict, set_mark_strict, set_mode, set_profile_setting
 from zero_os.types import Result, Task
@@ -103,9 +103,10 @@ class SystemCapability:
             beacon = cwd / ".zero_os" / "beacons" / f"{target.stem}.beacon.json"
             exists = target.exists()
             marked = beacon.exists()
+            valid, reason = verify_beacon(task.cwd, rel)
             return Result(
                 self.name,
-                f"target: {target}\nexists: {exists}\nmarked: {marked}\nbeacon: {beacon}",
+                f"target: {target}\nexists: {exists}\nmarked: {marked}\nsignature_valid: {valid}\nverify_reason: {reason}\nbeacon: {beacon}",
             )
 
         cure = re.match(
@@ -122,11 +123,18 @@ class SystemCapability:
                 f"activated: {result.activated}",
                 f"survived: {result.survived}",
                 f"pressure: {result.pressure}",
+                f"score: {result.score}",
                 f"notes: {result.notes}",
             ]
             if result.beacon_path:
                 lines.append(f"beacon: {result.beacon_path}")
             return Result(self.name, "\n".join(lines))
+
+        cure_verify = re.match(r"^cure firewall verify\s+(.+)$", text.strip(), flags=re.IGNORECASE)
+        if cure_verify:
+            rel = cure_verify.group(1).strip().strip("\"'")
+            valid, reason = verify_beacon(task.cwd, rel)
+            return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
 
         scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
         if scaffold:
@@ -172,6 +180,7 @@ class SystemCapability:
             "- law status\n"
             "- law export\n"
             "- cure firewall run <path> pressure <0-100>\n"
+            "- cure firewall verify <path>\n"
             "- mark strict on|off|show\n"
             "- mark status <path>",
         )

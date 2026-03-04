@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from zero_os.cure_firewall import verify_beacon
 from zero_os.state import get_mark_strict
 from zero_os.types import Result, Task
 
@@ -186,5 +187,6 @@ class CodeCapability:
         return any(part in protected_names for part in path.parts)
 
     def _has_beacon(self, base: Path, path: Path) -> bool:
-        beacon = base.resolve() / ".zero_os" / "beacons" / f"{path.stem}.beacon.json"
-        return beacon.exists()
+        rel = str(path.resolve().relative_to(base.resolve()))
+        valid, _ = verify_beacon(str(base), rel)
+        return valid

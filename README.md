@@ -75,11 +75,16 @@ python src/main.py "plugin scaffold mylane"
 python src/main.py "law status"
 python src/main.py "law export"
 python src/main.py "cure firewall run src/main.py pressure 80"
+python src/main.py "cure firewall verify src/main.py"
 python src/main.py "mark strict on"
 python src/main.py "mark strict show"
 python src/main.py "mark status src/main.py"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
+
+Notes:
+- Cure Firewall now outputs a custom recursion score (`0-100`).
+- Beacons use signed schema `zero-os-beacon-v2` and can be verified.
 
 ## Safety model
 - File actions are restricted to the current workspace path.
