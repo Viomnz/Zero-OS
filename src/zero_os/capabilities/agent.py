@@ -33,6 +33,8 @@ class AgentCapability:
         steps = [s.strip() for s in normalized.split(" then ") if s.strip()]
         if not steps:
             return Result(self.name, "No executable steps provided.")
+        max_steps = 10 if task.mode == "heavy" else 3
+        steps = steps[:max_steps]
 
         lines: list[str] = []
         for i, step in enumerate(steps, start=1):
@@ -40,5 +42,6 @@ class AgentCapability:
             lines.append(f"{i}. [{result.capability}] {step}")
             lines.append(f"   {result.summary}")
 
+        if len([s.strip() for s in normalized.split(' then ') if s.strip()]) > max_steps:
+            lines.append(f"Truncated to {max_steps} steps in {task.mode} mode.")
         return Result(self.name, "\n".join(lines))
-

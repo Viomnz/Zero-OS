@@ -12,6 +12,7 @@ class Task:
 
     text: str
     cwd: str = "."
+    mode: str = "casual"
 
 
 @dataclass

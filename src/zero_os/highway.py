@@ -5,9 +5,11 @@ from __future__ import annotations
 from zero_os.capabilities.agent import AgentCapability
 from zero_os.capabilities.code import CodeCapability
 from zero_os.capabilities.memory import MemoryCapability
+from zero_os.capabilities.mode import ModeCapability
 from zero_os.capabilities.system import SystemCapability
 from zero_os.capabilities.web import WebCapability
 from zero_os.core import CORE_POLICY, CorePolicy
+from zero_os.state import get_mode
 from zero_os.types import Capability, Result, Task
 
 
@@ -17,6 +19,7 @@ class Highway:
     def __init__(self) -> None:
         self.core: CorePolicy = CORE_POLICY
         self._non_agent_capabilities: tuple[Capability, ...] = (
+            ModeCapability(),
             CodeCapability(),
             WebCapability(),
             SystemCapability(),
@@ -30,7 +33,8 @@ class Highway:
     def dispatch(self, text: str, cwd: str = ".") -> Result:
         if self.core.authentication_required:
             return Result("core", "Authentication is required by policy.")
-        task = Task(text=text, cwd=cwd)
+        mode = get_mode(cwd)
+        task = Task(text=text, cwd=cwd, mode=mode)
         for capability in self.capabilities:
             if capability.can_handle(task):
                 return capability.run(task)
@@ -43,7 +47,8 @@ class Highway:
         )
 
     def _dispatch_non_agent(self, text: str, cwd: str) -> Result:
-        task = Task(text=text, cwd=cwd)
+        mode = get_mode(cwd)
+        task = Task(text=text, cwd=cwd, mode=mode)
         for capability in self._non_agent_capabilities:
             if capability.can_handle(task):
                 return capability.run(task)

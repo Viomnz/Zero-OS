@@ -24,25 +24,26 @@ class WebCapability:
 
         if lowered.startswith("search ") or lowered.startswith("web search "):
             query = text.split(" ", 1)[1] if lowered.startswith("search ") else text[11:]
-            return self._search(query.strip())
+            return self._search(query.strip(), task.mode)
 
         if lowered.startswith("fetch ") or lowered.startswith("web fetch "):
             url = text.split(" ", 1)[1] if lowered.startswith("fetch ") else text[10:]
-            return self._fetch(url.strip())
+            return self._fetch(url.strip(), task.mode)
 
         return Result(
             self.name,
             "Actionable web commands:\n- search <query>\n- fetch <url>",
         )
 
-    def _search(self, query: str) -> Result:
+    def _search(self, query: str, mode: str) -> Result:
         if not query:
             return Result(self.name, "Search query is empty.")
+        limit = 8 if mode == "heavy" else 3
         params = urlencode(
             {
                 "action": "opensearch",
                 "search": query,
-                "limit": 5,
+                "limit": limit,
                 "namespace": 0,
                 "format": "json",
             }
@@ -64,7 +65,7 @@ class WebCapability:
             lines.append(f"- {title}: {desc} ({link})")
         return Result(self.name, "\n".join(lines))
 
-    def _fetch(self, url: str) -> Result:
+    def _fetch(self, url: str, mode: str) -> Result:
         if not (url.startswith("http://") or url.startswith("https://")):
             return Result(self.name, "URL must start with http:// or https://")
 
@@ -79,5 +80,6 @@ class WebCapability:
             text = re.sub(r"<style.*?>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"\s+", " ", text).strip()
-        preview = text[:700] if text else "(empty response)"
+        preview_len = 2400 if mode == "heavy" else 700
+        preview = text[:preview_len] if text else "(empty response)"
         return Result(self.name, f"{url}\n{preview}")

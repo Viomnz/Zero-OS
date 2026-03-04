@@ -9,6 +9,11 @@ Zero-OS runs on one **main highway**: a single dispatcher that routes every requ
 
 The core policy is frozen and loaded as a runtime constant.
 
+## User modes (switch anytime)
+- `casual`: shorter outputs, agent executes up to 3 chained steps.
+- `heavy`: expanded outputs, agent executes up to 10 chained steps.
+- Mode is persisted locally in `.zero_os/state.json`.
+
 ## Lanes
 - `agent`: plan/chain multiple steps in one request
 - `code`: create, append, and read files
@@ -24,6 +29,9 @@ python src/main.py "append to notes/plan.txt: next add agents"
 python src/main.py "read file notes/plan.txt"
 python src/main.py "search Python programming language"
 python src/main.py "fetch https://example.com"
+python src/main.py "mode show"
+python src/main.py "mode set heavy"
+python src/main.py "mode set casual"
 python src/main.py "remember zero os is immutable core"
 python src/main.py "recall immutable"
 python src/main.py "list files"
