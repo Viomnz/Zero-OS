@@ -1,0 +1,136 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zero-OS Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1418;
+      --panel: #171f25;
+      --ink: #d6e3ef;
+      --muted: #8da3b8;
+      --ok: #5fd68e;
+      --warn: #ffd166;
+      --bad: #ef476f;
+      --line: #2b3945;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Consolas, "Courier New", monospace;
+      background: linear-gradient(135deg, #0a1014, #111a22);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 18px;
+    }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    .sub { color: var(--muted); margin-bottom: 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px;
+      min-height: 120px;
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #b8d4ea;
+      letter-spacing: .2px;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--ink);
+    }
+    .status { font-weight: 700; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .footer {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Zero-OS Dashboard</h1>
+  <div class="sub">Live runtime snapshot files. Click refresh in browser when files change.</div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Daemon Heartbeat</h2>
+      <pre id="heartbeat">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Cure Monitor</h2>
+      <pre id="monitor">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Latest Output</h2>
+      <pre id="output">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Latest Scan Report</h2>
+      <pre id="scan">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Quick Paths</h2>
+      <pre id="paths"></pre>
+    </section>
+  </div>
+
+  <div class="footer">Dashboard file: ./zero_os_dashboard.html</div>
+
+  <script>
+    const runtimeBase = ".zero_os/runtime";
+    const files = {
+      heartbeat: `${runtimeBase}/zero_ai_heartbeat.json`,
+      monitor: `${runtimeBase}/zero_ai_monitor.json`,
+      output: `${runtimeBase}/zero_ai_output.txt`,
+      scan: `${runtimeBase}/zero_ai_scan_report.json`
+    };
+
+    async function readText(path) {
+      try {
+        const r = await fetch(path + `?t=${Date.now()}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.text();
+      } catch (e) {
+        return `Unavailable: ${path}\n${e.message}`;
+      }
+    }
+
+    async function refresh() {
+      document.getElementById("heartbeat").textContent = await readText(files.heartbeat);
+      document.getElementById("monitor").textContent = await readText(files.monitor);
+      const out = await readText(files.output);
+      document.getElementById("output").textContent = out.split(/\r?\n/).slice(-40).join("\n");
+      document.getElementById("scan").textContent = await readText(files.scan);
+      document.getElementById("paths").textContent = [
+        `runtime: ${runtimeBase}`,
+        `backup: .zero_os/backup/latest`,
+        `laws: laws/`,
+        `config: zero_os_config/`
+      ].join("\n");
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

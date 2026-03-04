@@ -92,6 +92,10 @@ python src/main.py "os missing fix"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 
+## Local dashboard
+- Open [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html) in your browser.
+- It auto-refreshes runtime files every 5 seconds.
+
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).
 - File beacons use signed schema `zero-os-beacon-v3`.
