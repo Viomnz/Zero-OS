@@ -8,6 +8,7 @@ from pathlib import Path
 
 DEFAULT_MODE = "casual"
 SUPPORTED_MODES = {"casual", "heavy"}
+SUPPORTED_PROFILES = {"auto", "low", "balanced", "high"}
 
 
 def _state_path(cwd: str) -> Path:
@@ -32,7 +33,49 @@ def set_mode(cwd: str, mode: str) -> str:
         raise ValueError(f"Unsupported mode: {mode}")
     path = _state_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"user_mode": normalized}
+    payload: dict[str, str] = {}
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+            if isinstance(loaded, dict):
+                payload = {k: str(v) for k, v in loaded.items()}
+        except json.JSONDecodeError:
+            payload = {}
+    payload["user_mode"] = normalized
+    if "performance_profile" not in payload:
+        payload["performance_profile"] = "auto"
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return normalized
 
+
+def get_profile_setting(cwd: str) -> str:
+    path = _state_path(cwd)
+    if not path.exists():
+        return "auto"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return "auto"
+    value = str(data.get("performance_profile", "auto")).lower()
+    return value if value in SUPPORTED_PROFILES else "auto"
+
+
+def set_profile_setting(cwd: str, profile: str) -> str:
+    normalized = profile.lower().strip()
+    if normalized not in SUPPORTED_PROFILES:
+        raise ValueError(f"Unsupported profile: {profile}")
+    path = _state_path(cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data: dict[str, str] = {}
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+            if isinstance(loaded, dict):
+                data = {k: str(v) for k, v in loaded.items()}
+        except json.JSONDecodeError:
+            data = {}
+    data["performance_profile"] = normalized
+    if "user_mode" not in data:
+        data["user_mode"] = DEFAULT_MODE
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return normalized

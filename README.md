@@ -14,6 +14,18 @@ The core policy is frozen and loaded as a runtime constant.
 - `heavy`: expanded outputs, agent executes up to 10 chained steps.
 - Mode is persisted locally in `.zero_os/state.json`.
 
+## Device optimization (cheap PC to powerful PC)
+- Auto profile detection from local hardware:
+  - `low`: optimized for low-end devices (reduced workload)
+  - `balanced`: middle profile
+  - `high`: optimized for powerful devices
+- Manual override is supported anytime.
+- Profile setting is persisted in `.zero_os/state.json`.
+
+Behavior is tuned by both user mode and performance profile.
+- Agent lane: dynamic max step execution.
+- Web lane: dynamic result count and fetch preview size.
+
 ## Lanes
 - `agent`: plan/chain multiple steps in one request
 - `code`: create, append, and read files
@@ -32,6 +44,11 @@ python src/main.py "fetch https://example.com"
 python src/main.py "mode show"
 python src/main.py "mode set heavy"
 python src/main.py "mode set casual"
+python src/main.py "profile show"
+python src/main.py "profile set auto"
+python src/main.py "profile set low"
+python src/main.py "profile set balanced"
+python src/main.py "profile set high"
 python src/main.py "remember zero os is immutable core"
 python src/main.py "recall immutable"
 python src/main.py "list files"

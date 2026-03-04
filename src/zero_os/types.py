@@ -13,6 +13,7 @@ class Task:
     text: str
     cwd: str = "."
     mode: str = "casual"
+    performance_profile: str = "balanced"
 
 
 @dataclass

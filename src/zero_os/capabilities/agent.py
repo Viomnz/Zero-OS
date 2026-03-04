@@ -33,7 +33,14 @@ class AgentCapability:
         steps = [s.strip() for s in normalized.split(" then ") if s.strip()]
         if not steps:
             return Result(self.name, "No executable steps provided.")
-        max_steps = 10 if task.mode == "heavy" else 3
+        if task.mode == "heavy":
+            max_steps = {"low": 5, "balanced": 10, "high": 14}.get(
+                task.performance_profile, 10
+            )
+        else:
+            max_steps = {"low": 2, "balanced": 3, "high": 5}.get(
+                task.performance_profile, 3
+            )
         steps = steps[:max_steps]
 
         lines: list[str] = []

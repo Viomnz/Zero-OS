@@ -24,21 +24,24 @@ class WebCapability:
 
         if lowered.startswith("search ") or lowered.startswith("web search "):
             query = text.split(" ", 1)[1] if lowered.startswith("search ") else text[11:]
-            return self._search(query.strip(), task.mode)
+            return self._search(query.strip(), task.mode, task.performance_profile)
 
         if lowered.startswith("fetch ") or lowered.startswith("web fetch "):
             url = text.split(" ", 1)[1] if lowered.startswith("fetch ") else text[10:]
-            return self._fetch(url.strip(), task.mode)
+            return self._fetch(url.strip(), task.mode, task.performance_profile)
 
         return Result(
             self.name,
             "Actionable web commands:\n- search <query>\n- fetch <url>",
         )
 
-    def _search(self, query: str, mode: str) -> Result:
+    def _search(self, query: str, mode: str, profile: str) -> Result:
         if not query:
             return Result(self.name, "Search query is empty.")
-        limit = 8 if mode == "heavy" else 3
+        if mode == "heavy":
+            limit = {"low": 5, "balanced": 8, "high": 12}.get(profile, 8)
+        else:
+            limit = {"low": 2, "balanced": 3, "high": 5}.get(profile, 3)
         params = urlencode(
             {
                 "action": "opensearch",
@@ -65,7 +68,7 @@ class WebCapability:
             lines.append(f"- {title}: {desc} ({link})")
         return Result(self.name, "\n".join(lines))
 
-    def _fetch(self, url: str, mode: str) -> Result:
+    def _fetch(self, url: str, mode: str, profile: str) -> Result:
         if not (url.startswith("http://") or url.startswith("https://")):
             return Result(self.name, "URL must start with http:// or https://")
 
@@ -80,6 +83,11 @@ class WebCapability:
             text = re.sub(r"<style.*?>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"\s+", " ", text).strip()
-        preview_len = 2400 if mode == "heavy" else 700
+        if mode == "heavy":
+            preview_len = {"low": 1200, "balanced": 2400, "high": 4000}.get(
+                profile, 2400
+            )
+        else:
+            preview_len = {"low": 400, "balanced": 700, "high": 1000}.get(profile, 700)
         preview = text[:preview_len] if text else "(empty response)"
         return Result(self.name, f"{url}\n{preview}")
