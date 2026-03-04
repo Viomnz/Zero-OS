@@ -38,6 +38,8 @@ Runtime files:
 - `.zero_os/runtime/zero_ai_tasks.txt`
 - `.zero_os/runtime/zero_ai_output.txt`
 - `.zero_os/runtime/zero_ai_scan_report.json`
+- `.zero_os/runtime/zero_ai_monitor.json`
+- `.zero_os/backup/latest/*` (second backup snapshot)
 
 ## Next upgrades
 1. Add MLP hidden layer

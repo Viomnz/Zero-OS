@@ -2,11 +2,20 @@
 
 import json
 import os
+import shutil
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Allow imports from src/ for monitor integration.
+BASE_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = BASE_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
 from model import TinyBigramModel
+from zero_os.cure_firewall import audit_status
 from scan import run_scan
 from universe_laws_guard import check_universe_laws
 
@@ -25,6 +34,38 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _monitor_and_backup(base: Path, runtime: Path) -> None:
+    monitor_file = runtime / "zero_ai_monitor.json"
+    backup_root = base / ".zero_os" / "backup" / "latest"
+    backup_root.mkdir(parents=True, exist_ok=True)
+
+    beacons_dir = base / ".zero_os" / "beacons"
+    beacon_count = len(list(beacons_dir.glob("*.json"))) if beacons_dir.exists() else 0
+    audit = audit_status(str(base))
+    _write_json(
+        monitor_file,
+        {
+            "time_utc": _utc_now(),
+            "beacon_count": beacon_count,
+            "audit_status": audit,
+            "mode": "assistant+monitor+backup",
+        },
+    )
+
+    targets = [
+        runtime / "zero_ai_heartbeat.json",
+        runtime / "zero_ai_output.txt",
+        runtime / "zero_ai_tasks.txt",
+        runtime / "zero_ai_scan_report.json",
+        monitor_file,
+        base / "laws" / "profile.json",
+        base / "laws" / "recursion_law.txt",
+    ]
+    for src in targets:
+        if src.exists() and src.is_file():
+            shutil.copy2(src, backup_root / src.name)
+
+
 def main() -> None:
     base = Path.cwd()
     runtime = _runtime_dir(base)
@@ -41,6 +82,7 @@ def main() -> None:
 
     model = TinyBigramModel.load(str(ckpt)) if ckpt.exists() else None
     processed_lines = len(inbox.read_text(encoding="utf-8", errors="replace").splitlines())
+    next_monitor = 0.0
 
     while True:
         if stopfile.exists():
@@ -59,8 +101,15 @@ def main() -> None:
                 "checkpoint_loaded": model is not None,
                 "inbox": str(inbox),
                 "outbox": str(outbox),
+                "monitor": str(runtime / "zero_ai_monitor.json"),
+                "backup": str(base / ".zero_os" / "backup" / "latest"),
             },
         )
+
+        now_ts = time.time()
+        if now_ts >= next_monitor:
+            _monitor_and_backup(base, runtime)
+            next_monitor = now_ts + 10.0
 
         lines = inbox.read_text(encoding="utf-8", errors="replace").splitlines()
         if len(lines) > processed_lines and model is not None:
