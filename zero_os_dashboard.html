@@ -69,6 +69,17 @@
 
   <div class="grid">
     <section class="card">
+      <h2>Zero-AI Chatbox</h2>
+      <pre id="chatHelp">Type a prompt and send to daemon queue.</pre>
+      <textarea id="chatInput" style="width:100%;min-height:88px;background:#0e151b;color:#d6e3ef;border:1px solid #2b3945;border-radius:8px;padding:8px;">self awareness pressure balance</textarea>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <button id="sendBtn" style="padding:8px 10px;border:1px solid #2b3945;background:#20303d;color:#d6e3ef;border-radius:8px;cursor:pointer;">Send Prompt</button>
+        <button id="scanBtn" style="padding:8px 10px;border:1px solid #2b3945;background:#263626;color:#d6e3ef;border-radius:8px;cursor:pointer;">Run Scan</button>
+      </div>
+      <pre id="chatStatus" style="margin-top:8px;"></pre>
+    </section>
+
+    <section class="card">
       <h2>Daemon Heartbeat</h2>
       <pre id="heartbeat">Loading...</pre>
     </section>
@@ -128,6 +139,30 @@
         `config: zero_os_config/`
       ].join("\n");
     }
+
+    async function queueTask(prompt) {
+      const status = document.getElementById("chatStatus");
+      status.textContent = "queueing...";
+      try {
+        const r = await fetch("/api/task", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({prompt})
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        status.textContent = `queued: ${data.prompt}`;
+      } catch (e) {
+        status.textContent = `queue failed: ${e.message}`;
+      }
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      const prompt = document.getElementById("chatInput").value.trim();
+      if (!prompt) return;
+      queueTask(prompt);
+    });
+    document.getElementById("scanBtn").addEventListener("click", () => queueTask("scan"));
 
     refresh();
     setInterval(refresh, 5000);

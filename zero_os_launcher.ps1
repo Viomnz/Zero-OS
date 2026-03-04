@@ -12,7 +12,7 @@ function Start-DashboardServer {
     Write-Output "Dashboard server already running on :8765"
     return
   }
-  Start-Process -FilePath python -ArgumentList "-m","http.server","8765" -WorkingDirectory $Base | Out-Null
+  Start-Process -FilePath python -ArgumentList "ai_from_scratch/dashboard_server.py" -WorkingDirectory $Base | Out-Null
   Start-Sleep -Seconds 1
   Write-Output "Dashboard server started on :8765"
 }
@@ -28,9 +28,9 @@ function Stop-DashboardServer {
     Write-Output "Dashboard server not running"
     return
   }
-  $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-  foreach ($pid in $pids) {
-    try { Stop-Process -Id $pid -Force -ErrorAction Stop } catch {}
+  $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($procId in $procIds) {
+    try { Stop-Process -Id $procId -Force -ErrorAction Stop } catch {}
   }
   Write-Output "Dashboard server stopped"
 }
@@ -106,4 +106,3 @@ switch -Regex ($Action) {
 
   default { Show-Menu; break }
 }
-
