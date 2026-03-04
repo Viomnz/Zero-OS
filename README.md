@@ -74,6 +74,7 @@ python src/main.py "auto upgrade"
 python src/main.py "plugin scaffold mylane"
 python src/main.py "law status"
 python src/main.py "law export"
+python src/main.py "cure firewall run src/main.py pressure 80"
 python src/main.py "agent: create file notes/a.txt with hello then append to notes/a.txt: world then read file notes/a.txt"
 ```
 

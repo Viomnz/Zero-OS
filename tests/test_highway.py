@@ -53,6 +53,27 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertEqual("system", exported.capability)
         self.assertEqual("LAW-TEXT", exported.summary)
 
+    def test_cure_firewall_pressure_gate(self) -> None:
+        target = self.base / "sample.txt"
+        target.write_text("hello", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "cure firewall run sample.txt pressure 10", cwd=str(self.base)
+        )
+        self.assertEqual("system", result.capability)
+        self.assertIn("activated: False", result.summary)
+
+    def test_cure_firewall_beacon_on_survival(self) -> None:
+        target = self.base / "sample2.txt"
+        target.write_text("hello recursion", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "cure firewall run sample2.txt pressure 80", cwd=str(self.base)
+        )
+        self.assertEqual("system", result.capability)
+        self.assertIn("survived: True", result.summary)
+        self.assertTrue((self.base / ".zero_os" / "beacons" / "sample2.beacon.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

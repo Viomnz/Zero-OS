@@ -8,6 +8,7 @@ import getpass
 import re
 
 from zero_os.core import CORE_POLICY
+from zero_os.cure_firewall import run_cure_firewall
 from zero_os.law_store import law_export, law_status
 from zero_os.state import set_mode, set_profile_setting
 from zero_os.types import Result, Task
@@ -32,6 +33,7 @@ class SystemCapability:
             "plugin scaffold",
             "law status",
             "law export",
+            "cure firewall",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -81,6 +83,26 @@ class SystemCapability:
         if text.strip() == "law export":
             return Result(self.name, law_export(task.cwd))
 
+        cure = re.match(
+            r"^cure firewall run\s+(.+?)\s+pressure\s+(\d+)$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure:
+            target = cure.group(1).strip().strip("\"'")
+            pressure = int(cure.group(2))
+            result = run_cure_firewall(task.cwd, target, pressure)
+            lines = [
+                f"target: {result.target}",
+                f"activated: {result.activated}",
+                f"survived: {result.survived}",
+                f"pressure: {result.pressure}",
+                f"notes: {result.notes}",
+            ]
+            if result.beacon_path:
+                lines.append(f"beacon: {result.beacon_path}")
+            return Result(self.name, "\n".join(lines))
+
         scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
         if scaffold:
             plugin_name = scaffold.group(1)
@@ -123,5 +145,6 @@ class SystemCapability:
             "- auto upgrade\n"
             "- plugin scaffold <name>\n"
             "- law status\n"
-            "- law export",
+            "- law export\n"
+            "- cure firewall run <path> pressure <0-100>",
         )
