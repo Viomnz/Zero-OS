@@ -8,6 +8,7 @@ import json
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -106,6 +107,84 @@ def verify_beacon(cwd: str, target_rel_path: str) -> tuple[bool, str]:
     return (True, "signature valid")
 
 
+def run_cure_firewall_net(cwd: str, url: str, pressure: int) -> CureResult:
+    """Run Cure Firewall for internet targets (URL-level structural filter)."""
+    base = Path(cwd).resolve()
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return CureResult(target=url, activated=False, survived=False, pressure=pressure, notes="invalid url", score=0)
+    if pressure < 50:
+        return CureResult(target=url, activated=False, survived=False, pressure=pressure, notes="inactive: pressure below threshold", score=0)
+
+    data = url.encode("utf-8")
+    digest_a = hashlib.sha256(data).hexdigest()
+    digest_b = hashlib.sha256((digest_a + parsed.netloc).encode("utf-8")).hexdigest()
+    digest_c = hashlib.sha256((digest_b + parsed.path).encode("utf-8")).hexdigest()
+
+    checks = {
+        "scheme_ok": parsed.scheme in {"http", "https"},
+        "host_ok": bool(parsed.netloc),
+        "path_ok": len(parsed.path) <= 2048,
+        "stable_chain": digest_c != digest_a,
+    }
+    score = _recursion_score(data, pressure, digest_a, digest_b, digest_c)
+    survived = all(checks.values())
+
+    beacon = None
+    if survived:
+        beacon_dir = base / ".zero_os" / "beacons"
+        beacon_dir.mkdir(parents=True, exist_ok=True)
+        beacon_file = beacon_dir / f"net_{_url_id(url)}.beacon.json"
+        payload = {
+            "schema": "zero-os-net-beacon-v2",
+            "target_url": url,
+            "pressure": pressure,
+            "score": score,
+            "digest": digest_c,
+            "checks": checks,
+            "status": "recursion-pass",
+        }
+        signature = _sign_payload(base, payload)
+        payload["signature"] = signature
+        beacon_file.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        beacon = str(beacon_file)
+
+    note = "survived: net recursion-pass beacon marked" if survived else "collapsed: survivability checks failed"
+    return CureResult(
+        target=url,
+        activated=True,
+        survived=survived,
+        pressure=pressure,
+        notes=note,
+        score=score,
+        beacon_path=beacon,
+    )
+
+
+def verify_beacon_net(cwd: str, url: str) -> tuple[bool, str]:
+    base = Path(cwd).resolve()
+    beacon = base / ".zero_os" / "beacons" / f"net_{_url_id(url)}.beacon.json"
+    if not beacon.exists():
+        return (False, f"missing net beacon: {beacon}")
+    try:
+        payload = json.loads(beacon.read_text(encoding="utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return (False, "invalid beacon json")
+    signature = payload.get("signature", "")
+    if not signature:
+        return (False, "missing signature")
+    unsigned = dict(payload)
+    unsigned.pop("signature", None)
+    expected = _sign_payload(base, unsigned)
+    if not hmac.compare_digest(signature, expected):
+        return (False, "invalid signature")
+    if unsigned.get("status") != "recursion-pass":
+        return (False, "status is not recursion-pass")
+    if unsigned.get("target_url") != url:
+        return (False, "target url mismatch")
+    return (True, "signature valid")
+
+
 def _recursion_score(data: bytes, pressure: int, a: str, b: str, c: str) -> int:
     """Custom recursion score: combines pressure, chain divergence, and payload complexity."""
     unique_bytes = len(set(data[:4096])) if data else 0
@@ -130,3 +209,7 @@ def _load_or_create_key(base: Path) -> bytes:
     if not key_path.exists():
         key_path.write_text(secrets.token_hex(32), encoding="utf-8")
     return key_path.read_text(encoding="utf-8").strip().encode("utf-8")
+
+
+def _url_id(url: str) -> str:
+    return hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]

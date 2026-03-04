@@ -101,6 +101,26 @@ class CoreRoutingTests(unittest.TestCase):
         verify = highway.dispatch("cure firewall verify tamper.txt", cwd=str(self.base))
         self.assertIn("signature_valid: False", verify.summary)
 
+    def test_cure_firewall_net_beacon_and_verify(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        run = highway.dispatch(
+            "cure firewall net run https://example.com pressure 80",
+            cwd=str(self.base),
+        )
+        self.assertIn("survived: True", run.summary)
+        verify = highway.dispatch(
+            "cure firewall net verify https://example.com",
+            cwd=str(self.base),
+        )
+        self.assertIn("signature_valid: True", verify.summary)
+
+    def test_net_strict_blocks_unverified_fetch(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("net strict on", cwd=str(self.base))
+        result = highway.dispatch("fetch https://example.com", cwd=str(self.base))
+        self.assertEqual("web", result.capability)
+        self.assertIn("Blocked by net strict mode", result.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

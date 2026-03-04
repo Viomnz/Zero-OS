@@ -7,6 +7,8 @@ import re
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from zero_os.cure_firewall import verify_beacon_net
+from zero_os.state import get_net_strict
 from zero_os.types import Result, Task
 
 
@@ -14,8 +16,11 @@ class WebCapability:
     name = "web"
 
     def can_handle(self, task: Task) -> bool:
+        lowered = task.text.lower().strip()
+        if lowered.startswith("cure firewall"):
+            return False
         keys = ("web", "search", "browser", "news", "internet", "fetch", "http://", "https://")
-        text = task.text.lower()
+        text = lowered
         return any(k in text for k in keys)
 
     def run(self, task: Task) -> Result:
@@ -28,6 +33,17 @@ class WebCapability:
 
         if lowered.startswith("fetch ") or lowered.startswith("web fetch "):
             url = text.split(" ", 1)[1] if lowered.startswith("fetch ") else text[10:]
+            if get_net_strict(task.cwd):
+                valid, reason = verify_beacon_net(task.cwd, url.strip())
+                if not valid:
+                    return Result(
+                        self.name,
+                        (
+                            "Blocked by net strict mode: URL is unverified.\n"
+                            f"verify_reason: {reason}\n"
+                            "Run: cure firewall net run <url> pressure <0-100>"
+                        ),
+                    )
             return self._fetch(url.strip(), task.mode, task.performance_profile)
 
         return Result(

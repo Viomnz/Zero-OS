@@ -8,9 +8,16 @@ import getpass
 import re
 
 from zero_os.core import CORE_POLICY
-from zero_os.cure_firewall import run_cure_firewall, verify_beacon
+from zero_os.cure_firewall import run_cure_firewall, run_cure_firewall_net, verify_beacon, verify_beacon_net
 from zero_os.law_store import law_export, law_status
-from zero_os.state import get_mark_strict, set_mark_strict, set_mode, set_profile_setting
+from zero_os.state import (
+    get_mark_strict,
+    get_net_strict,
+    set_mark_strict,
+    set_mode,
+    set_net_strict,
+    set_profile_setting,
+)
 from zero_os.types import Result, Task
 
 
@@ -36,6 +43,7 @@ class SystemCapability:
             "cure firewall",
             "mark strict",
             "mark status",
+            "net strict",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -96,6 +104,17 @@ class SystemCapability:
             set_mark_strict(task.cwd, False)
             return Result(self.name, "mark strict: False")
 
+        if text.strip() == "net strict show":
+            return Result(self.name, f"net strict: {get_net_strict(task.cwd)}")
+
+        if text.strip() == "net strict on":
+            set_net_strict(task.cwd, True)
+            return Result(self.name, "net strict: True")
+
+        if text.strip() == "net strict off":
+            set_net_strict(task.cwd, False)
+            return Result(self.name, "net strict: False")
+
         mark_status = re.match(r"^mark status\s+(.+)$", text.strip(), flags=re.IGNORECASE)
         if mark_status:
             rel = mark_status.group(1).strip().strip("\"'")
@@ -130,10 +149,41 @@ class SystemCapability:
                 lines.append(f"beacon: {result.beacon_path}")
             return Result(self.name, "\n".join(lines))
 
+        cure_net = re.match(
+            r"^cure firewall net run\s+(.+?)\s+pressure\s+(\d+)$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure_net:
+            url = cure_net.group(1).strip().strip("\"'")
+            pressure = int(cure_net.group(2))
+            result = run_cure_firewall_net(task.cwd, url, pressure)
+            lines = [
+                f"target: {result.target}",
+                f"activated: {result.activated}",
+                f"survived: {result.survived}",
+                f"pressure: {result.pressure}",
+                f"score: {result.score}",
+                f"notes: {result.notes}",
+            ]
+            if result.beacon_path:
+                lines.append(f"beacon: {result.beacon_path}")
+            return Result(self.name, "\n".join(lines))
+
         cure_verify = re.match(r"^cure firewall verify\s+(.+)$", text.strip(), flags=re.IGNORECASE)
         if cure_verify:
             rel = cure_verify.group(1).strip().strip("\"'")
             valid, reason = verify_beacon(task.cwd, rel)
+            return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
+
+        cure_net_verify = re.match(
+            r"^cure firewall net verify\s+(.+)$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure_net_verify:
+            url = cure_net_verify.group(1).strip().strip("\"'")
+            valid, reason = verify_beacon_net(task.cwd, url)
             return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
 
         scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
@@ -181,6 +231,9 @@ class SystemCapability:
             "- law export\n"
             "- cure firewall run <path> pressure <0-100>\n"
             "- cure firewall verify <path>\n"
+            "- cure firewall net run <url> pressure <0-100>\n"
+            "- cure firewall net verify <url>\n"
             "- mark strict on|off|show\n"
-            "- mark status <path>",
+            "- mark status <path>\n"
+            "- net strict on|off|show",
         )

@@ -76,6 +76,9 @@ python src/main.py "law status"
 python src/main.py "law export"
 python src/main.py "cure firewall run src/main.py pressure 80"
 python src/main.py "cure firewall verify src/main.py"
+python src/main.py "cure firewall net run https://example.com pressure 80"
+python src/main.py "cure firewall net verify https://example.com"
+python src/main.py "net strict on"
 python src/main.py "mark strict on"
 python src/main.py "mark strict show"
 python src/main.py "mark status src/main.py"
@@ -85,6 +88,8 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).
 - Beacons use signed schema `zero-os-beacon-v2` and can be verified.
+- Internet URL beacons use signed schema `zero-os-net-beacon-v2`.
+- With `net strict on`, fetch only works for signature-verified URLs.
 
 ## Safety model
 - File actions are restricted to the current workspace path.
