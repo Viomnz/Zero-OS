@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from model import TinyBigramModel
+from scan import run_scan
 from universe_laws_guard import check_universe_laws
 
 
@@ -39,7 +40,7 @@ def main() -> None:
         inbox.write_text("", encoding="utf-8")
 
     model = TinyBigramModel.load(str(ckpt)) if ckpt.exists() else None
-    last_size = inbox.stat().st_size
+    processed_lines = len(inbox.read_text(encoding="utf-8", errors="replace").splitlines())
 
     while True:
         if stopfile.exists():
@@ -61,28 +62,39 @@ def main() -> None:
             },
         )
 
-        size = inbox.stat().st_size
-        if size > last_size and model is not None:
-            data = inbox.read_text(encoding="utf-8", errors="replace")
-            task = data[last_size:].strip()
-            if task:
-                prompt = task.splitlines()[-1].strip()
-                accepted = False
-                result_text = ""
-                for i in range(20):
-                    sample = model.sample(prompt, length=180, temperature=1.0, seed=100 + i)
-                    chk = check_universe_laws(sample)
-                    if chk.passed:
-                        accepted = True
-                        result_text = sample
-                        break
+        lines = inbox.read_text(encoding="utf-8", errors="replace").splitlines()
+        if len(lines) > processed_lines and model is not None:
+            new_lines = lines[processed_lines:]
+            for raw in new_lines:
+                prompt = raw.strip()
+                if not prompt:
+                    continue
                 with outbox.open("a", encoding="utf-8") as handle:
                     handle.write(f"[{_utc_now()}] prompt={prompt}\n")
-                    handle.write(("[UNIVERSE_LAWS_PASS]\n" if accepted else "[UNIVERSE_LAWS_BLOCKED]\n"))
-                    handle.write(result_text + "\n\n")
-            last_size = size
-        elif size < last_size:
-            last_size = size
+                    if prompt.lower().startswith("scan"):
+                        report = run_scan(base)
+                        status = "[SCAN_PASS]" if report["syntax_error_count"] == 0 and report["tests_passed"] else "[SCAN_FAIL]"
+                        handle.write(status + "\n")
+                        handle.write(
+                            f"syntax_error_count={report['syntax_error_count']}\n"
+                            f"tests_passed={report['tests_passed']}\n"
+                            "report=.zero_os/runtime/zero_ai_scan_report.json\n\n"
+                        )
+                    else:
+                        accepted = False
+                        result_text = ""
+                        for i in range(20):
+                            sample = model.sample(prompt, length=180, temperature=1.0, seed=100 + i)
+                            chk = check_universe_laws(sample)
+                            if chk.passed:
+                                accepted = True
+                                result_text = sample
+                                break
+                        handle.write(("[UNIVERSE_LAWS_PASS]\n" if accepted else "[UNIVERSE_LAWS_BLOCKED]\n"))
+                        handle.write(result_text + "\n\n")
+            processed_lines = len(lines)
+        elif len(lines) < processed_lines:
+            processed_lines = len(lines)
 
         time.sleep(2)
 

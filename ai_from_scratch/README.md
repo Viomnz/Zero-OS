@@ -29,6 +29,7 @@ Run Zero-AI continuously in background:
 python ai_from_scratch/daemon_ctl.py start
 python ai_from_scratch/daemon_ctl.py status
 python ai_from_scratch/daemon_ctl.py task --prompt "self awareness pressure balance"
+python ai_from_scratch/daemon_ctl.py task --prompt "scan"
 python ai_from_scratch/daemon_ctl.py stop
 ```
 
@@ -36,6 +37,7 @@ Runtime files:
 - `.zero_os/runtime/zero_ai_heartbeat.json`
 - `.zero_os/runtime/zero_ai_tasks.txt`
 - `.zero_os/runtime/zero_ai_output.txt`
+- `.zero_os/runtime/zero_ai_scan_report.json`
 
 ## Next upgrades
 1. Add MLP hidden layer

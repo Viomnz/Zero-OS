@@ -16,6 +16,8 @@ def runtime(base: Path) -> Path:
 def start(base: Path) -> None:
     rt = runtime(base)
     pidfile = rt / "zero_ai.pid"
+    stopfile = rt / "zero_ai.stop"
+    stopfile.unlink(missing_ok=True)
     if pidfile.exists():
         print("already running or stale pidfile")
         return
