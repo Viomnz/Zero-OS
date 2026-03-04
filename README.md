@@ -1,20 +1,26 @@
 # Zero-OS
 
-Zero-OS now includes a **main highway** architecture: one entry point routes every request to the right capability lane.
+Zero-OS uses a **main highway** architecture: one entry point routes every request to the right capability lane.
 
 ## Current highway lanes
-- `code`: coding, build, debug, refactor tasks
-- `web`: internet/search/browser tasks
-- `system`: OS/file/run tasks
-- `memory`: remember/store/recall tasks
+- `code`: coding and file actions
+- `web`: internet/search/browser tasks (stub lane)
+- `system`: local environment info
+- `memory`: memory-intent lane (stub lane)
 - `fallback`: unmatched tasks
 
 ## Run
 ```powershell
-python src/main.py "build a code scaffold"
-python src/main.py "search latest AI news"
-python src/main.py "remember this note"
+python src/main.py "create file notes/plan.txt with main highway online"
+python src/main.py "append to notes/plan.txt: next add agents"
+python src/main.py "read file notes/plan.txt"
+python src/main.py "list files"
+python src/main.py "whoami"
 ```
+
+## What is real now
+- `code` can create, append, and read files.
+- `system` can list files, show current directory, show user, and show date/time.
 
 ## Extend
 Add a new file under `src/zero_os/capabilities/` with:
@@ -22,10 +28,3 @@ Add a new file under `src/zero_os/capabilities/` with:
 2. `run(task)` returning a unified `Result`
 
 Then register it in `src/zero_os/highway.py`.
-
-## Vision mapping
-Your goal "can do anything in one main highway" is implemented as:
-- one input API (`dispatch`)
-- one routing layer (`Highway`)
-- unlimited pluggable lanes (capabilities)
-- one output contract (`Result`)

@@ -11,6 +11,7 @@ class Task:
     """A single request entering the Zero OS highway."""
 
     text: str
+    cwd: str = "."
 
 
 @dataclass

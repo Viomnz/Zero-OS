@@ -20,8 +20,8 @@ class Highway:
             MemoryCapability(),
         ]
 
-    def dispatch(self, text: str) -> Result:
-        task = Task(text=text)
+    def dispatch(self, text: str, cwd: str = ".") -> Result:
+        task = Task(text=text, cwd=cwd)
         for capability in self.capabilities:
             if capability.can_handle(task):
                 return capability.run(task)
