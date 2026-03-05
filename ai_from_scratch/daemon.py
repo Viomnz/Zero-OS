@@ -32,6 +32,7 @@ from learning_feedback import apply_learning_feedback
 from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
+from self_monitoring_layer import monitor_system_health
 from security_integrity_layer import security_integrity_check
 from security_core import assess_security, record_event
 from shutdown_recovery import prepare_shutdown_recovery
@@ -346,6 +347,13 @@ def main() -> None:
                         final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
                         if not final_output:
                             final_output = gate.output
+                        monitor = monitor_system_health(str(base), prompt, gate, context)
+                        handle.write("[SELF_MONITORING]\n")
+                        handle.write(json.dumps(monitor, indent=2) + "\n")
+                        if not monitor.get("healthy", False):
+                            handle.write("[REJECTED_BY_SELF_MONITORING]\n")
+                            handle.write("internal health below acceptable threshold\n\n")
+                            continue
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
                         handle.write("[ZERO_AI_INTERNAL]\n")
                         handle.write(
