@@ -23,6 +23,7 @@ from english_understanding import human_response_from_understanding, understand_
 from boot_initialization import run_boot_initialization
 from communication_interface import execution_interface, goal_alignment, receive_input
 from calibration_layer import run_calibration
+from conflict_resolution_layer import resolve_conflicts
 from context_awareness import detect_context
 from degradation_detection import run_degradation_detection
 from distributed_intelligence import run_distributed_reasoning
@@ -343,7 +344,10 @@ def main() -> None:
                         arbitration = arbitrate_priority(str(base), integrated_prompt, candidates, context)
                         handle.write("[PRIORITY_ARBITRATION]\n")
                         handle.write(json.dumps(arbitration, indent=2) + "\n")
-                        final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
+                        conflict = resolve_conflicts(str(base), integrated_prompt, distributed.report, gate, arbitration)
+                        handle.write("[CONFLICT_RESOLUTION]\n")
+                        handle.write(json.dumps(conflict, indent=2) + "\n")
+                        final_output = str(conflict.get("chosen_output", "")).strip()
                         if not final_output:
                             final_output = gate.output
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
