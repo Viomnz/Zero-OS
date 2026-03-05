@@ -26,7 +26,6 @@ from calibration_layer import run_calibration
 from context_awareness import detect_context
 from degradation_detection import run_degradation_detection
 from distributed_intelligence import run_distributed_reasoning
-from emergent_pattern_detection import detect_emergent_patterns
 from internal_zero_reasoner import run_internal_reasoning, set_reasoner_mode, set_reasoner_profile
 from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
@@ -34,6 +33,7 @@ from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
+from stability_enforcement_layer import enforce_stability
 from security_core import assess_security, record_event
 from shutdown_recovery import prepare_shutdown_recovery
 from traceability_layer import log_decision_trace
@@ -297,15 +297,6 @@ def main() -> None:
                     integrated_prompt = str(knowledge.get("unified_model", {}).get("unified_text", prompt)).strip() or prompt
                     handle.write("[KNOWLEDGE_INTEGRATION]\n")
                     handle.write(json.dumps(knowledge, indent=2) + "\n")
-                    emergent = detect_emergent_patterns(str(base), integrated_prompt, context, knowledge)
-                    e_profile = emergent.get("actions", {}).get("set_profile")
-                    e_mode = emergent.get("actions", {}).get("set_mode")
-                    if e_profile:
-                        set_reasoner_profile(str(base), str(e_profile))
-                    if e_mode:
-                        set_reasoner_mode(str(base), str(e_mode))
-                    handle.write("[EMERGENT_PATTERN_DETECTION]\n")
-                    handle.write(json.dumps(emergent, indent=2) + "\n")
                     if prompt.lower().startswith("scan"):
                         report = run_scan(base)
                         status = "[SCAN_PASS]" if report["syntax_error_count"] == 0 and report["tests_passed"] else "[SCAN_FAIL]"
@@ -356,6 +347,13 @@ def main() -> None:
                         final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
                         if not final_output:
                             final_output = gate.output
+                        stability = enforce_stability(str(base), prompt, final_output, gate, context)
+                        handle.write("[STABILITY_ENFORCEMENT]\n")
+                        handle.write(json.dumps(stability, indent=2) + "\n")
+                        if not stability.get("stable", False):
+                            handle.write("[REJECTED_BY_STABILITY_ENFORCEMENT]\n")
+                            handle.write("action rejected to preserve long-term balance\n\n")
+                            continue
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
                         handle.write("[ZERO_AI_INTERNAL]\n")
                         handle.write(
