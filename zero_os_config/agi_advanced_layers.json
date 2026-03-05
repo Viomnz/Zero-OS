@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "title": "Zero-OS AGI Advanced Layers",
-  "total_layers_expected": 10,
+  "total_layers_expected": 11,
   "layers": [
     {
       "id": "advanced:01",
@@ -111,6 +111,17 @@
         "hardware utilization optimization",
         "model scaling management",
         "cognitive architecture upgrades"
+      ]
+    },
+    {
+      "id": "advanced:11",
+      "name": "Cross-Model Cognitive Synthesis Layer",
+      "status": "active",
+      "capabilities": [
+        "model comparison",
+        "conflict detection",
+        "consensus building",
+        "model weighting"
       ]
     }
   ]
