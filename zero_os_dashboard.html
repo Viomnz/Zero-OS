@@ -317,6 +317,10 @@ python src/main.py "security overview"
       <h2>Agents Auto Monitor</h2>
       <pre id="agentsMonitor">Loading...</pre>
     </section>
+    <section class="card">
+      <h2>Agents Auto Remediation</h2>
+      <pre id="agentsRemediation">Loading...</pre>
+    </section>
 
     <section class="card">
       <h2>Latest Output</h2>
@@ -401,6 +405,7 @@ python src/main.py "security overview"
       heartbeat: `${runtimeBase}/zero_ai_heartbeat.json`,
       monitor: `${runtimeBase}/zero_ai_monitor.json`,
       agentsMonitor: `${runtimeBase}/agents_monitor.json`,
+      agentsRemediation: `${runtimeBase}/agents_remediation.json`,
       output: `${runtimeBase}/zero_ai_output.txt`,
       scan: `${runtimeBase}/zero_ai_scan_report.json`,
       adaptation: `${runtimeBase}/adaptation_rate.json`,
@@ -613,6 +618,7 @@ python src/main.py "security overview"
         pick("heartbeat").textContent = hostedMsg;
         pick("monitor").textContent = hostedMsg;
         pick("agentsMonitor").textContent = hostedMsg;
+        pick("agentsRemediation").textContent = hostedMsg;
         pick("output").textContent = "Hosted static view";
         pick("scan").textContent = "Hosted static view";
         pick("adaptation").textContent = "Hosted static view";
@@ -637,9 +643,11 @@ python src/main.py "security overview"
       const heartbeatTxt = await readText(files.heartbeat);
       const monitorTxt = await readText(files.monitor);
       const agentsMonitorTxt = await readText(files.agentsMonitor);
+      const agentsRemediationTxt = await readText(files.agentsRemediation);
       pick("heartbeat").textContent = heartbeatTxt;
       pick("monitor").textContent = monitorTxt;
       pick("agentsMonitor").textContent = formatAgentsMonitor(agentsMonitorTxt);
+      pick("agentsRemediation").textContent = formatAgentsRemediation(agentsRemediationTxt);
       const out = await readText(files.output);
       pick("output").textContent = out.split(/\r?\n/).slice(-40).join("\n");
       const scanTxt = await readText(files.scan);
@@ -883,6 +891,23 @@ python src/main.py "security overview"
           `registry_ok: ${checks.registry_ok ?? "?"}`,
           `advanced_layers_ok: ${checks.advanced_layers_ok ?? "?"}`,
           `issues: ${issues.length ? issues.join(", ") : "(none)"}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatAgentsRemediation(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const actions = data.actions || [];
+        return [
+          `trigger_smooth: ${data.trigger_smooth ?? "?"}`,
+          `trigger_score: ${data.trigger_score ?? "?"}`,
+          `issues: ${(data.issues || []).length ? data.issues.join(", ") : "(none)"}`,
+          `actions_count: ${actions.length}`,
+          ...actions.slice(0, 6).map((a) => `- ${a.action}: ${a.reason ?? (a.changed ? "changed" : "no_change")}`)
         ].join("\n");
       } catch {
         return raw;
