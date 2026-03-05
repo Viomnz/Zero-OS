@@ -23,7 +23,6 @@ from english_understanding import human_response_from_understanding, understand_
 from boot_initialization import run_boot_initialization
 from communication_interface import execution_interface, goal_alignment, receive_input
 from calibration_layer import run_calibration
-from conflict_resolution_layer import resolve_conflicts
 from context_awareness import detect_context
 from degradation_detection import run_degradation_detection
 from distributed_intelligence import run_distributed_reasoning
@@ -32,6 +31,7 @@ from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
 from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
+from redundancy_layer import ensure_redundancy
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
 from security_core import assess_security, record_event
@@ -229,6 +229,13 @@ def main() -> None:
                         handle.write("startup checks failed; execution paused until restart with valid state\n\n")
                         time.sleep(2)
                         continue
+                    redundancy = ensure_redundancy(str(base), min_backups=2)
+                    handle.write("[REDUNDANCY_LAYER]\n")
+                    handle.write(json.dumps(redundancy, indent=2) + "\n")
+                    if not redundancy.get("ok", False):
+                        handle.write("[REJECTED_BY_REDUNDANCY]\n")
+                        handle.write("redundancy unavailable for critical state\n\n")
+                        continue
                     handle.write(f"[{_utc_now()}] prompt={prompt}\n")
                     scope = evaluate_scope(str(base), prompt, packet.channel)
                     handle.write("[BOUNDARY_SCOPE]\n")
@@ -344,10 +351,7 @@ def main() -> None:
                         arbitration = arbitrate_priority(str(base), integrated_prompt, candidates, context)
                         handle.write("[PRIORITY_ARBITRATION]\n")
                         handle.write(json.dumps(arbitration, indent=2) + "\n")
-                        conflict = resolve_conflicts(str(base), integrated_prompt, distributed.report, gate, arbitration)
-                        handle.write("[CONFLICT_RESOLUTION]\n")
-                        handle.write(json.dumps(conflict, indent=2) + "\n")
-                        final_output = str(conflict.get("chosen_output", "")).strip()
+                        final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
                         if not final_output:
                             final_output = gate.output
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
