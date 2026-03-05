@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "title": "Zero-OS AGI Advanced Layers",
-  "total_layers_expected": 11,
+  "total_layers_expected": 12,
   "layers": [
     {
       "id": "advanced:01",
@@ -122,6 +122,17 @@
         "conflict detection",
         "consensus building",
         "model weighting"
+      ]
+    },
+    {
+      "id": "advanced:12",
+      "name": "Reality Modeling Layer",
+      "status": "active",
+      "capabilities": [
+        "state representation",
+        "entity modeling",
+        "causal mapping",
+        "environment dynamics"
       ]
     }
   ]

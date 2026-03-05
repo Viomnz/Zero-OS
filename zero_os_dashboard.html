@@ -418,7 +418,8 @@ python src/main.py "security overview"
       agiRegistryStatus: `${runtimeBase}/agi_module_registry_status.json`,
       agiRegistry: `zero_os_config/agi_module_registry.json`,
       agiAdvancedStatus: `${runtimeBase}/agi_advanced_layers_status.json`,
-      agiAdvanced: `zero_os_config/agi_advanced_layers.json`
+      agiAdvanced: `zero_os_config/agi_advanced_layers.json`,
+      realityModel: `${runtimeBase}/reality_world_model.json`
     };
     const HOSTED_MODE = Boolean(
       location.hostname.endsWith("github.io") &&
@@ -628,6 +629,7 @@ python src/main.py "security overview"
         pick("memoryUpdate").textContent = "Hosted static view";
         pick("replacementPlan").textContent = "Hosted static view";
         pick("longHorizon").textContent = "Hosted static view";
+        pick("reliability").textContent = "Hosted static view";
         const agiRegistryTxt = await readText(files.agiRegistry);
         pick("agiRegistry").textContent = formatAgiRegistry("", agiRegistryTxt);
         const agiAdvancedTxt = await readText(files.agiAdvanced);
@@ -672,6 +674,8 @@ python src/main.py "security overview"
       const agiAdvancedStatusTxt = await readText(files.agiAdvancedStatus);
       const agiAdvancedTxt = await readText(files.agiAdvanced);
       pick("agiAdvancedLayers").textContent = formatAgiAdvancedLayers(agiAdvancedStatusTxt, agiAdvancedTxt);
+      const realityTxt = await readText(files.realityModel);
+      pick("reliability").textContent = formatRealityModel(realityTxt);
       pick("paths").textContent = [
         `runtime: ${runtimeBase}`,
         `backup: .zero_os/backup/latest`,
@@ -908,6 +912,25 @@ python src/main.py "security overview"
           `issues: ${(data.issues || []).length ? data.issues.join(", ") : "(none)"}`,
           `actions_count: ${actions.length}`,
           ...actions.slice(0, 6).map((a) => `- ${a.action}: ${a.reason ?? (a.changed ? "changed" : "no_change")}`)
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatRealityModel(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const s = data.state_tracker || {};
+        return [
+          `world_model: ready`,
+          `entities: ${(data.entity_registry || []).length}`,
+          `relationships: ${(data.relationship_graph || []).length}`,
+          `updates: ${s.updates ?? 0}`,
+          `last_channel: ${s.last_channel ?? "unknown"}`,
+          `last_context_mode: ${s.last_context_mode ?? "unknown"}`,
+          `causal_rules: ${(data.causal_engine || {}).rules ? (data.causal_engine.rules.length) : 0}`
         ].join("\n");
       } catch {
         return raw;
