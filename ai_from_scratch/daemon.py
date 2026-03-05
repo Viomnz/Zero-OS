@@ -33,7 +33,6 @@ from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
-from stability_enforcement_layer import enforce_stability
 from security_core import assess_security, record_event
 from shutdown_recovery import prepare_shutdown_recovery
 from traceability_layer import log_decision_trace
@@ -347,13 +346,6 @@ def main() -> None:
                         final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
                         if not final_output:
                             final_output = gate.output
-                        stability = enforce_stability(str(base), prompt, final_output, gate, context)
-                        handle.write("[STABILITY_ENFORCEMENT]\n")
-                        handle.write(json.dumps(stability, indent=2) + "\n")
-                        if not stability.get("stable", False):
-                            handle.write("[REJECTED_BY_STABILITY_ENFORCEMENT]\n")
-                            handle.write("action rejected to preserve long-term balance\n\n")
-                            continue
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
                         handle.write("[ZERO_AI_INTERNAL]\n")
                         handle.write(
