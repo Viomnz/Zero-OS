@@ -26,6 +26,7 @@ from calibration_layer import run_calibration
 from context_awareness import detect_context
 from degradation_detection import run_degradation_detection
 from distributed_intelligence import run_distributed_reasoning
+from emergent_pattern_detection import detect_emergent_patterns
 from internal_zero_reasoner import run_internal_reasoning, set_reasoner_mode, set_reasoner_profile
 from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
@@ -296,6 +297,15 @@ def main() -> None:
                     integrated_prompt = str(knowledge.get("unified_model", {}).get("unified_text", prompt)).strip() or prompt
                     handle.write("[KNOWLEDGE_INTEGRATION]\n")
                     handle.write(json.dumps(knowledge, indent=2) + "\n")
+                    emergent = detect_emergent_patterns(str(base), integrated_prompt, context, knowledge)
+                    e_profile = emergent.get("actions", {}).get("set_profile")
+                    e_mode = emergent.get("actions", {}).get("set_mode")
+                    if e_profile:
+                        set_reasoner_profile(str(base), str(e_profile))
+                    if e_mode:
+                        set_reasoner_mode(str(base), str(e_mode))
+                    handle.write("[EMERGENT_PATTERN_DETECTION]\n")
+                    handle.write(json.dumps(emergent, indent=2) + "\n")
                     if prompt.lower().startswith("scan"):
                         report = run_scan(base)
                         status = "[SCAN_PASS]" if report["syntax_error_count"] == 0 and report["tests_passed"] else "[SCAN_FAIL]"
