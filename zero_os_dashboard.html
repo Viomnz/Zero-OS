@@ -313,6 +313,10 @@ python src/main.py "security overview"
       <h2>Cure Monitor</h2>
       <pre id="monitor">Loading...</pre>
     </section>
+    <section class="card">
+      <h2>Agents Auto Monitor</h2>
+      <pre id="agentsMonitor">Loading...</pre>
+    </section>
 
     <section class="card">
       <h2>Latest Output</h2>
@@ -396,6 +400,7 @@ python src/main.py "security overview"
     const files = {
       heartbeat: `${runtimeBase}/zero_ai_heartbeat.json`,
       monitor: `${runtimeBase}/zero_ai_monitor.json`,
+      agentsMonitor: `${runtimeBase}/agents_monitor.json`,
       output: `${runtimeBase}/zero_ai_output.txt`,
       scan: `${runtimeBase}/zero_ai_scan_report.json`,
       adaptation: `${runtimeBase}/adaptation_rate.json`,
@@ -607,6 +612,7 @@ python src/main.py "security overview"
         ].join("\n");
         pick("heartbeat").textContent = hostedMsg;
         pick("monitor").textContent = hostedMsg;
+        pick("agentsMonitor").textContent = hostedMsg;
         pick("output").textContent = "Hosted static view";
         pick("scan").textContent = "Hosted static view";
         pick("adaptation").textContent = "Hosted static view";
@@ -630,8 +636,10 @@ python src/main.py "security overview"
       }
       const heartbeatTxt = await readText(files.heartbeat);
       const monitorTxt = await readText(files.monitor);
+      const agentsMonitorTxt = await readText(files.agentsMonitor);
       pick("heartbeat").textContent = heartbeatTxt;
       pick("monitor").textContent = monitorTxt;
+      pick("agentsMonitor").textContent = formatAgentsMonitor(agentsMonitorTxt);
       const out = await readText(files.output);
       pick("output").textContent = out.split(/\r?\n/).slice(-40).join("\n");
       const scanTxt = await readText(files.scan);
@@ -857,6 +865,28 @@ python src/main.py "security overview"
         "top layers:",
         ...names
       ].join("\n");
+    }
+
+    function formatAgentsMonitor(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const checks = data.checks || {};
+        const issues = data.issues || [];
+        return [
+          `smooth: ${data.smooth ?? false}`,
+          `score: ${data.score ?? "?"}`,
+          `heartbeat_running: ${checks.heartbeat_running ?? "?"}`,
+          `boot_ok: ${checks.boot_ok ?? "?"}`,
+          `integrity_healthy: ${checks.integrity_healthy ?? "?"}`,
+          `safe_state_clear: ${checks.safe_state_clear ?? "?"}`,
+          `registry_ok: ${checks.registry_ok ?? "?"}`,
+          `advanced_layers_ok: ${checks.advanced_layers_ok ?? "?"}`,
+          `issues: ${issues.length ? issues.join(", ") : "(none)"}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
     }
 
     function layerItem(name, ok){

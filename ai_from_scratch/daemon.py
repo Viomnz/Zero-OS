@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from model import TinyBigramModel
+from agents_monitor import run_agents_monitor
 from agent_guard import check_health, quarantine_compromise, restore_compromised
 from boundary_scope import evaluate_scope
 from english_dictionary import pure_logic_dictionary_step
@@ -171,6 +172,10 @@ def main() -> None:
             with outbox.open("a", encoding="utf-8") as handle:
                 handle.write(f"[{_utc_now()}] [AGI_MODULE_REGISTRY]\n")
                 handle.write(json.dumps(registry_status, indent=2) + "\n\n")
+            agents = run_agents_monitor(str(base))
+            with outbox.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{_utc_now()}] [AGENTS_MONITOR]\n")
+                handle.write(json.dumps(agents, indent=2) + "\n\n")
 
             health = check_health(base)
             if not health.get("healthy", False):
