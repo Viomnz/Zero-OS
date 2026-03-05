@@ -30,6 +30,7 @@ from internal_zero_reasoner import run_internal_reasoning, set_reasoner_mode, se
 from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
 from meta_reasoning import run_meta_reasoning
+from novelty_detection import detect_novelty
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
@@ -266,6 +267,15 @@ def main() -> None:
                         set_reasoner_mode(str(base), d_mode)
                     handle.write("[DEGRADATION_DETECTION]\n")
                     handle.write(json.dumps(degradation, indent=2) + "\n")
+                    novelty = detect_novelty(str(base), prompt, packet.channel)
+                    n_profile = novelty.get("actions", {}).get("set_profile")
+                    n_mode = novelty.get("actions", {}).get("set_mode")
+                    if n_profile:
+                        set_reasoner_profile(str(base), str(n_profile))
+                    if n_mode:
+                        set_reasoner_mode(str(base), str(n_mode))
+                    handle.write("[NOVELTY_DETECTION]\n")
+                    handle.write(json.dumps(novelty, indent=2) + "\n")
                     goal = goal_alignment(packet)
                     handle.write("[COMM_INTERFACE_IN]\n")
                     handle.write(
