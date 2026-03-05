@@ -31,7 +31,6 @@ from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
 from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
-from resource_constraint_layer import evaluate_resource_constraints
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
 from security_core import assess_security, record_event
@@ -347,17 +346,6 @@ def main() -> None:
                         final_output = str(arbitration.get("winner", "")).strip() if arbitration.get("ok") else gate.output
                         if not final_output:
                             final_output = gate.output
-                        resources = evaluate_resource_constraints(str(base), prompt, gate, context)
-                        handle.write("[RESOURCE_CONSTRAINT]\n")
-                        handle.write(json.dumps(resources, indent=2) + "\n")
-                        if resources.get("decision") == "reject":
-                            handle.write("[REJECTED_BY_RESOURCE_CONSTRAINT]\n")
-                            handle.write("resource pressure above safe limit\n\n")
-                            continue
-                        if resources.get("decision") == "delay":
-                            handle.write("[DELAYED_BY_RESOURCE_CONSTRAINT]\n")
-                            handle.write("task delayed due to temporary pressure\n\n")
-                            continue
                         safe_state = evaluate_safe_state(str(base), gate, degradation, calibration)
                         handle.write("[ZERO_AI_INTERNAL]\n")
                         handle.write(
