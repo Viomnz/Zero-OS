@@ -404,6 +404,11 @@ python src/main.py "security overview"
       agiRegistryStatus: `${runtimeBase}/agi_module_registry_status.json`,
       agiRegistry: `zero_os_config/agi_module_registry.json`
     };
+    const HOSTED_MODE = Boolean(
+      location.hostname.endsWith("github.io") &&
+      location.hostname !== "localhost" &&
+      location.hostname !== "127.0.0.1"
+    );
     const THEME_KEY = "zero_os_theme_v1";
     const CHAT_STATE_KEY = "zero_os_chat_human_v1";
     const INTERFACE_KEY = "zero_os_interface_mode_v1";
@@ -589,6 +594,32 @@ python src/main.py "security overview"
     }
 
     async function refresh() {
+      if (HOSTED_MODE) {
+        const hostedMsg = [
+          "GitHub Pages mode: local runtime and daemon API are not available.",
+          "Run this dashboard locally for live daemon data."
+        ].join("\n");
+        pick("heartbeat").textContent = hostedMsg;
+        pick("monitor").textContent = hostedMsg;
+        pick("output").textContent = "Hosted static view";
+        pick("scan").textContent = "Hosted static view";
+        pick("adaptation").textContent = "Hosted static view";
+        pick("evolution").textContent = "Hosted static view";
+        pick("reliability").textContent = "Hosted static view";
+        pick("memoryQuality").textContent = "Hosted static view";
+        pick("memoryUpdate").textContent = "Hosted static view";
+        pick("replacementPlan").textContent = "Hosted static view";
+        pick("longHorizon").textContent = "Hosted static view";
+        const agiRegistryTxt = await readText(files.agiRegistry);
+        pick("agiRegistry").textContent = formatAgiRegistry("", agiRegistryTxt);
+        pick("paths").textContent = [
+          "mode: github-pages",
+          "local runtime disabled",
+          "open local file for full live dashboard"
+        ].join("\n");
+        renderArchitecture("Unavailable", "Unavailable", "Unavailable");
+        return;
+      }
       const heartbeatTxt = await readText(files.heartbeat);
       const monitorTxt = await readText(files.monitor);
       pick("heartbeat").textContent = heartbeatTxt;
@@ -881,6 +912,10 @@ python src/main.py "security overview"
 
     async function refreshHardwareMap() {
       const target = pick("hardwareMap");
+      if (HOSTED_MODE) {
+        target.textContent = "Unavailable on GitHub Pages. Run local dashboard server for hardware map.";
+        return;
+      }
       target.textContent = "loading...";
       try {
         const r = await fetch("/api/exec", {
@@ -1023,6 +1058,7 @@ python src/main.py "security overview"
 
     let lastAIClean = "";
     async function syncAiReply(){
+      if (HOSTED_MODE) return;
       try {
         const r = await fetch(`/api/output?tail=120&t=${Date.now()}`);
         if (!r.ok) return;
@@ -1093,13 +1129,25 @@ python src/main.py "security overview"
     restoreChatPrefs();
     loadVoices();
     setupMic();
+    if (HOSTED_MODE) {
+      const hostedApiMsg = "Disabled on GitHub Pages. Run local dashboard server for live API features.";
+      pick("chatStatus").textContent = hostedApiMsg;
+      pick("devStatus").textContent = hostedApiMsg;
+      pick("execStatus").textContent = hostedApiMsg;
+      pick("hardwareMap").textContent = hostedApiMsg;
+      ["sendBtn","scanBtn","devRunBtn","execRunBtn","hardwareMapBtn","micBtn"].forEach((id) => {
+        pick(id).disabled = true;
+      });
+    }
     if ("speechSynthesis" in window) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
     refresh();
-    refreshHardwareMap();
-    setInterval(syncAiReply, 2500);
-    setInterval(refresh, 5000);
+    if (!HOSTED_MODE) {
+      refreshHardwareMap();
+      setInterval(syncAiReply, 2500);
+      setInterval(refresh, 5000);
+    }
   </script>
 </body>
 </html>
