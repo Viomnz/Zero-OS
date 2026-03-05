@@ -33,6 +33,7 @@ from meta_reasoning import run_meta_reasoning
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
+from synchronization_layer import run_synchronization
 from security_core import assess_security, record_event
 from shutdown_recovery import prepare_shutdown_recovery
 from traceability_layer import log_decision_trace
@@ -247,6 +248,13 @@ def main() -> None:
                     if not sec_gate.get("ok", False):
                         handle.write("[REJECTED_BY_SECURITY_INTEGRITY]\n")
                         handle.write(json.dumps(sec_gate, indent=2) + "\n\n")
+                        continue
+                    sync = run_synchronization(str(base), max_skew_seconds=300.0)
+                    handle.write("[SYNCHRONIZATION]\n")
+                    handle.write(json.dumps(sync, indent=2) + "\n")
+                    if not sync.get("ok", False):
+                        handle.write("[REJECTED_BY_SYNCHRONIZATION]\n")
+                        handle.write(json.dumps(sync, indent=2) + "\n\n")
                         continue
                     calibration = run_calibration(str(base))
                     profile_target = calibration.get("actions", {}).get("set_profile")
