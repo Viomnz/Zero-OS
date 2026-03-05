@@ -36,7 +36,10 @@ def apply_learning_feedback(
     context: dict,
 ) -> dict:
     path = _runtime(cwd) / "learning_feedback.json"
-    data = _load(path, {"history": [], "stats": {"success": 0, "failure": 0, "drift": 0}})
+    data = _load(
+        path,
+        {"history": [], "stats": {"success": 0, "failure": 0, "drift": 0, "positive": 0, "negative": 0, "neutral": 0}},
+    )
 
     predicted_pass = bool(predicted.get("expected_success", False))
     observed_pass = bool(observed.get("actual_success", False))
@@ -45,7 +48,22 @@ def apply_learning_feedback(
     prediction_score = float(predicted.get("prediction_score", 0.0))
     efficiency = float(observed.get("efficiency_score", 0.0))
     reliability = float(observed.get("signal_reliability", 0.0))
-    learning_score = round((prediction_score * 0.35) + (efficiency * 0.35) + (reliability * 0.3), 4)
+    goal_alignment = float(observed.get("goal_alignment_score", 1.0 if observed_pass else 0.0))
+    stability_impact = float(observed.get("stability_impact", 1.0 if observed_pass else 0.0))
+    learning_score = round(
+        (prediction_score * 0.25)
+        + (efficiency * 0.25)
+        + (reliability * 0.2)
+        + (goal_alignment * 0.15)
+        + (stability_impact * 0.15),
+        4,
+    )
+
+    signal_type = "neutral"
+    if observed_pass and learning_score >= 0.72 and stability_impact >= 0.6:
+        signal_type = "positive"
+    elif (not observed_pass) or learning_score < 0.45 or stability_impact < 0.4:
+        signal_type = "negative"
 
     actions = {
         "adjust_reasoning_parameters": False,
@@ -59,13 +77,20 @@ def apply_learning_feedback(
     if reliability < 0.6:
         actions["refine_survival_evaluator"] = True
 
-    stats = data.get("stats", {"success": 0, "failure": 0, "drift": 0})
+    learning_signals = {
+        "strategy_adjustment": bool(actions["adjust_reasoning_parameters"]),
+        "model_correction": bool(actions["update_environment_model"]),
+        "memory_update": signal_type != "neutral",
+    }
+
+    stats = data.get("stats", {"success": 0, "failure": 0, "drift": 0, "positive": 0, "negative": 0, "neutral": 0})
     if observed_pass:
         stats["success"] = int(stats.get("success", 0)) + 1
     else:
         stats["failure"] = int(stats.get("failure", 0)) + 1
     if not outcome_match:
         stats["drift"] = int(stats.get("drift", 0)) + 1
+    stats[signal_type] = int(stats.get(signal_type, 0)) + 1
 
     entry = {
         "time_utc": _utc_now(),
@@ -75,7 +100,9 @@ def apply_learning_feedback(
         "context_mode": str(context.get("reasoning_parameters", {}).get("priority_mode", "normal")),
         "outcome_match": outcome_match,
         "learning_score": learning_score,
+        "signal_type": signal_type,
         "actions": actions,
+        "learning_signals": learning_signals,
     }
     history = list(data.get("history", []))
     history.append(entry)
@@ -88,8 +115,9 @@ def apply_learning_feedback(
         "ok": True,
         "outcome_match": outcome_match,
         "learning_score": learning_score,
+        "signal_type": signal_type,
         "actions": actions,
+        "learning_signals": learning_signals,
         "stats": stats,
         "history_size": len(data["history"]),
     }
-
