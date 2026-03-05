@@ -29,7 +29,9 @@ from distributed_intelligence import run_distributed_reasoning
 from internal_zero_reasoner import run_internal_reasoning, set_reasoner_mode, set_reasoner_profile
 from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
+from long_horizon_strategy import update_long_horizon_strategy
 from meta_reasoning import run_meta_reasoning
+from module_registry import write_registry_status
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
@@ -165,6 +167,10 @@ def main() -> None:
                 with outbox.open("a", encoding="utf-8") as handle:
                     handle.write(f"[{_utc_now()}] [AI_FILES_SMART]\n")
                     handle.write(json.dumps(ai_files, indent=2) + "\n\n")
+            registry_status = write_registry_status(str(base))
+            with outbox.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{_utc_now()}] [AGI_MODULE_REGISTRY]\n")
+                handle.write(json.dumps(registry_status, indent=2) + "\n\n")
 
             health = check_health(base)
             if not health.get("healthy", False):
@@ -408,6 +414,11 @@ def main() -> None:
                             feedback = apply_learning_feedback(str(base), prompt, predicted, observed, context)
                             handle.write("[LEARNING_FEEDBACK]\n")
                             handle.write(json.dumps(feedback, indent=2) + "\n")
+                            horizon = update_long_horizon_strategy(
+                                str(base), prompt, context, feedback, safe_state
+                            )
+                            handle.write("[LONG_HORIZON_STRATEGY]\n")
+                            handle.write(json.dumps(horizon, indent=2) + "\n")
                             handle.write("[ENTERED_SAFE_STATE]\n")
                             handle.write(f"action={safe_state.get('action', 'pause_execution')}\n\n")
                             continue
@@ -433,6 +444,11 @@ def main() -> None:
                             feedback = apply_learning_feedback(str(base), prompt, predicted, observed, context)
                             handle.write("[LEARNING_FEEDBACK]\n")
                             handle.write(json.dumps(feedback, indent=2) + "\n")
+                            horizon = update_long_horizon_strategy(
+                                str(base), prompt, context, feedback, safe_state
+                            )
+                            handle.write("[LONG_HORIZON_STRATEGY]\n")
+                            handle.write(json.dumps(horizon, indent=2) + "\n")
                         else:
                             handle.write("[REJECTED_BY_ZERO_AI_INTERNAL]\n")
                             handle.write(gate.output + "\n\n")
@@ -448,6 +464,11 @@ def main() -> None:
                             feedback = apply_learning_feedback(str(base), prompt, predicted, observed, context)
                             handle.write("[LEARNING_FEEDBACK]\n")
                             handle.write(json.dumps(feedback, indent=2) + "\n")
+                            horizon = update_long_horizon_strategy(
+                                str(base), prompt, context, feedback, safe_state
+                            )
+                            handle.write("[LONG_HORIZON_STRATEGY]\n")
+                            handle.write(json.dumps(horizon, indent=2) + "\n")
             processed_lines = len(lines)
         elif len(lines) < processed_lines:
             processed_lines = len(lines)

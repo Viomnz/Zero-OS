@@ -363,6 +363,10 @@ python src/main.py "security overview"
       <h2>AGI Module Registry</h2>
       <pre id="agiRegistry">Loading...</pre>
     </section>
+    <section class="card">
+      <h2>AGI Advanced Layers</h2>
+      <pre id="agiAdvancedLayers">Loading...</pre>
+    </section>
 
     <section class="card">
       <h2>Quick Paths</h2>
@@ -402,7 +406,9 @@ python src/main.py "security overview"
       memoryUpdate: `${runtimeBase}/memory_update_layer.json`,
       longHorizon: `${runtimeBase}/long_horizon_strategy.json`,
       agiRegistryStatus: `${runtimeBase}/agi_module_registry_status.json`,
-      agiRegistry: `zero_os_config/agi_module_registry.json`
+      agiRegistry: `zero_os_config/agi_module_registry.json`,
+      agiAdvancedStatus: `${runtimeBase}/agi_advanced_layers_status.json`,
+      agiAdvanced: `zero_os_config/agi_advanced_layers.json`
     };
     const HOSTED_MODE = Boolean(
       location.hostname.endsWith("github.io") &&
@@ -612,6 +618,8 @@ python src/main.py "security overview"
         pick("longHorizon").textContent = "Hosted static view";
         const agiRegistryTxt = await readText(files.agiRegistry);
         pick("agiRegistry").textContent = formatAgiRegistry("", agiRegistryTxt);
+        const agiAdvancedTxt = await readText(files.agiAdvanced);
+        pick("agiAdvancedLayers").textContent = formatAgiAdvancedLayers("", agiAdvancedTxt);
         pick("paths").textContent = [
           "mode: github-pages",
           "local runtime disabled",
@@ -645,6 +653,9 @@ python src/main.py "security overview"
       const agiRegistryStatusTxt = await readText(files.agiRegistryStatus);
       const agiRegistryTxt = await readText(files.agiRegistry);
       pick("agiRegistry").textContent = formatAgiRegistry(agiRegistryStatusTxt, agiRegistryTxt);
+      const agiAdvancedStatusTxt = await readText(files.agiAdvancedStatus);
+      const agiAdvancedTxt = await readText(files.agiAdvanced);
+      pick("agiAdvancedLayers").textContent = formatAgiAdvancedLayers(agiAdvancedStatusTxt, agiAdvancedTxt);
       pick("paths").textContent = [
         `runtime: ${runtimeBase}`,
         `backup: .zero_os/backup/latest`,
@@ -821,6 +832,30 @@ python src/main.py "security overview"
         ...(runtime && runtime.errors && runtime.errors.length ? [`runtime_errors: ${runtime.errors.length}`] : []),
         "domains:",
         ...domainLines
+      ].join("\n");
+    }
+
+    function formatAgiAdvancedLayers(runtimeRaw, staticRaw){
+      let runtime = null;
+      let registry = null;
+      try { runtime = JSON.parse(runtimeRaw); } catch {}
+      try { registry = JSON.parse(staticRaw); } catch {}
+      if (!registry) return staticRaw || runtimeRaw || "Unavailable";
+      const layers = registry.layers || [];
+      const byStatus = {};
+      for (const layer of layers) {
+        byStatus[layer.status || "unknown"] = (byStatus[layer.status || "unknown"] || 0) + 1;
+      }
+      const names = layers.map((x) => `- ${x.name}`).slice(0, 5);
+      const runtimeOk = runtime && typeof runtime.ok === "boolean" ? runtime.ok : null;
+      return [
+        `total_layers: ${layers.length} expected: ${registry.total_layers_expected ?? "?"}`,
+        `status: active=${byStatus.active || 0} tested=${byStatus.tested || 0} stub=${byStatus.stub || 0} planned=${byStatus.planned || 0}`,
+        `coverage(active+tested): ${(((byStatus.active || 0) + (byStatus.tested || 0)) / Math.max(1, layers.length) * 100).toFixed(2)}%`,
+        `runtime_validation_ok: ${runtimeOk === null ? "n/a" : runtimeOk}`,
+        ...(runtime && runtime.errors && runtime.errors.length ? [`runtime_errors: ${runtime.errors.length}`] : []),
+        "top layers:",
+        ...names
       ].join("\n");
     }
 
