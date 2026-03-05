@@ -355,6 +355,16 @@ python src/main.py "security overview"
     </section>
 
     <section class="card">
+      <h2>Long Horizon Strategy</h2>
+      <pre id="longHorizon">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>AGI Module Registry</h2>
+      <pre id="agiRegistry">Loading...</pre>
+    </section>
+
+    <section class="card">
       <h2>Quick Paths</h2>
       <pre id="paths"></pre>
     </section>
@@ -389,7 +399,10 @@ python src/main.py "security overview"
       reliability: `${runtimeBase}/ai_reliability_config.json`,
       memoryQuality: `${runtimeBase}/compression_simplification.json`,
       decisionTrace: `${runtimeBase}/decision_trace.json`,
-      memoryUpdate: `${runtimeBase}/memory_update_layer.json`
+      memoryUpdate: `${runtimeBase}/memory_update_layer.json`,
+      longHorizon: `${runtimeBase}/long_horizon_strategy.json`,
+      agiRegistryStatus: `${runtimeBase}/agi_module_registry_status.json`,
+      agiRegistry: `zero_os_config/agi_module_registry.json`
     };
     const THEME_KEY = "zero_os_theme_v1";
     const CHAT_STATE_KEY = "zero_os_chat_human_v1";
@@ -596,6 +609,11 @@ python src/main.py "security overview"
       pick("memoryUpdate").textContent = formatMemoryUpdate(memoryUpdateTxt);
       const decisionTraceTxt = await readText(files.decisionTrace);
       pick("replacementPlan").textContent = formatReplacementPlan(decisionTraceTxt);
+      const longHorizonTxt = await readText(files.longHorizon);
+      pick("longHorizon").textContent = formatLongHorizon(longHorizonTxt);
+      const agiRegistryStatusTxt = await readText(files.agiRegistryStatus);
+      const agiRegistryTxt = await readText(files.agiRegistry);
+      pick("agiRegistry").textContent = formatAgiRegistry(agiRegistryStatusTxt, agiRegistryTxt);
       pick("paths").textContent = [
         `runtime: ${runtimeBase}`,
         `backup: .zero_os/backup/latest`,
@@ -722,6 +740,57 @@ python src/main.py "security overview"
       } catch {
         return raw;
       }
+    }
+
+    function formatLongHorizon(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const last = data.last || {};
+        const stats = data.stats || {};
+        return [
+          `last_goal: ${last.goal ?? "none"}`,
+          `risk_drift: ${last.risk_drift ?? "?"}`,
+          `next_review_utc: ${last.next_review_utc ?? "?"}`,
+          `30d: ${(last.milestones || {}).h30d ?? "?"}`,
+          `180d: ${(last.milestones || {}).h180d ?? "?"}`,
+          `730d: ${(last.milestones || {}).h730d ?? "?"}`,
+          `updates: ${stats.updates ?? 0} high_risk_updates: ${stats.high_risk_updates ?? 0}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatAgiRegistry(runtimeRaw, staticRaw){
+      let runtime = null;
+      let registry = null;
+      try { runtime = JSON.parse(runtimeRaw); } catch {}
+      try { registry = JSON.parse(staticRaw); } catch {}
+      if (!registry) return staticRaw || runtimeRaw || "Unavailable";
+      const mods = registry.modules || [];
+      const domains = registry.domains || [];
+      const byStatus = {};
+      const byDomain = {};
+      for (const m of mods) {
+        byStatus[m.status || "unknown"] = (byStatus[m.status || "unknown"] || 0) + 1;
+        byDomain[m.domain || "unknown"] = (byDomain[m.domain || "unknown"] || 0) + 1;
+      }
+      const domainLines = domains.map(d => {
+        const k = d.key;
+        return `${k}: ${byDomain[k] || 0}/${d.module_count_expected || 0}`;
+      });
+      const runtimeOk = runtime && typeof runtime.ok === "boolean" ? runtime.ok : null;
+      return [
+        `schema_version: ${registry.schema_version ?? "?"}`,
+        `total_modules: ${mods.length} expected: ${registry.total_modules_expected ?? "?"}`,
+        `status: active=${byStatus.active || 0} tested=${byStatus.tested || 0} stub=${byStatus.stub || 0} planned=${byStatus.planned || 0}`,
+        `coverage(active+tested): ${(((byStatus.active || 0) + (byStatus.tested || 0)) / Math.max(1, mods.length) * 100).toFixed(2)}%`,
+        `runtime_validation_ok: ${runtimeOk === null ? "n/a" : runtimeOk}`,
+        ...(runtime && runtime.errors && runtime.errors.length ? [`runtime_errors: ${runtime.errors.length}`] : []),
+        "domains:",
+        ...domainLines
+      ].join("\n");
     }
 
     function layerItem(name, ok){
