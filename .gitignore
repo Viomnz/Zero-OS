@@ -2,3 +2,17 @@ __pycache__/
 *.py[cod]
 .zero_os/
 ai_from_scratch/checkpoint.json
+*.log
+*.tmp
+*.bak
+.env
+.env.*
+
+# Never commit local keys or runtime security artifacts.
+.zero_os/keys/
+.zero_os/runtime/
+.zero_os/quarantine/
+.zero_os/backup/
+.zero_os/audit.log
+.zero_os/revocations.json
+.zero_os/net_policy.json

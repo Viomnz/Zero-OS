@@ -39,7 +39,20 @@ Runtime files:
 - `.zero_os/runtime/zero_ai_output.txt`
 - `.zero_os/runtime/zero_ai_scan_report.json`
 - `.zero_os/runtime/zero_ai_monitor.json`
+- `.zero_os/runtime/open_system_state.json`
 - `.zero_os/backup/latest/*` (second backup snapshot)
+
+## Open-System Logic Loop
+Zero-AI now runs an open logic cycle for each prompt:
+
+`Environment -> Input -> Filter -> Adapt/Reject -> Stable State -> Repeat`
+
+- Neutral baseline starts from stable equilibrium.
+- Contradiction filter scores conflicting signal pairs.
+- Adaptive update accepts low-contradiction input and updates state.
+- Re-stabilization converges logic back to equilibrium each cycle.
+
+Daemon output now includes an `[OPEN_SYSTEM_LOGIC]` block per prompt.
 
 ## Next upgrades
 1. Add MLP hidden layer

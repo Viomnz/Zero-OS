@@ -166,6 +166,25 @@ class CoreRoutingTests(unittest.TestCase):
         result = highway.dispatch("code intake alien.zzz", cwd=str(self.base))
         self.assertIn("language_guess: unknown-format", result.summary)
 
+    def test_api_get_route(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("api get https://example.com", cwd=str(self.base))
+        self.assertEqual("api", result.capability)
+        self.assertIn("status:", result.summary)
+
+    def test_browser_help_route(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("browser help", cwd=str(self.base))
+        self.assertEqual("browser", result.capability)
+        self.assertIn("browser open <url>", result.summary)
+
+    def test_search_multi_has_citations(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("search multi zero os", cwd=str(self.base))
+        self.assertEqual("web", result.capability)
+        self.assertIn("with citations", result.summary.lower())
+        self.assertIn("citation:", result.summary.lower())
+
     def test_os_readiness_and_missing_fix(self) -> None:
         highway = Highway(cwd=str(self.base))
         before = highway.dispatch("os readiness", cwd=str(self.base))
@@ -187,6 +206,169 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("checks", data)
         self.assertIn("missing", data)
 
+    def test_beginner_os_status_and_fix(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        before = highway.dispatch("beginner os status", cwd=str(self.base))
+        self.assertIn("beginner_os_score:", before.summary)
+        fix = highway.dispatch("beginner os fix", cwd=str(self.base))
+        self.assertIn("created_count:", fix.summary)
+        after = highway.dispatch("beginner os status", cwd=str(self.base))
+        self.assertIn("boot_kernel_base\": true", after.summary.lower())
+        self.assertIn("process_scheduler\": true", after.summary.lower())
+        self.assertIn("syscall_api\": true", after.summary.lower())
+        self.assertIn("app_loader\": true", after.summary.lower())
+
+    def test_cleanup_dry_run_and_apply(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        junk = self.base / "notes" / "old.tmp"
+        junk.parent.mkdir(parents=True, exist_ok=True)
+        junk.write_text("junk", encoding="utf-8")
+        # Make stale enough for default stale_days=30
+        import os, time as _t
+        stale = _t.time() - (40 * 86400)
+        os.utime(junk, (stale, stale))
+
+        dry = highway.dispatch("cleanup dry run", cwd=str(self.base))
+        self.assertIn("\"candidate_count\":", dry.summary)
+        apply = highway.dispatch("cleanup apply", cwd=str(self.base))
+        self.assertIn("\"ok\": true", apply.summary.lower())
+
+    def test_storage_smart_optimize_and_restore(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        big = self.base / "notes" / "big.txt"
+        big.parent.mkdir(parents=True, exist_ok=True)
+        big.write_text(("zero os data\n" * 20000), encoding="utf-8")
+        status_before = highway.dispatch("storage smart status", cwd=str(self.base))
+        self.assertIn("\"pack_count\":", status_before.summary)
+        opt = highway.dispatch("storage smart optimize min_kb=1", cwd=str(self.base))
+        self.assertIn("\"ok\": true", opt.summary.lower())
+        self.assertFalse(big.exists())
+        restore = highway.dispatch("storage smart restore notes/big.txt", cwd=str(self.base))
+        self.assertIn("\"ok\": true", restore.summary.lower())
+        self.assertTrue(big.exists())
+
+    def test_system_optimize_all(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        big = self.base / "notes" / "bulk.txt"
+        big.parent.mkdir(parents=True, exist_ok=True)
+        big.write_text(("zero optimize\n" * 12000), encoding="utf-8")
+        import os, time as _t
+        stale = _t.time() - (40 * 86400)
+        os.utime(big, (stale, stale))
+
+        out = highway.dispatch("system optimize all", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"ok\": true", out.summary.lower())
+        self.assertIn("\"memory\":", out.summary.lower())
+        self.assertIn("\"storage\":", out.summary.lower())
+        self.assertIn("\"cleanup\":", out.summary.lower())
+
+    def test_auto_optimize_commands(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        on = highway.dispatch("auto optimize on interval=5", cwd=str(self.base))
+        self.assertIn("\"enabled\": true", on.summary.lower())
+        status = highway.dispatch("auto optimize status", cwd=str(self.base))
+        self.assertIn("\"interval_minutes\": 5", status.summary.lower())
+        off = highway.dispatch("auto optimize off", cwd=str(self.base))
+        self.assertIn("\"enabled\": false", off.summary.lower())
+
+    def test_auto_merge_commands_and_run(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        runtime = self.base / ".zero_os" / "runtime"
+        runtime.mkdir(parents=True, exist_ok=True)
+        inbox = runtime / "zero_ai_tasks.txt"
+        inbox.write_text(
+            "optimize storage status\n"
+            "status optimize storage\n"
+            "scan security\n",
+            encoding="utf-8",
+        )
+        on = highway.dispatch("auto merge on threshold=0.8", cwd=str(self.base))
+        self.assertIn("\"enabled\": true", on.summary.lower())
+        run = highway.dispatch("auto merge run", cwd=str(self.base))
+        self.assertIn("\"ran\": true", run.summary.lower())
+        self.assertIn("\"merged_count\": 1", run.summary.lower())
+        status = highway.dispatch("auto merge status", cwd=str(self.base))
+        self.assertIn("\"threshold\": 0.8", status.summary.lower())
+        off = highway.dispatch("auto merge off", cwd=str(self.base))
+        self.assertIn("\"enabled\": false", off.summary.lower())
+
+    def test_ai_files_smart_commands(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        runtime = self.base / ".zero_os" / "runtime"
+        runtime.mkdir(parents=True, exist_ok=True)
+        outbox = runtime / "zero_ai_output.txt"
+        outbox.write_text(("line\n" * 4000), encoding="utf-8")
+
+        on = highway.dispatch("ai files smart on interval=5", cwd=str(self.base))
+        self.assertIn("\"enabled\": true", on.summary.lower())
+        self.assertIn("\"interval_minutes\": 5", on.summary.lower())
+        status = highway.dispatch("ai files smart status", cwd=str(self.base))
+        self.assertIn("\"runtime_output_kb\":", status.summary.lower())
+        run = highway.dispatch("ai files smart optimize", cwd=str(self.base))
+        self.assertIn("\"ok\": true", run.summary.lower())
+        off = highway.dispatch("ai files smart off", cwd=str(self.base))
+        self.assertIn("\"enabled\": false", off.summary.lower())
+
+    def test_codex_style_agent_executes_and_verifies(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "codex: create file notes/codex.txt with hello then read file notes/codex.txt",
+            cwd=str(self.base),
+        )
+        self.assertEqual("agent", result.capability)
+        self.assertIn("codex_style: enabled", result.summary)
+        self.assertIn("route_options:", result.summary)
+        self.assertIn("verification:", result.summary)
+        self.assertTrue((self.base / "notes" / "codex.txt").exists())
+
+    def test_codex_goal_planner_creates_and_reads_file(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "codex: create hello world file notes/goal.txt",
+            cwd=str(self.base),
+        )
+        self.assertEqual("agent", result.capability)
+        self.assertIn("create file notes/goal.txt with hello world", result.summary.lower())
+        self.assertIn("read file notes/goal.txt", result.summary.lower())
+        self.assertTrue((self.base / "notes" / "goal.txt").exists())
+
+    def test_codex_suggest_route_only(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "codex: suggest route: create hello world file notes/suggest.txt",
+            cwd=str(self.base),
+        )
+        self.assertEqual("agent", result.capability)
+        self.assertIn("codex_style: suggest_only", result.summary)
+        self.assertIn("route_options:", result.summary)
+        self.assertFalse((self.base / "notes" / "suggest.txt").exists())
+
+    def test_codex_option_selection_executes_selected_route(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch(
+            "codex: option 4: search zero os",
+            cwd=str(self.base),
+        )
+        self.assertEqual("agent", result.capability)
+        self.assertIn("auto-selected: 4", result.summary)
+
+    def test_codex_builds_long_horizon_intelligence_memory(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("codex: create hello world file notes/intel.txt", cwd=str(self.base))
+        intel = self.base / ".zero_os" / "runtime" / "agent_intelligence.json"
+        self.assertTrue(intel.exists())
+        data = json.loads(intel.read_text(encoding="utf-8"))
+        self.assertIn("history", data)
+        self.assertGreaterEqual(len(data["history"]), 1)
+        self.assertIn("route_stats", data)
+        self.assertIn("user_profile", data)
+
+    def test_codex_shows_proactive_suggestions(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("codex: search zero os", cwd=str(self.base))
+        self.assertIn("proactive_suggestions:", result.summary)
+
     def test_boot_gate_blocks_below_threshold(self) -> None:
         env = dict(**__import__("os").environ)
         env["ZERO_OS_BOOT_MIN_SCORE"] = "100"
@@ -200,6 +382,123 @@ class CoreRoutingTests(unittest.TestCase):
         )
         self.assertEqual(2, proc.returncode)
         self.assertIn("boot blocked", proc.stdout)
+
+    def test_production_sandbox_policy(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        allow = highway.dispatch("sandbox allow python", cwd=str(self.base))
+        self.assertIn("python", allow.summary.lower())
+        check = highway.dispatch("sandbox check python src/main.py", cwd=str(self.base))
+        self.assertIn("allowed: True", check.summary)
+
+    def test_production_update_and_rollback(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        create = highway.dispatch("update package create v1", cwd=str(self.base))
+        self.assertIn("\"version\": \"v1\"", create.summary)
+        apply = highway.dispatch("update apply v1", cwd=str(self.base))
+        self.assertIn("\"ok\": true", apply.summary.lower())
+        rollback = highway.dispatch("update rollback", cwd=str(self.base))
+        self.assertIn("\"ok\": true", rollback.summary.lower())
+
+    def test_jobs_queue(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        add = highway.dispatch("jobs add 9 build kernel", cwd=str(self.base))
+        self.assertIn("\"priority\": 9", add.summary)
+        run = highway.dispatch("jobs run one", cwd=str(self.base))
+        self.assertIn("\"ok\": true", run.summary.lower())
+
+    def test_snapshot_and_release_and_api(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        snap = highway.dispatch("snapshot create", cwd=str(self.base))
+        self.assertIn("\"id\":", snap.summary)
+        rel = highway.dispatch("release init", cwd=str(self.base))
+        self.assertIn("\"version\": \"0.1.0\"", rel.summary)
+        token = highway.dispatch("api token create", cwd=str(self.base))
+        data = json.loads(token.summary)
+        verify = highway.dispatch(f"api token verify {data['token']}", cwd=str(self.base))
+        self.assertIn("\"ok\": true", verify.summary.lower())
+
+    def test_znet_private_internet_registry(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        init = highway.dispatch("znet init zero-net", cwd=str(self.base))
+        self.assertIn("\"network\": \"zero-net\"", init.summary)
+        node = highway.dispatch("znet node add core https://zero.local", cwd=str(self.base))
+        self.assertIn("\"core\"", node.summary)
+        svc = highway.dispatch("znet service add dashboard node=core path=/ui", cwd=str(self.base))
+        self.assertIn("\"dashboard\"", svc.summary)
+        resolve = highway.dispatch("znet resolve dashboard", cwd=str(self.base))
+        self.assertIn("\"type\": \"service\"", resolve.summary)
+        self.assertIn("/ui", resolve.summary)
+        topo = highway.dispatch("znet topology", cwd=str(self.base))
+        self.assertIn("\"edges\"", topo.summary)
+
+    def test_znet_cure_firewall_apply(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("znet init zero-net", cwd=str(self.base))
+        highway.dispatch("znet node add core https://example.com", cwd=str(self.base))
+        highway.dispatch("znet service add docs node=core path=/", cwd=str(self.base))
+        cure = highway.dispatch("znet cure apply pressure 80", cwd=str(self.base))
+        self.assertIn("\"all_verified\": true", cure.summary.lower())
+        status = highway.dispatch("znet cure status", cwd=str(self.base))
+        self.assertIn("\"verified_count\":", status.summary)
+
+    def test_freedom_policy_modes_and_reset(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        open_mode = highway.dispatch("freedom mode open", cwd=str(self.base))
+        self.assertIn("\"ok\": true", open_mode.summary.lower())
+        self.assertIn("\"mode\": \"open\"", open_mode.summary.lower())
+        status = highway.dispatch("freedom status", cwd=str(self.base))
+        self.assertIn("\"mode\": \"open\"", status.summary.lower())
+        guarded = highway.dispatch("freedom mode guarded", cwd=str(self.base))
+        self.assertIn("\"mode\": \"guarded\"", guarded.summary.lower())
+        reset = highway.dispatch("freedom reset", cwd=str(self.base))
+        self.assertIn("\"ok\": true", reset.summary.lower())
+        self.assertIn("\"mode\": \"guarded\"", reset.summary.lower())
+
+    def test_smart_os_core_ops(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        p = highway.dispatch("process list", cwd=str(self.base))
+        self.assertEqual("system", p.capability)
+        self.assertIn("\"items\":", p.summary)
+        m = highway.dispatch("memory status", cwd=str(self.base))
+        self.assertEqual("system", m.capability)
+        self.assertIn("\"ok\":", m.summary)
+        ms = highway.dispatch("memory smart status", cwd=str(self.base))
+        self.assertIn("\"pressure_level\":", ms.summary)
+        mo = highway.dispatch("memory smart optimize", cwd=str(self.base))
+        self.assertIn("\"actions\":", mo.summary)
+        fs = highway.dispatch("filesystem status", cwd=str(self.base))
+        self.assertIn("\"file_count\":", fs.summary)
+        d = highway.dispatch("device status", cwd=str(self.base))
+        self.assertIn("\"platform\":", d.summary)
+        s = highway.dispatch("security overview", cwd=str(self.base))
+        self.assertIn("\"freedom_mode\":", s.summary)
+
+    def test_unified_shell_run_and_alias(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        run1 = highway.dispatch("shell run python -c \"print('zero-shell')\"", cwd=str(self.base))
+        self.assertEqual("system", run1.capability)
+        self.assertIn("\"ok\": true", run1.summary.lower())
+        self.assertIn("zero-shell", run1.summary.lower())
+        run2 = highway.dispatch("terminal run python -c \"print('zero-terminal')\"", cwd=str(self.base))
+        self.assertEqual("system", run2.capability)
+        self.assertIn("\"ok\": true", run2.summary.lower())
+        self.assertIn("zero-terminal", run2.summary.lower())
+
+    def test_zerofs_flow(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        f = self.base / "notes" / "zf.txt"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("zero fs data", encoding="utf-8")
+        init = highway.dispatch("zerofs init", cwd=str(self.base))
+        self.assertIn("\"name\": \"ZeroFS\"", init.summary)
+        put = highway.dispatch("zerofs put notes/zf.txt", cwd=str(self.base))
+        self.assertIn("\"ok\": true", put.summary.lower())
+        listed = highway.dispatch("zerofs list", cwd=str(self.base))
+        self.assertIn("\"path_count\":", listed.summary)
+        getp = highway.dispatch("zerofs get notes/zf.txt", cwd=str(self.base))
+        self.assertIn("\"ok\": true", getp.summary.lower())
+        deleted = highway.dispatch("zerofs delete notes/zf.txt", cwd=str(self.base))
+        self.assertIn("\"ok\": true", deleted.summary.lower())
 
 
 if __name__ == "__main__":

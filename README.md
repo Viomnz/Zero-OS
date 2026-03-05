@@ -2,6 +2,11 @@
 
 Zero-OS runs on one **main highway**: a single dispatcher that routes every request to capability lanes.
 
+## Open Source Commitment
+Zero OS is a **full open source** project.
+Architecture, runtime behavior, security model, and roadmap are documented for public review and contribution.
+The only private items are local runtime trust materials and machine-specific secrets.
+
 ## Core policy (immutable)
 - Immutable core: `true`
 - Authentication required: `false`
@@ -102,6 +107,18 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 .\zero_os_launcher.ps1 menu
 ```
 - It includes options to start/stop dashboard server, control daemon, queue scan/tasks, check readiness, and view monitor/output.
+
+## Contributing
+- See [CONTRIBUTING.md](C:\Users\gomez\Documents\New folder\CONTRIBUTING.md)
+- Pull requests must include both:
+  - test run output
+  - `security-agent` output
+
+## Project Governance
+- Architecture: [ARCHITECTURE.md](C:\Users\gomez\Documents\New folder\ARCHITECTURE.md)
+- Threat model: [THREAT_MODEL.md](C:\Users\gomez\Documents\New folder\THREAT_MODEL.md)
+- Security contribution rules: [CONTRIBUTING_SECURITY.md](C:\Users\gomez\Documents\New folder\CONTRIBUTING_SECURITY.md)
+- Version roadmap: [ROADMAP.md](C:\Users\gomez\Documents\New folder\ROADMAP.md)
 
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).

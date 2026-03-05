@@ -18,7 +18,13 @@ class CodeCapability:
         text = task.text.lower().strip()
         if text.startswith("os "):
             return False
+        if text.startswith("jobs "):
+            return False
+        if text.startswith("zerofs "):
+            return False
         if text.startswith("code intake "):
+            return False
+        if text.startswith("beginner os "):
             return False
         keys = (
             "code",

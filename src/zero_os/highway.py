@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from zero_os.capabilities.agent import AgentCapability
+from zero_os.capabilities.api import ApiCapability
+from zero_os.capabilities.browser import BrowserCapability
 from zero_os.capabilities.code import CodeCapability
 from zero_os.capabilities.memory import MemoryCapability
 from zero_os.capabilities.mode import ModeCapability
@@ -27,6 +29,8 @@ class Highway:
         self._non_agent_capabilities: tuple[Capability, ...] = (
             ModeCapability(),
             ProfileCapability(),
+            ApiCapability(),
+            BrowserCapability(),
             CodeCapability(),
             WebCapability(),
             SystemCapability(),

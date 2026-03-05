@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import sys
 from urllib.parse import parse_qs, urlparse
 
 
 BASE = Path(__file__).resolve().parents[1]
 RUNTIME = BASE / ".zero_os" / "runtime"
 RUNTIME.mkdir(parents=True, exist_ok=True)
+SRC = BASE / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from zero_os.highway import Highway
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -23,6 +29,23 @@ class Handler(SimpleHTTPRequestHandler):
         return str(full)
 
     def do_POST(self) -> None:
+        if self.path == "/api/exec":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length).decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(body)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            command = str(payload.get("command", "")).strip()
+            if not command:
+                self.send_error(400, "Command required")
+                return
+            # Route through unified shell lane by default.
+            task = command if command.lower().startswith(("shell run ", "terminal run ", "powershell run ")) else f"shell run {command}"
+            result = Highway(cwd=str(BASE)).dispatch(task, cwd=str(BASE))
+            self._json({"ok": True, "task": task, "lane": result.capability, "output": result.summary})
+            return
         if self.path != "/api/task":
             self.send_error(404, "Not found")
             return
@@ -73,4 +96,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
