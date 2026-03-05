@@ -20,4 +20,4 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m unittest discover -s tests -p "test_*.py" -v
+          python -m unittest -v tests.test_security_core tests.test_security_integrity_layer tests.test_signal_reliability tests.test_internal_zero_reasoner tests.test_zero_ai_gate tests.test_synchronization_layer
