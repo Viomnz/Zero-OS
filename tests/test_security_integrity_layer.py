@@ -43,7 +43,14 @@ class SecurityIntegrityLayerTests(unittest.TestCase):
         self.assertFalse(out["ok"])
         self.assertFalse(out["memory_integrity"]["ok"])
 
+    def test_dangerous_command_requires_authorization(self) -> None:
+        blocked = security_integrity_check(self.base, "powershell run whoami", "human")
+        self.assertFalse(blocked["ok"])
+        self.assertTrue(blocked["command_intent"]["blocked"])
+
+        allowed = security_integrity_check(self.base, "authorized powershell run whoami", "human")
+        self.assertTrue(allowed["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -19,6 +19,7 @@ from zero_os.cure_firewall import (
     verify_beacon_net,
 )
 from zero_os.law_store import law_export, law_status
+from zero_os.hyperlayer.runtime_core import hyperlayer_status
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, beginner_os_coverage, os_readiness
 from zero_os.production_core import (
     api_token_create,
@@ -88,6 +89,7 @@ from zero_os.production_core import (
     zerofs_status,
     device_status,
     filesystem_status,
+    hardware_capability_map,
 )
 from zero_os.state import (
     get_mark_strict,
@@ -157,10 +159,12 @@ class SystemCapability:
             "memory smart",
             "filesystem status",
             "device status",
+            "hardware capability map",
             "security overview",
             "zerofs ",
             "cleanup ",
             "storage smart",
+            "hyperlayer",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -426,6 +430,8 @@ class SystemCapability:
             return Result(self.name, json.dumps(filesystem_status(task.cwd), indent=2))
         if text.strip() == "device status":
             return Result(self.name, json.dumps(device_status(), indent=2))
+        if text.strip() == "hardware capability map":
+            return Result(self.name, json.dumps(hardware_capability_map(task.cwd), indent=2))
         if text.strip() == "security overview":
             return Result(self.name, json.dumps(security_overview(task.cwd), indent=2))
 
@@ -445,6 +451,8 @@ class SystemCapability:
         storage_restore_m = re.match(r"^storage smart restore\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
         if storage_restore_m:
             return Result(self.name, json.dumps(storage_smart_restore(task.cwd, storage_restore_m.group(1).strip().strip("\"'")), indent=2))
+        if text.strip() == "hyperlayer status":
+            return Result(self.name, json.dumps(hyperlayer_status(), indent=2))
 
         if text.strip() == "zerofs init":
             return Result(self.name, json.dumps(zerofs_init(task.cwd), indent=2))
@@ -668,12 +676,14 @@ class SystemCapability:
             "- shell run <command>\n"
             "- terminal run <command>\n"
             "- powershell run <command>\n"
+            "- hardware capability map\n"
             "- cleanup status\n"
             "- cleanup dry run\n"
             "- cleanup apply [stale=<days>]\n"
             "- storage smart status\n"
             "- storage smart optimize [min_kb=<n>]\n"
             "- storage smart restore <path>\n"
+            "- hyperlayer status\n"
             "- znet init <name>\n"
             "- znet status\n"
             "- znet node add <node> <https://endpoint>\n"

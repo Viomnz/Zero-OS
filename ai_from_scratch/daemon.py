@@ -21,8 +21,7 @@ from boundary_scope import evaluate_scope
 from english_dictionary import pure_logic_dictionary_step
 from english_understanding import human_response_from_understanding, understand_english
 from boot_initialization import run_boot_initialization
-from communication_interface import goal_alignment, receive_input
-from execution_layer import execute_decision
+from communication_interface import execution_interface, goal_alignment, receive_input
 from calibration_layer import run_calibration
 from context_awareness import detect_context
 from degradation_detection import run_degradation_detection
@@ -31,7 +30,6 @@ from internal_zero_reasoner import run_internal_reasoning, set_reasoner_mode, se
 from knowledge_integration import integrate_knowledge
 from learning_feedback import apply_learning_feedback
 from meta_reasoning import run_meta_reasoning
-from outcome_observation_layer import observe_outcome
 from priority_arbitration import arbitrate_priority
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
@@ -416,29 +414,22 @@ def main() -> None:
                         if gate.accepted:
                             chk = check_universe_laws(final_output)
                             handle.write(("[UNIVERSE_LAWS_PASS]\n" if chk.passed else "[UNIVERSE_LAWS_BLOCKED]\n"))
-                            execution = execute_decision(
-                                str(base),
-                                final_output,
-                                packet.channel,
-                                context,
-                                resources={"decision": "approve"},
-                                stability={"stable": True},
-                            )
-                            handle.write("[EXECUTION_LAYER]\n")
-                            handle.write(json.dumps(execution, indent=2) + "\n")
-                            outbound = execution.get("dispatch", {"allowed": False, "safe_output": "", "reason": "no dispatch"})
+                            outbound = execution_interface(final_output, packet.channel)
                             handle.write("[COMM_INTERFACE_OUT]\n")
                             handle.write(json.dumps(outbound, indent=2) + "\n")
-                            handle.write(str(outbound.get("safe_output", "")) + "\n\n")
-                            outcome = observe_outcome(str(base), prompt, execution, gate, context)
-                            handle.write("[OUTCOME_OBSERVATION]\n")
-                            handle.write(json.dumps(outcome, indent=2) + "\n")
+                            handle.write(outbound.get("safe_output", "") + "\n\n")
                             predicted = {
                                 "expected_success": bool(gate.accepted),
                                 "prediction_score": float(arbitration.get("winner_score", 0.0)),
                             }
-                            observed = dict(outcome.get("observed", {}))
-                            observed["actual_success"] = bool(chk.passed and observed.get("actual_success", False))
+                            attempts_used = max(1, int(gate.resource.get("attempts_used", 1)))
+                            attempt_limit = max(1, int(gate.resource.get("attempt_limit", attempts_used)))
+                            efficiency = max(0.0, 1.0 - (attempts_used - 1) / attempt_limit)
+                            observed = {
+                                "actual_success": bool(chk.passed and outbound.get("allowed", False)),
+                                "efficiency_score": round(efficiency, 4),
+                                "signal_reliability": float(gate.self_monitor.get("avg_confidence_recent", 0.0)),
+                            }
                             feedback = apply_learning_feedback(str(base), prompt, predicted, observed, context)
                             handle.write("[LEARNING_FEEDBACK]\n")
                             handle.write(json.dumps(feedback, indent=2) + "\n")

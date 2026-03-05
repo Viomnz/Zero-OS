@@ -7,6 +7,14 @@ Zero OS is a **full open source** project.
 Architecture, runtime behavior, security model, and roadmap are documented for public review and contribution.
 The only private items are local runtime trust materials and machine-specific secrets.
 
+## Current Build Focus
+- Primary track: AI/runtime platform and Hyperlayer parity (`80%` effort)
+- Secondary track: from-scratch kernel R&D (`20%` effort)
+
+Goal now:
+- ship stable cross-platform smart OS behavior first
+- build kernel primitives in parallel without blocking releases
+
 ## Core policy (immutable)
 - Immutable core: `true`
 - Authentication required: `false`

@@ -77,6 +77,14 @@ def _is_malicious_input(prompt: str) -> tuple[bool, str]:
     return False, "clean"
 
 
+def _dangerous_command_intent(prompt: str) -> tuple[bool, str]:
+    text = str(prompt or "").strip().lower()
+    risky_prefixes = ("shell run ", "powershell run ", "terminal run ", "process kill ")
+    if any(text.startswith(p) for p in risky_prefixes):
+        return True, "dangerous command intent"
+    return False, "normal intent"
+
+
 def _authorization_check(prompt: str, channel: str) -> dict:
     text = str(prompt or "").strip().lower()
     if any(text.startswith(p) for p in RESTRICTED_PREFIXES) and channel != "system_api":
@@ -86,15 +94,17 @@ def _authorization_check(prompt: str, channel: str) -> dict:
 
 def security_integrity_check(base: Path, prompt: str, channel: str) -> dict:
     malicious, mal_reason = _is_malicious_input(prompt)
+    danger, danger_reason = _dangerous_command_intent(prompt)
     auth = _authorization_check(prompt, channel)
     checkpoint = _checkpoint_integrity(base)
     memory = _memory_integrity(base)
-    ok = (not malicious) and auth["ok"] and checkpoint["ok"] and memory["ok"]
+    command_gate_ok = (not danger) or channel == "system_api" or str(prompt).lower().startswith("authorized ")
+    ok = (not malicious) and auth["ok"] and checkpoint["ok"] and memory["ok"] and command_gate_ok
     return {
         "ok": ok,
         "malicious_input": {"blocked": malicious, "reason": mal_reason},
+        "command_intent": {"blocked": bool(danger and not command_gate_ok), "reason": danger_reason},
         "authorization": auth,
         "checkpoint_integrity": checkpoint,
         "memory_integrity": memory,
     }
-

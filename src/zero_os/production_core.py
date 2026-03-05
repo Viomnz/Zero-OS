@@ -810,6 +810,51 @@ def device_status() -> dict:
     }
 
 
+def hardware_capability_map(cwd: str) -> dict:
+    return {
+        "time_utc": _utc_now(),
+        "direct_vs_indirect": {
+            "direct": {
+                "available": False,
+                "summary": "No native direct hardware control in this user-space build.",
+            },
+            "indirect": {
+                "available": True,
+                "summary": "Hardware access is routed through host OS APIs.",
+            },
+        },
+        "ready_now": {
+            "device_status": device_status(),
+            "memory_status": memory_status(),
+            "filesystem_status": filesystem_status(cwd),
+            "access": {
+                "indirect": [
+                    "keyboard_and_mouse_via_host_os",
+                    "display_output_via_host_os",
+                    "disk_io_via_filesystem_api",
+                    "network_io_via_host_stack",
+                    "process_control_via_user_space",
+                ],
+                "direct": [],
+            },
+        },
+        "needs_drivers_kernel_layer_next": {
+            "drivers": [
+                "custom_gpu_driver_interface",
+                "custom_disk_driver_interface",
+                "custom_network_driver_interface",
+                "usb_device_driver_stack",
+            ],
+            "kernel": [
+                "native_scheduler",
+                "native_memory_manager",
+                "kernel_mode_device_io",
+                "interrupt_handling",
+            ],
+        },
+    }
+
+
 def security_overview(cwd: str) -> dict:
     freedom = freedom_status(cwd)
     sandbox = sandbox_status(cwd)

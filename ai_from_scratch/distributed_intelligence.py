@@ -63,6 +63,7 @@ def run_distributed_reasoning(
         "accepted_nodes": accepted_nodes,
         "failed_nodes": failed_nodes,
         "isolated_nodes": failed_nodes,
+        "replacement_plan": [f"spawn_{n}_replacement" for n in failed_nodes],
         "recompute_triggered": recompute_triggered,
         "final_selected_node": next((n for n, g in node_results if g is selected_gate), node_results[0][0]),
         "nodes": [
@@ -77,4 +78,3 @@ def run_distributed_reasoning(
         ],
     }
     return DistributedReasoningResult(selected_gate=selected_gate, report=report)
-

@@ -1,0 +1,27 @@
+import unittest
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from zero_os.hyperlayer.runtime_core import get_adapter, hyperlayer_status
+
+
+class HyperlayerTests(unittest.TestCase):
+    def test_status_shape(self) -> None:
+        status = hyperlayer_status()
+        self.assertTrue(status["zero_hyperlayer"])
+        self.assertIn("active_backend", status)
+        self.assertIn("system_info", status)
+        self.assertIn("unified_api", status)
+
+    def test_adapter_has_backend_name(self) -> None:
+        adapter = get_adapter()
+        self.assertTrue(adapter.backend_name())
+
+
+if __name__ == "__main__":
+    unittest.main()

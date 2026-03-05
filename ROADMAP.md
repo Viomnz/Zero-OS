@@ -3,6 +3,46 @@
 ## Versioning Plan
 This roadmap tracks practical milestones from current state to stable open source release.
 
+## Strategic Focus (Now)
+Execution split:
+- 80% AI/runtime platform
+- 20% kernel R&D foundation
+
+Reason:
+- Ship user value now with working layers.
+- Build kernel path without stalling product.
+
+## Parallel Track A (Primary): AI/Runtime Platform
+Target:
+- Deliver a stable smart OS layer across Windows, Linux, macOS through Hyperlayer.
+
+Deliverables:
+1. Hyperlayer adapters parity for file/process/network actions.
+2. Harden Zero-AI loop: novelty -> adaptation -> model evolution -> traceability.
+3. Security and integrity: cure firewall, guard baseline, rollback, quarantine.
+4. Unified dashboard observability for adaptation/evolution/health/security.
+5. Package/runtime policy for open source contributors.
+
+Exit Criteria:
+- Cross-platform command parity for core actions.
+- Reliability and security tests pass in CI.
+- No unauthorized guard rollback on approved files.
+
+## Parallel Track B (Secondary): From-Scratch Kernel R&D
+Target:
+- Build a real kernel foundation in phases while maintaining platform stability.
+
+Deliverables:
+1. Syscall specification (`docs/kernel/syscalls.md`).
+2. Scheduler prototype model and test harness.
+3. Memory manager design and page model.
+4. Driver interface contract (disk/network/display/input).
+5. Boot path and safe-mode recovery design.
+
+Exit Criteria:
+- Kernel design docs versioned and test-backed prototypes exist.
+- Clear migration map from host-bridged Hyperlayer to native kernel modules.
+
 ## v0.2 Foundation Hardening
 Target:
 - Stabilize current layered runtime and security controls
@@ -56,4 +96,3 @@ Exit Criteria:
 3. Add per-channel command rate limits
 4. Add richer observability dashboards
 5. Build reproducible benchmark profiles for low-end and high-end PCs
-

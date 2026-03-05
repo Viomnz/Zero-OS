@@ -325,8 +325,47 @@ python src/main.py "security overview"
     </section>
 
     <section class="card">
+      <h2>Adaptation Rate Controller</h2>
+      <pre id="adaptation">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Model Evolution Layer</h2>
+      <pre id="evolution">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Reliability Config</h2>
+      <pre id="reliability">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Memory Quality</h2>
+      <pre id="memoryQuality">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Memory Update Layer</h2>
+      <pre id="memoryUpdate">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>Node Replacement Plan</h2>
+      <pre id="replacementPlan">Loading...</pre>
+    </section>
+
+    <section class="card">
       <h2>Quick Paths</h2>
       <pre id="paths"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Hardware Capability Map</h2>
+      <pre>Shows: direct vs indirect access, ready now, drivers/kernel next.</pre>
+      <div class="row">
+        <button id="hardwareMapBtn">Refresh Hardware Map</button>
+      </div>
+      <pre id="hardwareMap" style="margin-top:8px;">Loading...</pre>
     </section>
 
     <section class="card">
@@ -344,7 +383,13 @@ python src/main.py "security overview"
       heartbeat: `${runtimeBase}/zero_ai_heartbeat.json`,
       monitor: `${runtimeBase}/zero_ai_monitor.json`,
       output: `${runtimeBase}/zero_ai_output.txt`,
-      scan: `${runtimeBase}/zero_ai_scan_report.json`
+      scan: `${runtimeBase}/zero_ai_scan_report.json`,
+      adaptation: `${runtimeBase}/adaptation_rate.json`,
+      evolution: `${runtimeBase}/model_evolution.json`,
+      reliability: `${runtimeBase}/ai_reliability_config.json`,
+      memoryQuality: `${runtimeBase}/compression_simplification.json`,
+      decisionTrace: `${runtimeBase}/decision_trace.json`,
+      memoryUpdate: `${runtimeBase}/memory_update_layer.json`
     };
     const THEME_KEY = "zero_os_theme_v1";
     const CHAT_STATE_KEY = "zero_os_chat_human_v1";
@@ -539,6 +584,18 @@ python src/main.py "security overview"
       pick("output").textContent = out.split(/\r?\n/).slice(-40).join("\n");
       const scanTxt = await readText(files.scan);
       pick("scan").textContent = scanTxt;
+      const adaptationTxt = await readText(files.adaptation);
+      pick("adaptation").textContent = formatAdaptation(adaptationTxt);
+      const evolutionTxt = await readText(files.evolution);
+      pick("evolution").textContent = formatEvolution(evolutionTxt);
+      const reliabilityTxt = await readText(files.reliability);
+      pick("reliability").textContent = formatReliability(reliabilityTxt);
+      const memoryQualityTxt = await readText(files.memoryQuality);
+      pick("memoryQuality").textContent = formatMemoryQuality(memoryQualityTxt);
+      const memoryUpdateTxt = await readText(files.memoryUpdate);
+      pick("memoryUpdate").textContent = formatMemoryUpdate(memoryUpdateTxt);
+      const decisionTraceTxt = await readText(files.decisionTrace);
+      pick("replacementPlan").textContent = formatReplacementPlan(decisionTraceTxt);
       pick("paths").textContent = [
         `runtime: ${runtimeBase}`,
         `backup: .zero_os/backup/latest`,
@@ -546,6 +603,125 @@ python src/main.py "security overview"
         `config: zero_os_config/`
       ].join("\n");
       renderArchitecture(heartbeatTxt, monitorTxt, scanTxt);
+    }
+
+    function formatAdaptation(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const last = data.last || {};
+        const actions = last.actions || {};
+        return [
+          `mode: ${data.mode ?? "unknown"}`,
+          `rate: ${data.rate ?? "unknown"}`,
+          `history_size: ${(data.history || []).length}`,
+          `set_profile: ${actions.set_profile ?? "n/a"}`,
+          `set_mode: ${actions.set_mode ?? "n/a"}`,
+          `evolution_intensity: ${actions.evolution_intensity ?? "n/a"}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatEvolution(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const lastAction = data.last_action || {};
+        const changes = lastAction.changes || {};
+        return [
+          `version: ${data.version ?? "unknown"}`,
+          `triggered: ${lastAction.triggered ?? false}`,
+          `method: ${lastAction.method ?? "none"}`,
+          `profile: ${changes.profile ?? "unchanged"}`,
+          `mode: ${changes.mode ?? "unchanged"}`,
+          `model_generation: ${changes.model_generation ?? "unchanged"}`,
+          `history_size: ${(data.history || []).length}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatReliability(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const low = data.low_end || {};
+        const bal = data.balanced || {};
+        const high = data.high_end || {};
+        const dist = data.distributed || {};
+        const mem = data.memory_quality || {};
+        return [
+          `low_end: candidates=${low.max_candidates ?? "?"} nodes=${low.node_count ?? "?"} attempts=${low.max_attempts ?? "?"}`,
+          `balanced: candidates=${bal.max_candidates ?? "?"} nodes=${bal.node_count ?? "?"} attempts=${bal.max_attempts ?? "?"}`,
+          `high_end: candidates=${high.max_candidates ?? "?"} nodes=${high.node_count ?? "?"} attempts=${high.max_attempts ?? "?"}`,
+          `distributed threshold: ${dist.agreement_threshold ?? "?"}`,
+          `replace_failed_nodes: ${dist.replace_failed_nodes ?? "?"}`,
+          `memory compression: threshold=${mem.compression_threshold_entries ?? "?"} interval_sec=${mem.compression_interval_sec ?? "?"}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatMemoryQuality(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const before = data.before || {};
+        const after = data.after || {};
+        const removed = data.removed || {};
+        return [
+          `ok: ${data.ok ?? false}`,
+          `threshold_entries: ${data.threshold_entries ?? "?"}`,
+          `learning_feedback: ${before.learning_feedback ?? 0} -> ${after.learning_feedback ?? 0} (removed ${removed.learning_feedback ?? 0})`,
+          `decision_trace: ${before.decision_trace ?? 0} -> ${after.decision_trace ?? 0} (removed ${removed.decision_trace ?? 0})`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatReplacementPlan(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const last = data.last || {};
+        const distributed = last.distributed || {};
+        const plan = distributed.replacement_plan || [];
+        const isolated = distributed.isolated_nodes || [];
+        return [
+          `final_selected_node: ${distributed.final_selected_node ?? "unknown"}`,
+          `agreement_ratio: ${distributed.agreement_ratio ?? "?"}`,
+          `isolated_nodes: ${isolated.length ? isolated.join(", ") : "(none)"}`,
+          `replacement_plan: ${plan.length ? plan.join(", ") : "(none)"}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
+    }
+
+    function formatMemoryUpdate(raw){
+      if (!raw || raw.startsWith("Unavailable")) return raw || "Unavailable";
+      try {
+        const data = JSON.parse(raw);
+        const last = data.last || {};
+        const stats = data.stats || {};
+        return [
+          `last_key: ${last.key ?? "unknown"}`,
+          `conflict: ${last.conflict ?? false}`,
+          `priority: ${last.priority ?? "normal"}`,
+          `writes: ${stats.writes ?? 0}`,
+          `conflicts: ${stats.conflicts ?? 0}`,
+          `dedup: ${stats.dedup ?? 0}`,
+          `short_term: ${(data.short_term || []).length} long_term: ${(data.long_term || []).length}`,
+          `episodic: ${(data.episodic || []).length} procedural: ${(data.procedural || []).length}`
+        ].join("\n");
+      } catch {
+        return raw;
+      }
     }
 
     function layerItem(name, ok){
@@ -631,6 +807,23 @@ python src/main.py "security overview"
         output.textContent = data.output || "";
       } catch (e) {
         status.textContent = `exec failed: ${e.message}`;
+      }
+    }
+
+    async function refreshHardwareMap() {
+      const target = pick("hardwareMap");
+      target.textContent = "loading...";
+      try {
+        const r = await fetch("/api/exec", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({command: "hardware capability map"})
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        target.textContent = data.output || "(no output)";
+      } catch (e) {
+        target.textContent = `hardware map failed: ${e.message}`;
       }
     }
 
@@ -808,6 +1001,7 @@ python src/main.py "security overview"
       if (!command) return;
       runUnifiedExec(command);
     });
+    pick("hardwareMapBtn").addEventListener("click", refreshHardwareMap);
     pick("devTemplateBtn").addEventListener("click", () => {
       pick("devInput").value = "codex: option 1: znet cure apply pressure 80 then security overview";
       pick("devStatus").textContent = "template loaded";
@@ -834,6 +1028,7 @@ python src/main.py "security overview"
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
     refresh();
+    refreshHardwareMap();
     setInterval(syncAiReply, 2500);
     setInterval(refresh, 5000);
   </script>

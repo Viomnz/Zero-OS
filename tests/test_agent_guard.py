@@ -19,6 +19,14 @@ class AgentGuardTests(unittest.TestCase):
             "ai_from_scratch/daemon_ctl.py",
             "src/zero_os/cure_firewall.py",
             "src/zero_os/capabilities/system.py",
+            "src/zero_os/hyperlayer/__init__.py",
+            "src/zero_os/hyperlayer/contracts.py",
+            "src/zero_os/hyperlayer/runtime_core.py",
+            "src/zero_os/hyperlayer/adapters/__init__.py",
+            "src/zero_os/hyperlayer/adapters/base.py",
+            "src/zero_os/hyperlayer/adapters/windows.py",
+            "src/zero_os/hyperlayer/adapters/linux.py",
+            "src/zero_os/hyperlayer/adapters/macos.py",
         ]:
             p = self.base / rel
             p.parent.mkdir(parents=True, exist_ok=True)

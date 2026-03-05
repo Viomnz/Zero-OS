@@ -263,6 +263,12 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"storage\":", out.summary.lower())
         self.assertIn("\"cleanup\":", out.summary.lower())
 
+    def test_hyperlayer_status_command(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("hyperlayer status", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"zero_hyperlayer\": true", out.summary.lower())
+
     def test_auto_optimize_commands(self) -> None:
         highway = Highway(cwd=str(self.base))
         on = highway.dispatch("auto optimize on interval=5", cwd=str(self.base))
@@ -309,6 +315,15 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"ok\": true", run.summary.lower())
         off = highway.dispatch("ai files smart off", cwd=str(self.base))
         self.assertIn("\"enabled\": false", off.summary.lower())
+
+    def test_hardware_capability_map(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        result = highway.dispatch("hardware capability map", cwd=str(self.base))
+        self.assertEqual("system", result.capability)
+        data = json.loads(result.summary)
+        self.assertIn("direct_vs_indirect", data)
+        self.assertIn("ready_now", data)
+        self.assertIn("needs_drivers_kernel_layer_next", data)
 
     def test_codex_style_agent_executes_and_verifies(self) -> None:
         highway = Highway(cwd=str(self.base))
