@@ -39,6 +39,10 @@ def _integrations_path(cwd: str) -> Path:
     return _root(cwd) / "integrations.json"
 
 
+def _rollout_path(cwd: str) -> Path:
+    return _root(cwd) / "rollout_profile.json"
+
+
 def _key_path(cwd: str) -> Path:
     p = Path(cwd).resolve() / ".zero_os" / "keys" / "operator_actions.key"
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +149,7 @@ def enterprise_status(cwd: str) -> dict:
         "roles": _roles(cwd).get("roles", {}),
         "edr": edr_probe(cwd),
         "integrations": integration_status(cwd),
+        "rollout": rollout_status(cwd),
     }
 
 
@@ -209,6 +214,42 @@ def integration_probe(cwd: str, name: str) -> dict:
     if not endpoint:
         return {"ok": False, "integration": n, "reason": "missing endpoint/tenant"}
     return {"ok": True, "integration": n, "provider": item.get("provider", ""), "endpoint": endpoint}
+
+
+def rollout_status(cwd: str) -> dict:
+    default = {
+        "environment": "dev",
+        "locked_high_risk_defaults": False,
+    }
+    cur = _load(_rollout_path(cwd), default)
+    for k, v in default.items():
+        cur.setdefault(k, v)
+    _save(_rollout_path(cwd), cur)
+    return cur
+
+
+def rollout_set(cwd: str, environment: str) -> dict:
+    env = environment.strip().lower()
+    if env not in {"dev", "stage", "prod"}:
+        return {"ok": False, "reason": "environment must be dev|stage|prod"}
+    cur = rollout_status(cwd)
+    cur["environment"] = env
+    _save(_rollout_path(cwd), cur)
+    return {"ok": True, "rollout": cur}
+
+
+def policy_lock_apply(cwd: str) -> dict:
+    pol = _policy(cwd)
+    # Freeze high-risk defaults.
+    pol["enabled"] = True
+    pol["require_signed_critical_actions"] = True
+    pol["forbidden_prefixes"] = ["format ", "diskpart ", "rm -rf /", "del c:\\"]
+    pol["critical_prefixes"] = ["powershell run ", "shell run ", "terminal run ", "process kill "]
+    _save(_policy_path(cwd), pol)
+    roll = rollout_status(cwd)
+    roll["locked_high_risk_defaults"] = True
+    _save(_rollout_path(cwd), roll)
+    return {"ok": True, "policy": pol, "rollout": roll}
 
 
 def siem_emit(cwd: str, event: str, severity: str, payload: dict) -> dict:

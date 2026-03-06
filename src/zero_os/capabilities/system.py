@@ -141,7 +141,10 @@ from zero_os.enterprise_security import (
     integration_configure,
     integration_probe,
     integration_status,
+    policy_lock_apply,
     preexec_check,
+    rollout_set,
+    rollout_status,
     rollback_playbook_run,
     set_role as enterprise_set_role,
     siem_emit,
@@ -228,6 +231,8 @@ class SystemCapability:
             "enterprise rollback",
             "enterprise validate",
             "enterprise integration",
+            "rollout",
+            "policy lock",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -330,6 +335,13 @@ class SystemCapability:
             return Result(self.name, json.dumps(enterprise_status(task.cwd), indent=2))
         if text.strip() == "enterprise integration status":
             return Result(self.name, json.dumps(integration_status(task.cwd), indent=2))
+        if text.strip() == "enterprise rollout status":
+            return Result(self.name, json.dumps(rollout_status(task.cwd), indent=2))
+        rollout_m = re.match(r"^enterprise rollout set\s+(dev|stage|prod)$", text.strip(), flags=re.IGNORECASE)
+        if rollout_m:
+            return Result(self.name, json.dumps(rollout_set(task.cwd, rollout_m.group(1)), indent=2))
+        if text.strip() == "enterprise policy lock apply":
+            return Result(self.name, json.dumps(policy_lock_apply(task.cwd), indent=2))
         ent_icfg = re.match(
             r"^enterprise integration set\s+(edr|siem|iam|zerotrust)\s+(on|off)(?:\s+provider=(\S+))?(?:\s+endpoint=(\S+))?$",
             raw.strip(),
@@ -1013,6 +1025,9 @@ class SystemCapability:
             "- enterprise integration status\n"
             "- enterprise integration set <edr|siem|iam|zerotrust> <on|off> [provider=<name>] [endpoint=<url_or_tenant>]\n"
             "- enterprise integration probe <edr|siem|iam|zerotrust>\n"
+            "- enterprise rollout status\n"
+            "- enterprise rollout set <dev|stage|prod>\n"
+            "- enterprise policy lock apply\n"
             "- enterprise sign action user=<user> <action_text>\n"
             "- enterprise siem emit <low|medium|high|critical> <event>\n"
             "- enterprise rollback run <critical|ransomware|integrity_failure>\n"

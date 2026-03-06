@@ -61,6 +61,18 @@ class EnterpriseSecurityTests(unittest.TestCase):
         self.assertTrue(pdata["ok"])
         self.assertEqual("siem", pdata["integration"])
 
+    def test_enterprise_rollout_and_policy_lock(self) -> None:
+        rset = self.highway.dispatch("enterprise rollout set prod", cwd=str(self.base))
+        rdata = json.loads(rset.summary)
+        self.assertTrue(rdata["ok"])
+        self.assertEqual("prod", rdata["rollout"]["environment"])
+
+        lock = self.highway.dispatch("enterprise policy lock apply", cwd=str(self.base))
+        ldata = json.loads(lock.summary)
+        self.assertTrue(ldata["ok"])
+        self.assertTrue(ldata["policy"]["enabled"])
+        self.assertTrue(ldata["policy"]["require_signed_critical_actions"])
+
 
 if __name__ == "__main__":
     unittest.main()

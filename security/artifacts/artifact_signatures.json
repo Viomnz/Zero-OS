@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "time_utc": "2026-03-06T22:49:00.291566+00:00",
+  "records": [
+    {
+      "file": "sbom.json",
+      "sha256": "51210ab65c46b6f19ab52b124226f43a227b4b7b3b686cc6b7cef9d6eabc01e9",
+      "signature": "b434d17c6edce09735fb5aed0ac25003f626906ca05882389af9c6eca8830406"
+    },
+    {
+      "file": "vuln_scan.json",
+      "sha256": "773aadc38df9c428909eff37fd252debc2b5f742cbaaa338f8c678d7407ced21",
+      "signature": "e00087df9926a9abd57e1b33382b14c37535d2309156f2d45bda66ce3579e1fe"
+    }
+  ]
+}

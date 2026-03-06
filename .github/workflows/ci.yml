@@ -18,6 +18,6 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Run tests
+      - name: Run Security Gate
         run: |
-          python -m unittest -v tests.test_security_core tests.test_security_integrity_layer tests.test_signal_reliability tests.test_internal_zero_reasoner tests.test_zero_ai_gate tests.test_synchronization_layer
+          python tools/security_gate.py
