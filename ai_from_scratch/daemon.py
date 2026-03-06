@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 # Allow imports from src/ for monitor integration.
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -20,7 +21,8 @@ from agents_monitor import run_agents_monitor
 from agent_guard import check_health, quarantine_compromise, restore_compromised
 from boundary_scope import evaluate_scope
 from english_dictionary import pure_logic_dictionary_step
-from english_understanding import human_response_from_understanding, understand_english
+from english_understanding import understand_english
+from chat_model_router import generate_primary_response
 from boot_initialization import run_boot_initialization
 from communication_interface import execution_interface, goal_alignment, receive_input
 from calibration_layer import run_calibration
@@ -34,15 +36,18 @@ from long_horizon_strategy import update_long_horizon_strategy
 from meta_reasoning import run_meta_reasoning
 from module_registry import write_registry_status
 from priority_arbitration import arbitrate_priority
+from runtime_state import ensure_runtime_schemas
 from safe_state_layer import evaluate_safe_state
 from security_integrity_layer import security_integrity_check
 from security_core import assess_security, record_event
 from shutdown_recovery import prepare_shutdown_recovery
+from slo_monitor import evaluate_slo
 from traceability_layer import log_decision_trace
 from zero_os.cure_firewall import audit_status
 from zero_os.production_core import auto_merge_queue_run, ai_files_smart_tick, auto_optimize_tick
 from scan import run_scan
 from universe_laws_guard import check_universe_laws
+from tool_runtime import maybe_run_tool
 
 
 def _utc_now() -> str:
@@ -57,6 +62,83 @@ def _runtime_dir(base: Path) -> Path:
 
 def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _background_python() -> str:
+    if os.name != "nt":
+        return sys.executable
+    py = Path(sys.executable)
+    pyw = py.with_name("pythonw.exe")
+    return str(pyw if pyw.exists() else py)
+
+
+def _spawn_kwargs() -> dict:
+    kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = (
+            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        )
+    return kwargs
+
+
+def _checkpoint_paths(base: Path, runtime: Path) -> tuple[Path, Path]:
+    return base / "ai_from_scratch" / "checkpoint.json", runtime / "checkpoint.backup.json"
+
+
+def _restore_checkpoint_from_backup(base: Path, runtime: Path) -> bool:
+    ckpt, backup = _checkpoint_paths(base, runtime)
+    if not backup.exists():
+        return False
+    try:
+        json.loads(backup.read_text(encoding="utf-8", errors="replace"))
+        ckpt.write_text(backup.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def _load_model_with_recovery(base: Path, runtime: Path, outbox: Path) -> TinyBigramModel | None:
+    ckpt, backup = _checkpoint_paths(base, runtime)
+    if not ckpt.exists():
+        return None
+    try:
+        model = TinyBigramModel.load(str(ckpt))
+        backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
+        return model
+    except Exception as exc:
+        restored = _restore_checkpoint_from_backup(base, runtime)
+        with outbox.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{_utc_now()}] [CHECKPOINT_RECOVERY]\n")
+            handle.write(
+                json.dumps(
+                    {
+                        "load_error": str(exc),
+                        "restored_from_backup": restored,
+                        "checkpoint": str(ckpt),
+                        "backup": str(backup),
+                    },
+                    indent=2,
+                )
+                + "\n\n"
+            )
+        if restored:
+            try:
+                return TinyBigramModel.load(str(ckpt))
+            except Exception:
+                return None
+        return None
+
+
+def _read_daemon_mode(runtime: Path) -> str:
+    mode_file = runtime / "daemon_mode.json"
+    if not mode_file.exists():
+        return "dev"
+    try:
+        payload = json.loads(mode_file.read_text(encoding="utf-8", errors="replace"))
+        mode = str(payload.get("mode", "dev")).strip().lower()
+        return mode if mode in {"dev", "protected"} else "dev"
+    except Exception:
+        return "dev"
 
 
 def _monitor_and_backup(base: Path, runtime: Path) -> None:
@@ -91,6 +173,26 @@ def _monitor_and_backup(base: Path, runtime: Path) -> None:
             shutil.copy2(src, backup_root / src.name)
 
 
+def _append_jsonl(path: Path, payload: dict) -> None:
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _parse_chat_request(raw: str) -> tuple[dict | None, str]:
+    text = str(raw or "").strip()
+    if not text.startswith("{"):
+        return None, text
+    try:
+        payload = json.loads(text)
+    except Exception:
+        return None, text
+    if not isinstance(payload, dict):
+        return None, text
+    if "request_id" not in payload or "content" not in payload:
+        return None, text
+    return payload, str(payload.get("content", "")).strip()
+
+
 def main() -> None:
     base = Path.cwd()
     runtime = _runtime_dir(base)
@@ -98,16 +200,23 @@ def main() -> None:
     pidfile = runtime / "zero_ai.pid"
     inbox = runtime / "zero_ai_tasks.txt"
     outbox = runtime / "zero_ai_output.txt"
+    chat_inbox = runtime / "chat_requests.jsonl"
+    chat_outbox = runtime / "chat_responses.jsonl"
     stopfile = runtime / "zero_ai.stop"
     ckpt = base / "ai_from_scratch" / "checkpoint.json"
 
     pidfile.write_text(str(os.getpid()), encoding="utf-8")
     if not inbox.exists():
         inbox.write_text("", encoding="utf-8")
+    if not chat_inbox.exists():
+        chat_inbox.write_text("", encoding="utf-8")
+    if not chat_outbox.exists():
+        chat_outbox.write_text("", encoding="utf-8")
 
-    model = TinyBigramModel.load(str(ckpt)) if ckpt.exists() else None
     boot = run_boot_initialization(str(base))
+    model = _load_model_with_recovery(base, runtime, outbox)
     processed_lines = len(inbox.read_text(encoding="utf-8", errors="replace").splitlines())
+    processed_chat_lines = len(chat_inbox.read_text(encoding="utf-8", errors="replace").splitlines())
     next_monitor = 0.0
     final_status = "stopped"
     final_reason = ""
@@ -120,7 +229,7 @@ def main() -> None:
             break
 
         if model is None and ckpt.exists():
-            model = TinyBigramModel.load(str(ckpt))
+            model = _load_model_with_recovery(base, runtime, outbox)
 
         _write_json(
             heartbeat,
@@ -140,6 +249,8 @@ def main() -> None:
 
         now_ts = time.time()
         if now_ts >= next_monitor:
+            schema_update = ensure_runtime_schemas(str(base))
+            slo = evaluate_slo(str(base))
             _monitor_and_backup(base, runtime)
             sec = assess_security(base, processed_lines)
             if sec.get("alerts"):
@@ -174,11 +285,22 @@ def main() -> None:
                 handle.write(json.dumps(registry_status, indent=2) + "\n\n")
             agents = run_agents_monitor(str(base))
             with outbox.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{_utc_now()}] [RUNTIME_SCHEMA]\n")
+                handle.write(json.dumps(schema_update, indent=2) + "\n\n")
+                handle.write(f"[{_utc_now()}] [SLO_MONITOR]\n")
+                handle.write(json.dumps(slo, indent=2) + "\n\n")
                 handle.write(f"[{_utc_now()}] [AGENTS_MONITOR]\n")
                 handle.write(json.dumps(agents, indent=2) + "\n\n")
 
             health = check_health(base)
             if not health.get("healthy", False):
+                daemon_mode = _read_daemon_mode(runtime)
+                if daemon_mode == "dev":
+                    with outbox.open("a", encoding="utf-8") as handle:
+                        handle.write(f"[{_utc_now()}] [INTEGRITY_DEV_WARN]\n")
+                        handle.write(json.dumps(health, indent=2) + "\n\n")
+                    next_monitor = now_ts + 10.0
+                    continue
                 record_event(base, "CRITICAL", "integrity_compromised", health)
                 quarantine = quarantine_compromise(base, health)
                 with outbox.open("a", encoding="utf-8") as handle:
@@ -201,13 +323,8 @@ def main() -> None:
                 restore = restore_compromised(base, health)
                 post_restore = check_health(base)
                 if post_restore.get("healthy", False):
-                    cmd = ["python", str(base / "ai_from_scratch" / "daemon.py")]
-                    subprocess.Popen(
-                        cmd,
-                        cwd=str(base),
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                    cmd = [_background_python(), str(base / "ai_from_scratch" / "daemon.py")]
+                    subprocess.Popen(cmd, cwd=str(base), **_spawn_kwargs())
                     with outbox.open("a", encoding="utf-8") as handle:
                         handle.write(f"[{_utc_now()}] [AGENT_REPLACED]\n")
                         handle.write(json.dumps(restore, indent=2) + "\n\n")
@@ -224,19 +341,47 @@ def main() -> None:
             next_monitor = now_ts + 10.0
 
         lines = inbox.read_text(encoding="utf-8", errors="replace").splitlines()
-        if len(lines) > processed_lines and model is not None:
-            new_lines = lines[processed_lines:]
-            for raw in new_lines:
+        chat_lines = chat_inbox.read_text(encoding="utf-8", errors="replace").splitlines()
+        merged_lines: list[str] = []
+        if len(lines) > processed_lines:
+            merged_lines.extend(lines[processed_lines:])
+        if len(chat_lines) > processed_chat_lines:
+            merged_lines.extend(chat_lines[processed_chat_lines:])
+        if merged_lines and model is not None:
+            for raw in merged_lines:
                 packet = receive_input(raw)
                 prompt = packet.content
                 if not prompt:
                     continue
+                envelope, parsed_prompt = _parse_chat_request(prompt)
+                if parsed_prompt:
+                    prompt = parsed_prompt
+                request_id = str((envelope or {}).get("request_id", "")).strip()
+                session_id = str((envelope or {}).get("session_id", "default")).strip() or "default"
+                turn_id = str((envelope or {}).get("turn_id", uuid4().hex)).strip() or uuid4().hex
+
+                def emit_response(text: str, status: str = "ok", extra: dict | None = None) -> None:
+                    if not request_id:
+                        return
+                    payload = {
+                        "time_utc": _utc_now(),
+                        "request_id": request_id,
+                        "session_id": session_id,
+                        "turn_id": turn_id,
+                        "status": status,
+                        "output": text,
+                    }
+                    if extra:
+                        payload.update(extra)
+                    _append_jsonl(chat_outbox, payload)
+
                 with outbox.open("a", encoding="utf-8") as handle:
                     handle.write(f"[{_utc_now()}] [BOOT_INITIALIZATION]\n")
                     handle.write(json.dumps(boot, indent=2) + "\n")
                     if not boot.get("ok", False):
                         handle.write("[SAFE_MODE_STARTUP_BLOCK]\n")
                         handle.write("startup checks failed; execution paused until restart with valid state\n\n")
+                        emit_response("Startup blocked by safe mode.", status="safe_mode")
                         time.sleep(2)
                         continue
                     handle.write(f"[{_utc_now()}] prompt={prompt}\n")
@@ -248,9 +393,11 @@ def main() -> None:
                         if decision == "defer":
                             handle.write("[DEFERRED_BY_SCOPE]\n")
                             handle.write("outside active scope; requires external handling\n\n")
+                            emit_response("Request deferred: outside active scope.", status="deferred")
                         else:
                             handle.write("[REJECTED_BY_SCOPE]\n")
                             handle.write("outside allowed scope\n\n")
+                            emit_response("Request rejected: outside allowed scope.", status="rejected")
                         continue
                     sec_gate = security_integrity_check(base, prompt, packet.channel)
                     handle.write("[SECURITY_INTEGRITY]\n")
@@ -258,6 +405,7 @@ def main() -> None:
                     if not sec_gate.get("ok", False):
                         handle.write("[REJECTED_BY_SECURITY_INTEGRITY]\n")
                         handle.write(json.dumps(sec_gate, indent=2) + "\n\n")
+                        emit_response("Request blocked by security integrity policy.", status="blocked", extra={"security": sec_gate})
                         continue
                     calibration = run_calibration(str(base))
                     profile_target = calibration.get("actions", {}).get("set_profile")
@@ -294,6 +442,7 @@ def main() -> None:
                     if not goal.get("pass", False):
                         handle.write("[REJECTED_BY_INTERFACE]\n")
                         handle.write(goal.get("reason", "blocked") + "\n\n")
+                        emit_response(f"Request blocked: {goal.get('reason', 'blocked')}", status="blocked", extra={"goal": goal})
                         continue
                     context = detect_context(str(base), prompt, packet.channel)
                     handle.write("[CONTEXT_AWARENESS]\n")
@@ -307,6 +456,13 @@ def main() -> None:
                     integrated_prompt = str(knowledge.get("unified_model", {}).get("unified_text", prompt)).strip() or prompt
                     handle.write("[KNOWLEDGE_INTEGRATION]\n")
                     handle.write(json.dumps(knowledge, indent=2) + "\n")
+                    tool_out = maybe_run_tool(integrated_prompt)
+                    if tool_out is not None:
+                        tool_text = json.dumps(tool_out, ensure_ascii=False)
+                        handle.write("[TOOL_RUNTIME]\n")
+                        handle.write(tool_text + "\n\n")
+                        emit_response(tool_text, status="ok" if tool_out.get("ok") else "blocked", extra={"tool": tool_out})
+                        continue
                     if prompt.lower().startswith("scan"):
                         report = run_scan(base)
                         status = "[SCAN_PASS]" if report["syntax_error_count"] == 0 and report["tests_passed"] else "[SCAN_FAIL]"
@@ -316,16 +472,22 @@ def main() -> None:
                             f"tests_passed={report['tests_passed']}\n"
                             "report=.zero_os/runtime/zero_ai_scan_report.json\n\n"
                         )
+                        emit_response(
+                            f"Scan {'passed' if status == '[SCAN_PASS]' else 'failed'}: syntax_error_count={report['syntax_error_count']}, tests_passed={report['tests_passed']}",
+                            status="ok" if status == "[SCAN_PASS]" else "warning",
+                            extra={"scan": report},
+                        )
                     else:
                         d = pure_logic_dictionary_step(str(base), prompt)
                         if d.get("mode") in {"lookup", "auto_add"} or prompt.lower().startswith("define "):
                             handle.write("[ENGLISH_DICTIONARY]\n")
                             handle.write(json.dumps(d, indent=2) + "\n\n")
+                            emit_response(json.dumps(d, ensure_ascii=False), status="ok", extra={"dictionary": d})
                             continue
                         understanding = understand_english(integrated_prompt)
                         handle.write("[ENGLISH_UNDERSTANDING]\n")
                         handle.write(json.dumps(understanding, indent=2) + "\n")
-                        primary = human_response_from_understanding(understanding, integrated_prompt)
+                        primary = generate_primary_response(integrated_prompt, understanding)
                         candidates = [primary]
                         max_candidates = int(ctx_params.get("max_candidates", 9))
                         for i in range(1, max_candidates + 1):
@@ -426,6 +588,11 @@ def main() -> None:
                             handle.write(json.dumps(horizon, indent=2) + "\n")
                             handle.write("[ENTERED_SAFE_STATE]\n")
                             handle.write(f"action={safe_state.get('action', 'pause_execution')}\n\n")
+                            emit_response(
+                                f"Safe state engaged: {safe_state.get('action', 'pause_execution')}",
+                                status="safe_state",
+                                extra={"safe_state": safe_state},
+                            )
                             continue
                         if gate.accepted:
                             chk = check_universe_laws(final_output)
@@ -434,6 +601,7 @@ def main() -> None:
                             handle.write("[COMM_INTERFACE_OUT]\n")
                             handle.write(json.dumps(outbound, indent=2) + "\n")
                             handle.write(outbound.get("safe_output", "") + "\n\n")
+                            emit_response(outbound.get("safe_output", ""), status="ok", extra={"outbound": outbound})
                             predicted = {
                                 "expected_success": bool(gate.accepted),
                                 "prediction_score": float(arbitration.get("winner_score", 0.0)),
@@ -457,6 +625,7 @@ def main() -> None:
                         else:
                             handle.write("[REJECTED_BY_ZERO_AI_INTERNAL]\n")
                             handle.write(gate.output + "\n\n")
+                            emit_response(gate.output, status="rejected")
                             predicted = {
                                 "expected_success": False,
                                 "prediction_score": float(arbitration.get("winner_score", 0.0)),
@@ -475,8 +644,12 @@ def main() -> None:
                             handle.write("[LONG_HORIZON_STRATEGY]\n")
                             handle.write(json.dumps(horizon, indent=2) + "\n")
             processed_lines = len(lines)
-        elif len(lines) < processed_lines:
-            processed_lines = len(lines)
+            processed_chat_lines = len(chat_lines)
+        else:
+            if len(lines) < processed_lines:
+                processed_lines = len(lines)
+            if len(chat_lines) < processed_chat_lines:
+                processed_chat_lines = len(chat_lines)
 
         time.sleep(2)
 

@@ -99,7 +99,10 @@ def security_integrity_check(base: Path, prompt: str, channel: str) -> dict:
     checkpoint = _checkpoint_integrity(base)
     memory = _memory_integrity(base)
     command_gate_ok = (not danger) or channel == "system_api" or str(prompt).lower().startswith("authorized ")
-    ok = (not malicious) and auth["ok"] and checkpoint["ok"] and memory["ok"] and command_gate_ok
+    # Runtime integrity mismatches should not block safe conversational traffic.
+    soft_integrity_ok = checkpoint["ok"] and memory["ok"]
+    privileged_intent = channel == "system_api" or str(prompt).lower().startswith("authorized ")
+    ok = (not malicious) and auth["ok"] and command_gate_ok and (soft_integrity_ok or not privileged_intent)
     return {
         "ok": ok,
         "malicious_input": {"blocked": malicious, "reason": mal_reason},
@@ -107,4 +110,5 @@ def security_integrity_check(base: Path, prompt: str, channel: str) -> dict:
         "authorization": auth,
         "checkpoint_integrity": checkpoint,
         "memory_integrity": memory,
+        "integrity_soft_fail": bool(not soft_integrity_ok and ok),
     }

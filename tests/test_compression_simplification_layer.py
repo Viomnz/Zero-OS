@@ -52,10 +52,31 @@ class CompressionSimplificationLayerTests(unittest.TestCase):
         (self.runtime / "decision_trace.json").write_text(json.dumps(trace), encoding="utf-8")
 
         out = run_compression(str(self.base), threshold_entries=5)
-        self.assertEqual(5, out["after"]["learning_feedback"])
-        self.assertEqual(5, out["after"]["decision_trace"])
+        self.assertGreaterEqual(out["after"]["learning_feedback"], 5)
+        self.assertGreaterEqual(out["after"]["decision_trace"], 5)
+        self.assertIn("integrity", out)
+        self.assertFalse(out["rolled_back"])
+
+    def test_preserves_critical_negative_learning(self) -> None:
+        learning = {
+            "history": [
+                {"prompt": f"p{i}", "outcome_match": True, "learning_score": 0.8, "signal_type": "positive"}
+                for i in range(12)
+            ]
+            + [
+                {"prompt": "critical", "outcome_match": False, "learning_score": 0.2, "signal_type": "negative"}
+            ]
+        }
+        trace = {"history": []}
+        (self.runtime / "learning_feedback.json").write_text(json.dumps(learning), encoding="utf-8")
+        (self.runtime / "decision_trace.json").write_text(json.dumps(trace), encoding="utf-8")
+
+        out = run_compression(str(self.base), threshold_entries=5)
+        self.assertTrue(out["ok"])
+        saved = json.loads((self.runtime / "learning_feedback.json").read_text(encoding="utf-8"))
+        prompts = [x.get("prompt") for x in saved.get("history", [])]
+        self.assertIn("critical", prompts)
 
 
 if __name__ == "__main__":
     unittest.main()
-

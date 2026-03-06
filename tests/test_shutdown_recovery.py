@@ -4,7 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ai_from_scratch.shutdown_recovery import load_recovery_state, prepare_shutdown_recovery
+from ai_from_scratch.shutdown_recovery import (
+    load_recovery_state,
+    prepare_shutdown_recovery,
+    verify_recovery_integrity,
+)
 
 
 class ShutdownRecoveryTests(unittest.TestCase):
@@ -24,11 +28,15 @@ class ShutdownRecoveryTests(unittest.TestCase):
         )
         out = prepare_shutdown_recovery(str(self.base), "manual_stop", "test", 3, True)
         self.assertEqual("manual_stop", out["trigger"])
+        self.assertEqual("manual_request", out["trigger_class"])
+        self.assertIn("controlled_shutdown_process", out)
+        self.assertIn("recovery_steps", out)
         loaded = load_recovery_state(str(self.base))
         self.assertTrue(loaded["found"])
         self.assertEqual("manual_stop", loaded["state"]["trigger"])
+        integ = verify_recovery_integrity(str(self.base))
+        self.assertTrue(integ["ok"])
 
 
 if __name__ == "__main__":
     unittest.main()
-

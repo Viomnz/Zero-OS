@@ -46,6 +46,7 @@ function Daemon-SecurityPolicy {
   python ai_from_scratch/daemon_ctl.py security-policy --kv $KV
 }
 function Daemon-ReputationScan { python ai_from_scratch/daemon_ctl.py reputation-scan }
+function Daemon-Stabilize { python ai_from_scratch/daemon_ctl.py stabilize }
 function Daemon-TrustFile {
   param([string]$ArgsText)
   $parts = $ArgsText.Split(",")
@@ -61,6 +62,14 @@ function Queue-Task {
   param([string]$Prompt)
   if (-not $Prompt) { throw "Prompt required for task" }
   python ai_from_scratch/daemon_ctl.py task --prompt $Prompt
+}
+function Smart-Flow {
+  param([string]$WorkspacePath)
+  if ($WorkspacePath) {
+    python ai_from_scratch/daemon_ctl.py smart-flow --workspace $WorkspacePath
+  } else {
+    python ai_from_scratch/daemon_ctl.py smart-flow
+  }
 }
 
 function Show-Readiness { python src/main.py "os readiness --json" }
@@ -199,10 +208,13 @@ Actions:
   security-agent            Run layered security report
   security-policy:<kv>      Set policy
   reputation-scan           Scan executable/script reputation trust
+  stabilize-agent           Rebuild baseline + restart + refresh monitor
   trust-file:<p,s,l,n>      Sign file reputation
   kill-agent                Emergency stop daemon + dashboard
   scan                      Queue scan task (syntax + tests)
   task:<text>               Queue custom AI task
+  smart-flow                Auto smart flow for current workspace path
+  smart-flow:<path>         Auto smart flow for selected workspace path
 
   codex-suggest:<goal>      Show route options only (no execution)
   codex-run:<goal>          Run codex goal with auto route
@@ -251,10 +263,13 @@ switch -Regex ($Action) {
   "^security-agent$" { Daemon-Security; break }
   "^security-policy:(.+)$" { Daemon-SecurityPolicy -KV $Matches[1]; break }
   "^reputation-scan$" { Daemon-ReputationScan; break }
+  "^stabilize-agent$" { Daemon-Stabilize; break }
   "^trust-file:(.+)$" { Daemon-TrustFile -ArgsText $Matches[1]; break }
   "^kill-agent$" { Kill-Agent; break }
   "^scan$" { Queue-Scan; break }
   "^task:(.+)$" { Queue-Task -Prompt $Matches[1]; break }
+  "^smart-flow$" { Smart-Flow; break }
+  "^smart-flow:(.+)$" { Smart-Flow -WorkspacePath $Matches[1]; break }
 
   "^codex-suggest:(.+)$" { Codex-Suggest -Goal $Matches[1]; break }
   "^codex-run:(.+)$" { Codex-Run -Goal $Matches[1]; break }

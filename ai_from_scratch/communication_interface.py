@@ -45,11 +45,22 @@ def goal_alignment(packet: InterfacePacket) -> dict:
     if not packet.safe:
         return {"pass": False, "goal": "none", "reason": packet.reason}
     text = packet.content.lower()
-    if any(k in text for k in ("delete all", "wipe disk", "destroy", "harm")):
-        return {"pass": False, "goal": "blocked", "reason": "unsafe goal keyword"}
+    hard_block_patterns = [
+        r"\b(delete all|wipe disk|destroy|harm|self-harm|suicide)\b",
+        r"\b(ransomware|steal password|credential stuffing|keylogger)\b",
+        r"\b(build bomb|make explosive|weaponize)\b",
+    ]
+    if any(re.search(p, text) for p in hard_block_patterns):
+        return {"pass": False, "goal": "blocked", "reason": "unsafe goal pattern", "risk": "high"}
+    risky_patterns = [
+        r"\b(disable antivirus|bypass security|privilege escalation)\b",
+        r"\b(run powershell as admin|reg add .*run)\b",
+    ]
+    if any(re.search(p, text) for p in risky_patterns):
+        return {"pass": False, "goal": "blocked", "reason": "high-risk operational request", "risk": "medium"}
     if any(k in text for k in ("create", "build", "optimize", "scan", "monitor", "status", "fix")):
-        return {"pass": True, "goal": "constructive", "reason": "goal aligned"}
-    return {"pass": True, "goal": "neutral", "reason": "no unsafe markers"}
+        return {"pass": True, "goal": "constructive", "reason": "goal aligned", "risk": "low"}
+    return {"pass": True, "goal": "neutral", "reason": "no unsafe markers", "risk": "low"}
 
 
 def execution_interface(output_text: str, channel: str) -> dict:
@@ -63,4 +74,3 @@ def execution_interface(output_text: str, channel: str) -> dict:
         "safe_output": text if allowed else "",
         "reason": "routable output" if allowed else "blocked output route",
     }
-

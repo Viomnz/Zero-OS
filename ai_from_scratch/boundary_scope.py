@@ -45,6 +45,8 @@ def _normalize(text: str) -> str:
 
 def _infer_domain(prompt: str) -> str:
     p = _normalize(prompt)
+    if any(k in p for k in ("hello", "hi", "hey", "what is", "explain", "help", "chat", "question")):
+        return "analysis"
     if any(k in p for k in ("build", "code", "file", "compile", "function", "api")):
         return "engineering"
     if any(k in p for k in ("plan", "roadmap", "strategy", "route")):
@@ -65,7 +67,7 @@ def evaluate_scope(cwd: str, prompt: str, channel: str) -> dict:
     domain = _infer_domain(prompt)
     domain_allowed = domain in ALLOWED_DOMAINS
     authority_allowed = not any(k in p for k in UNAUTHORIZED_KEYWORDS)
-    knowledge_reliable = "??" not in p and len(p.split()) >= 2
+    knowledge_reliable = "??" not in p and len(p.split()) >= 1
     operational_limit_ok = channel in {"human", "system_api", "physical_device"}
     high_risk = any(k in p for k in HIGH_RISK_KEYWORDS)
 
@@ -89,4 +91,3 @@ def evaluate_scope(cwd: str, prompt: str, channel: str) -> dict:
     }
     (_runtime(cwd) / "boundary_scope.json").write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
     return out
-

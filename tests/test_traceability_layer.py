@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ai_from_scratch.traceability_layer import log_decision_trace
+from ai_from_scratch.traceability_layer import audit_trace, log_decision_trace, log_trace_event
 
 
 class TraceabilityLayerTests(unittest.TestCase):
@@ -21,8 +21,19 @@ class TraceabilityLayerTests(unittest.TestCase):
         self.assertTrue(second["ok"])
         path = self.base / ".zero_os" / "runtime" / "decision_trace.json"
         self.assertTrue(path.exists())
+        audit = audit_trace(str(self.base), limit=10)
+        self.assertTrue(audit["ok"])
+        self.assertGreaterEqual(audit["returned"], 2)
+        self.assertEqual(2, audit["events"][-1].get("schema_version"))
+
+    def test_log_trace_event_and_filter(self) -> None:
+        log_trace_event(str(self.base), "feedback", {"x": 1})
+        log_trace_event(str(self.base), "outcome", {"x": 2})
+        only_feedback = audit_trace(str(self.base), limit=10, event_type="feedback")
+        self.assertTrue(only_feedback["ok"])
+        self.assertEqual(1, only_feedback["returned"])
+        self.assertEqual("feedback", only_feedback["events"][0]["event_type"])
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -17,10 +17,12 @@ class BootInitializationTests(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
-    def test_boot_fails_without_checkpoint(self) -> None:
+    def test_boot_auto_restores_without_checkpoint(self) -> None:
         out = run_boot_initialization(str(self.base))
-        self.assertFalse(out["ok"])
-        self.assertTrue(out["safe_mode"])
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["safe_mode"])
+        self.assertIn(out["model_integrity"]["reason"], {"checkpoint auto-restored", "checkpoint restored from backup"})
+        self.assertTrue((self.base / "ai_from_scratch" / "checkpoint.json").exists())
 
     def test_boot_passes_with_valid_checkpoint_and_memory(self) -> None:
         (self.base / "ai_from_scratch" / "checkpoint.json").write_text(
@@ -38,4 +40,3 @@ class BootInitializationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
