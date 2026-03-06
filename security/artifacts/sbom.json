@@ -6,7 +6,7 @@
       "name": "Zero-OS",
       "type": "application"
     },
-    "timestamp_utc": "2026-03-06T22:48:59.971588+00:00"
+    "timestamp_utc": "2026-03-06T22:57:59.088268+00:00"
   },
   "components": [
     {
@@ -591,8 +591,8 @@
     },
     {
       "path": "tests/test_chat_api_server.py",
-      "size": 3343,
-      "sha256": "a4a0475a3e1736bec70946b7b651885b4a39f43f16502845834c33dfa2e11a02"
+      "size": 3576,
+      "sha256": "7a9829d1be2fb0f19968ae58d7dbac82bc8180da9e2f091f70fa5b1be1104389"
     },
     {
       "path": "tests/test_code_safety.py",
@@ -686,8 +686,8 @@
     },
     {
       "path": "tests/test_hyperlayer.py",
-      "size": 747,
-      "sha256": "d6fbe247028ed8ef5c8f7d48fdf5978a27580b4154df63ce147ed45a787057fe"
+      "size": 1097,
+      "sha256": "b55a4c613873d5682ef6906102ef4d4ad0f32e58490de144ff382efce8e209f8"
     },
     {
       "path": "tests/test_internal_zero_reasoner.py",
@@ -1006,8 +1006,8 @@
     },
     {
       "path": "tests/__pycache__/test_chat_api_server.cpython-314.pyc",
-      "size": 7479,
-      "sha256": "3a151f0d206935e38987c09f00b5fd3344439d4793430097dc59fb6693321327"
+      "size": 8290,
+      "sha256": "8dab32c625877bea4472b7941d50e996b7d785d882cffca1d253a7c23118c77f"
     },
     {
       "path": "tests/__pycache__/test_code_safety.cpython-314.pyc",
@@ -1101,8 +1101,8 @@
     },
     {
       "path": "tests/__pycache__/test_hyperlayer.cpython-314.pyc",
-      "size": 2235,
-      "sha256": "b31e1ff24aa5bea4ef1a2647000ed6d388877e9e6660511236203d2c760a5765"
+      "size": 3195,
+      "sha256": "61e7935fcb1887565864c13441d70d88380b04e90a0868fa04f92bd0a67264e0"
     },
     {
       "path": "tests/__pycache__/test_internal_zero_reasoner.cpython-314.pyc",
@@ -1451,8 +1451,8 @@
     },
     {
       "path": "src/zero_os/hyperlayer/contracts.py",
-      "size": 535,
-      "sha256": "ec7719243fdcfbaea41516f3d95c129307bc5c3f252f89e8a852961d4fc8a0c7"
+      "size": 1197,
+      "sha256": "246c6fc5a221eec1eac25c2d78f48332aed3c4eb4d93c000e245de7a39e1c47c"
     },
     {
       "path": "src/zero_os/hyperlayer/runtime_core.py",
@@ -1681,8 +1681,8 @@
     },
     {
       "path": "src/zero_os/hyperlayer/__pycache__/contracts.cpython-314.pyc",
-      "size": 2087,
-      "sha256": "d97cb19acd6651fa1bbe0651846e8c0c8ccb605c85c7b3626d1e4448c3569050"
+      "size": 2664,
+      "sha256": "4c5a098992a77282dc3abf6981f5c6d3f5e67b5e3f75eda1f7f86d2eb4d529dc"
     },
     {
       "path": "src/zero_os/hyperlayer/__pycache__/runtime_core.cpython-314.pyc",
@@ -1763,6 +1763,31 @@
       "path": "src/zero_os/capabilities/__pycache__/web.cpython-314.pyc",
       "size": 12679,
       "sha256": "491313b3ca2b3ecf749d2409c39763e410a4219a2946393c5b388a0ca2d81d4c"
+    },
+    {
+      "path": "security/artifacts/artifact_signatures.json",
+      "size": 527,
+      "sha256": "77d25f449750eb8974f70b2d2e17a7d646ab11e3bc5b144d896b9d8561c06f59"
+    },
+    {
+      "path": "security/artifacts/compliance_evidence.json",
+      "size": 510,
+      "sha256": "76f56081575458746e869bacf556691d9e9c8132783b840541f68fd7a07cf300"
+    },
+    {
+      "path": "security/artifacts/compliance_evidence.md",
+      "size": 236,
+      "sha256": "363b8bbf0c9d8f2640f4045d7c66af70292e88f19f8eb0f6b82d28420a61d35f"
+    },
+    {
+      "path": "security/artifacts/sbom.json",
+      "size": 156822,
+      "sha256": "658918f9e0db8aa9f8b4bf0da01c34f11dec50f94c8e52ea342961478a681f7e"
+    },
+    {
+      "path": "security/artifacts/vuln_scan.json",
+      "size": 113,
+      "sha256": "cbd26a6e09c333ee58351cb7fb4a13c275fba99a0e54ccaf433012b851f54019"
     },
     {
       "path": "docs/kernel/boot_trust_chain.md",
@@ -2153,6 +2178,11 @@
       "path": ".zero_os/intake/main.intake.json",
       "size": 2557,
       "sha256": "074987bb498d7a4e22c9ff3a681c5a21ce3ca054a7b4d9e55a8392d5183de16d"
+    },
+    {
+      "path": ".zero_os/keys/artifact_signing.key",
+      "size": 64,
+      "sha256": "04e23eeeb0f82d404446ab9b216b0a5cafcc9ee3caa22bdc36def24f991f68ff"
     },
     {
       "path": ".zero_os/keys/beacon.key",
@@ -4030,5 +4060,5 @@
       "sha256": "9b1b12d75f506b9321af8442662ab29a42d33bb7a179c90864282211fe79f111"
     }
   ],
-  "component_count": 804
+  "component_count": 810
 }

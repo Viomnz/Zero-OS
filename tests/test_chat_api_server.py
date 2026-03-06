@@ -1,4 +1,5 @@
 import json
+import socket
 import shutil
 import tempfile
 import threading
@@ -11,11 +12,17 @@ from ai_from_scratch.chat_api_server import run_chat_api
 
 
 class ChatApiServerTests(unittest.TestCase):
+    @staticmethod
+    def _free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
+
     def setUp(self) -> None:
         self.tempdir = tempfile.mkdtemp(prefix="zero_chat_api_")
         self.base = Path(self.tempdir)
         (self.base / ".zero_os" / "runtime").mkdir(parents=True, exist_ok=True)
-        self.port = 8876
+        self.port = self._free_port()
         self.server_thread = threading.Thread(
             target=run_chat_api,
             args=(self.base, "127.0.0.1", self.port),
