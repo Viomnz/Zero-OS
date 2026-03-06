@@ -467,3 +467,32 @@ def _backup_target(base: Path, target: Path) -> str:
     with manifest.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
     return str(backup_file)
+
+
+def restore_from_cure_backup(cwd: str, target_rel_path: str) -> dict:
+    base = Path(cwd).resolve()
+    target = (base / target_rel_path).resolve()
+    backup_root = base / ".zero_os" / "backups" / "cure_firewall"
+    manifest = backup_root / "manifest.jsonl"
+    if not manifest.exists():
+        return {"ok": False, "reason": "backup manifest missing"}
+    lines = [ln for ln in manifest.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip()]
+    if not lines:
+        return {"ok": False, "reason": "no backups recorded"}
+    best = None
+    for ln in reversed(lines):
+        try:
+            rec = json.loads(ln)
+        except Exception:
+            continue
+        if str(rec.get("target", "")) == str(target):
+            best = rec
+            break
+    if not best:
+        return {"ok": False, "reason": "no backup for target"}
+    src = Path(str(best.get("backup", "")))
+    if not src.exists():
+        return {"ok": False, "reason": "backup file missing"}
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, target)
+    return {"ok": True, "restored": str(target), "from_backup": str(src)}

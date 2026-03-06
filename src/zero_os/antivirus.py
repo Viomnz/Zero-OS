@@ -6,7 +6,7 @@ import json
 import shutil
 import subprocess
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -44,6 +44,14 @@ def _quarantine_dir(cwd: str) -> Path:
 
 def _q_index_path(cwd: str) -> Path:
     return _state_root(cwd) / "quarantine_index.json"
+
+
+def _suppression_path(cwd: str) -> Path:
+    return _state_root(cwd) / "suppressions.json"
+
+
+def _incident_path(cwd: str) -> Path:
+    return _state_root(cwd) / "incidents.jsonl"
 
 
 def _load(path: Path, default):
@@ -152,6 +160,7 @@ def policy_status(cwd: str) -> dict:
         "archive_max_depth": 2,
         "archive_max_entries": 700,
         "restore_overwrite": False,
+        "response_mode": "manual",
     }
     path = _policy_path(cwd)
     if not path.exists():
@@ -171,10 +180,69 @@ def policy_set(cwd: str, key: str, value: str) -> dict:
         p[k] = max(0, int(value))
     elif k in {"auto_quarantine", "restore_overwrite"}:
         p[k] = value.strip().lower() in {"1", "true", "yes", "on"}
+    elif k == "response_mode":
+        v = value.strip().lower()
+        if v not in {"manual", "quarantine_high", "quarantine_critical"}:
+            raise ValueError("unsupported response_mode")
+        p[k] = v
     else:
         raise ValueError("unsupported policy key")
     _save(_policy_path(cwd), p)
     return p
+
+
+def suppression_list(cwd: str) -> dict:
+    data = _load(_suppression_path(cwd), {"items": []})
+    items = [x for x in data.get("items", []) if isinstance(x, dict)]
+    return {"ok": True, "count": len(items), "items": items}
+
+
+def suppression_add(cwd: str, signature_id: str, path_prefix: str = "", hours: int = 24) -> dict:
+    data = _load(_suppression_path(cwd), {"items": []})
+    rec = {
+        "id": hashlib.sha1((signature_id + path_prefix + _utc_now()).encode("utf-8")).hexdigest()[:10],
+        "signature_id": signature_id.strip(),
+        "path_prefix": path_prefix.strip().replace("\\", "/"),
+        "created_utc": _utc_now(),
+        "expires_utc": (datetime.now(timezone.utc) + timedelta(hours=max(1, int(hours)))).isoformat(),
+    }
+    data["items"].append(rec)
+    _save(_suppression_path(cwd), data)
+    return {"ok": True, **rec}
+
+
+def suppression_remove(cwd: str, suppression_id: str) -> dict:
+    data = _load(_suppression_path(cwd), {"items": []})
+    before = len(data.get("items", []))
+    data["items"] = [x for x in data.get("items", []) if str(x.get("id")) != suppression_id]
+    _save(_suppression_path(cwd), data)
+    return {"ok": True, "removed": before - len(data["items"])}
+
+
+def _suppression_active(item: dict) -> bool:
+    try:
+        exp = datetime.fromisoformat(str(item.get("expires_utc", "")))
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return exp >= datetime.now(timezone.utc)
+    except Exception:
+        return False
+
+
+def _is_suppressed(cwd: str, rel_path: str, sig_id: str) -> bool:
+    items = _load(_suppression_path(cwd), {"items": []}).get("items", [])
+    rel = rel_path.replace("\\", "/")
+    for item in items:
+        if not isinstance(item, dict) or not _suppression_active(item):
+            continue
+        s = str(item.get("signature_id", "")).strip()
+        p = str(item.get("path_prefix", "")).strip()
+        if s and s != sig_id:
+            continue
+        if p and not rel.startswith(p):
+            continue
+        return True
+    return False
 
 
 def _excluded(base: Path, target: Path, policy: dict) -> bool:
@@ -352,8 +420,11 @@ def scan_target(cwd: str, target: str) -> dict:
 
         text = f.read_text(encoding="utf-8", errors="ignore") if f.suffix.lower() not in {".exe", ".dll", ".bin"} else ""
         sig_hits = _match_signatures(text, feed)
+        rel = str(f.relative_to(base)).replace("\\", "/")
+        sig_hits = [h for h in sig_hits if not _is_suppressed(cwd, rel, str(h.get("id", "")))]
         heur_score, heur_tags = _heuristic_score(text, f.name)
         archive_hits = _scan_zip(f, feed, policy) if f.suffix.lower() == ".zip" else []
+        archive_hits = [h for h in archive_hits if not _is_suppressed(cwd, rel, str(h.get("signature", "")))]
 
         if sig_hits or archive_hits or heur_score >= int(policy.get("heuristic_threshold", 65)):
             item = {
@@ -391,12 +462,26 @@ def scan_target(cwd: str, target: str) -> dict:
         "time_utc": _utc_now(),
     }
     _save(_state_root(cwd) / "last_scan.json", report)
+    with _incident_path(cwd).open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"time_utc": _utc_now(), "kind": "scan", "report": report}, sort_keys=True) + "\n")
 
     if policy.get("auto_quarantine"):
         for item in findings[:100]:
             quarantine_file(cwd, item["path"], reason="auto_quarantine")
+    _auto_response(cwd, report)
 
     return report
+
+
+def _auto_response(cwd: str, report: dict) -> None:
+    mode = str(policy_status(cwd).get("response_mode", "manual"))
+    if mode == "manual":
+        return
+    threshold = "high" if mode == "quarantine_high" else "critical"
+    for item in report.get("findings", [])[:100]:
+        sev = str(item.get("severity", "low"))
+        if _severity_rank(sev) >= _severity_rank(threshold):
+            quarantine_file(cwd, str(item.get("path", "")), reason=f"response_{mode}")
 
 
 def quarantine_file(cwd: str, rel_path: str, reason: str = "manual") -> dict:

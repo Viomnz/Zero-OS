@@ -78,6 +78,9 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertTrue((self.base / ".zero_os" / "beacons" / "sample2.beacon.json").exists())
         self.assertTrue((self.base / ".zero_os" / "backups" / "cure_firewall").exists())
         self.assertIn("backup:", result.summary)
+        target.write_text("tampered", encoding="utf-8")
+        restored = highway.dispatch("cure firewall restore sample2.txt", cwd=str(self.base))
+        self.assertIn("\"ok\": true", restored.summary.lower())
         verify = highway.dispatch("cure firewall verify sample2.txt", cwd=str(self.base))
         self.assertIn("signature_valid: True", verify.summary)
 

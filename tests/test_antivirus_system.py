@@ -142,6 +142,23 @@ class AntivirusSystemTests(unittest.TestCase):
         self.assertTrue(sdata["ok"])
         self.assertIn("scan_report", sdata)
 
+    def test_antivirus_suppression_blocks_signature_hit(self) -> None:
+        f = self.base / "suppressed.ps1"
+        f.write_text("quantum-virus-signature", encoding="utf-8")
+        self.highway.dispatch("antivirus suppression add QVIR-SIM path=suppressed.ps1 hours=24", cwd=str(self.base))
+        scan = self.highway.dispatch("antivirus scan suppressed.ps1", cwd=str(self.base))
+        data = json.loads(scan.summary)
+        self.assertEqual(0, data["finding_count"])
+
+    def test_antivirus_response_mode_auto_quarantine_high(self) -> None:
+        self.highway.dispatch("antivirus policy set response_mode quarantine_high", cwd=str(self.base))
+        f = self.base / "autoq.ps1"
+        f.write_text("powershell -enc AAAA\nquantum-virus-signature", encoding="utf-8")
+        self.highway.dispatch("antivirus scan autoq.ps1", cwd=str(self.base))
+        qlist = self.highway.dispatch("antivirus quarantine list", cwd=str(self.base))
+        qd = json.loads(qlist.summary)
+        self.assertGreaterEqual(qd["count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

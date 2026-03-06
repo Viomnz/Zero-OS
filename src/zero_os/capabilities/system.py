@@ -12,6 +12,7 @@ from zero_os.core import CORE_POLICY
 from zero_os.cure_firewall import (
     audit_status,
     load_net_policy,
+    restore_from_cure_backup,
     run_cure_firewall,
     run_cure_firewall_net,
     set_net_policy,
@@ -119,6 +120,9 @@ from zero_os.antivirus import (
     scan_target as antivirus_scan_target,
     threat_feed_status as antivirus_threat_feed_status,
     threat_feed_update as antivirus_threat_feed_update,
+    suppression_add as antivirus_suppression_add,
+    suppression_list as antivirus_suppression_list,
+    suppression_remove as antivirus_suppression_remove,
 )
 from zero_os.antivirus_agent import antivirus_agent_status, run_antivirus_agent
 from zero_os.triad_balance import (
@@ -348,11 +352,26 @@ class SystemCapability:
             except ValueError:
                 return Result(
                     self.name,
-                    "supported policy keys: heuristic_threshold, auto_quarantine, max_files_per_scan, max_file_mb, archive_max_depth, archive_max_entries, restore_overwrite",
+                    "supported policy keys: heuristic_threshold, auto_quarantine, max_files_per_scan, max_file_mb, archive_max_depth, archive_max_entries, restore_overwrite, response_mode",
                 )
             return Result(self.name, json.dumps(updated, indent=2))
         if text.strip() == "antivirus policy show":
             return Result(self.name, json.dumps(antivirus_policy_status(task.cwd), indent=2))
+        av_supp_add = re.match(
+            r"^antivirus suppression add\s+([A-Za-z0-9._-]+)(?:\s+path=(\S+))?(?:\s+hours=(\d+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if av_supp_add:
+            sig = av_supp_add.group(1)
+            pfx = av_supp_add.group(2) or ""
+            hours = int(av_supp_add.group(3) or "24")
+            return Result(self.name, json.dumps(antivirus_suppression_add(task.cwd, sig, pfx, hours), indent=2))
+        if text.strip() == "antivirus suppression list":
+            return Result(self.name, json.dumps(antivirus_suppression_list(task.cwd), indent=2))
+        av_supp_rm = re.match(r"^antivirus suppression remove\s+([a-z0-9]+)$", text.strip(), flags=re.IGNORECASE)
+        if av_supp_rm:
+            return Result(self.name, json.dumps(antivirus_suppression_remove(task.cwd, av_supp_rm.group(1)), indent=2))
         av_mon_on = re.match(r"^antivirus monitor on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
         if av_mon_on:
             iv = int(av_mon_on.group(1)) if av_mon_on.group(1) else None
@@ -799,6 +818,10 @@ class SystemCapability:
             rel = cure_verify.group(1).strip().strip("\"'")
             valid, reason = verify_beacon(task.cwd, rel)
             return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
+        cure_restore = re.match(r"^cure firewall restore\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if cure_restore:
+            rel = cure_restore.group(1).strip().strip("\"'")
+            return Result(self.name, json.dumps(restore_from_cure_backup(task.cwd, rel), indent=2))
 
         cure_net_verify = re.match(
             r"^cure firewall net verify\s+(.+)$",
@@ -867,6 +890,7 @@ class SystemCapability:
             "- law export\n"
             "- cure firewall run <path> pressure <0-100>\n"
             "- cure firewall verify <path>\n"
+            "- cure firewall restore <path>\n"
             "- cure firewall net run <url> pressure <0-100>\n"
             "- cure firewall net verify <url>\n"
             "- cure firewall agent run [pressure <0-100>]\n"
@@ -937,6 +961,10 @@ class SystemCapability:
             "- antivirus policy set archive_max_depth <n>\n"
             "- antivirus policy set archive_max_entries <n>\n"
             "- antivirus policy set restore_overwrite <true|false>\n"
+            "- antivirus policy set response_mode <manual|quarantine_high|quarantine_critical>\n"
+            "- antivirus suppression add <signature_id> [path=<prefix>] [hours=<n>]\n"
+            "- antivirus suppression list\n"
+            "- antivirus suppression remove <id>\n"
             "- antivirus monitor on [interval=<seconds>]\n"
             "- antivirus monitor off\n"
             "- antivirus monitor status\n"
