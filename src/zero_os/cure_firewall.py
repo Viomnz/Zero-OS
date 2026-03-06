@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ class CureResult:
     notes: str
     score: int = 0
     beacon_path: str | None = None
+    backup_path: str | None = None
 
 
 def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResult:
@@ -48,6 +50,8 @@ def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResu
         result = CureResult(target=str(target), activated=True, survived=False, pressure=pressure, notes="failed: target file missing", score=0)
         append_audit(base, "file_run", str(target), "failed", result.notes)
         return result
+
+    backup_path = _backup_target(base, target)
 
     # Part 1: recursion engine (multi-pass self-hash reflection)
     data = target.read_bytes()
@@ -105,6 +109,7 @@ def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResu
         notes=note,
         score=score,
         beacon_path=beacon,
+        backup_path=backup_path,
     )
     append_audit(base, "file_run", str(target), "pass" if survived else "collapse", f"score={score}; pressure={pressure}")
     return result
@@ -441,3 +446,24 @@ def _load_or_create_key(base: Path) -> bytes:
 
 def _url_id(url: str) -> str:
     return hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
+
+
+def _backup_target(base: Path, target: Path) -> str:
+    backup_root = base / ".zero_os" / "backups" / "cure_firewall"
+    backup_root.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    target_id = hashlib.sha1(str(target).encode("utf-8")).hexdigest()[:10]
+    backup_name = f"{target.stem}__{target_id}__{ts}{target.suffix}"
+    backup_file = backup_root / backup_name
+    shutil.copy2(target, backup_file)
+    manifest = backup_root / "manifest.jsonl"
+    record = {
+        "time_utc": datetime.now(timezone.utc).isoformat(),
+        "target": str(target),
+        "backup": str(backup_file),
+        "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        "size": target.stat().st_size,
+    }
+    with manifest.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return str(backup_file)

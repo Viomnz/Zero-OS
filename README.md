@@ -51,6 +51,15 @@ Behavior is tuned by both user mode and performance profile.
 - Agent lane: dynamic max step execution.
 - Web lane: dynamic result count and fetch preview size.
 
+## Scalable Compute Tiers (PC to Supercomputer to Quantum)
+- `tier1`: regular PC
+- `tier2`: workstation/server
+- `tier3`: distributed cluster/supercomputer
+- `tier4`: hybrid quantum-assisted
+- Set profile manually with: `profile set tier1|tier2|tier3|tier4`
+- Keep automatic selection with: `profile set auto`
+- Runtime compute decisions are written to `.zero_os/runtime/compute_runtime.json`
+
 ## Lanes
 - `agent`: plan/chain multiple steps in one request
 - `code`: create, append, and read files

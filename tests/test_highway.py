@@ -76,6 +76,8 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("survived: True", result.summary)
         self.assertIn("score:", result.summary)
         self.assertTrue((self.base / ".zero_os" / "beacons" / "sample2.beacon.json").exists())
+        self.assertTrue((self.base / ".zero_os" / "backups" / "cure_firewall").exists())
+        self.assertIn("backup:", result.summary)
         verify = highway.dispatch("cure firewall verify sample2.txt", cwd=str(self.base))
         self.assertIn("signature_valid: True", verify.summary)
 
@@ -124,6 +126,85 @@ class CoreRoutingTests(unittest.TestCase):
             cwd=str(self.base),
         )
         self.assertIn("signature_valid: True", verify.summary)
+
+    def test_cure_firewall_agent_run_and_status(self) -> None:
+        target = self.base / "sample_agent.txt"
+        target.write_text("hello agent recursion", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        run = highway.dispatch(
+            "cure firewall agent run pressure 80",
+            cwd=str(self.base),
+        )
+        self.assertEqual("system", run.capability)
+        self.assertIn("\"ok\": true", run.summary.lower())
+        report = self.base / ".zero_os" / "runtime" / "cure_firewall_agent_report.json"
+        self.assertTrue(report.exists())
+
+        status = highway.dispatch("cure firewall agent status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("\"file_targets\":", status.summary)
+
+    def test_triad_balance_run_and_status(self) -> None:
+        target = self.base / "triad_sample.txt"
+        target.write_text("quantum-virus-signature", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        run = highway.dispatch("triad balance run", cwd=str(self.base))
+        self.assertEqual("system", run.capability)
+        self.assertIn("\"triad_score\":", run.summary)
+        status = highway.dispatch("triad balance status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("\"triad_total\": 3", status.summary)
+
+    def test_triad_ops_on_tick_status(self) -> None:
+        target = self.base / "triad_ops_sample.ps1"
+        target.write_text("powershell -enc AAAA", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        on = highway.dispatch("triad ops on interval=60 sink=log+inbox", cwd=str(self.base))
+        self.assertEqual("system", on.capability)
+        self.assertIn("\"enabled\": true", on.summary.lower())
+
+        tick = highway.dispatch("triad ops tick", cwd=str(self.base))
+        self.assertEqual("system", tick.capability)
+        self.assertIn("\"ran\": true", tick.summary.lower())
+
+        status = highway.dispatch("triad ops status", cwd=str(self.base))
+        self.assertIn("\"last_tick_utc\":", status.summary)
+
+    def test_zero_ai_agent_monitor_triad_balance_phrase(self) -> None:
+        target = self.base / "triad_phrase_sample.ps1"
+        target.write_text("powershell -enc AAAA", encoding="utf-8")
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai agent monitor triad balance", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("triad_balanced:", out.summary)
+        self.assertIn("triad_score:", out.summary)
+        self.assertIn("antivirus_findings:", out.summary)
+
+    def test_self_repair_run_tick_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        on = highway.dispatch("self repair on interval=60", cwd=str(self.base))
+        self.assertEqual("system", on.capability)
+        self.assertIn("\"enabled\": true", on.summary.lower())
+
+        tick = highway.dispatch("self repair tick", cwd=str(self.base))
+        self.assertEqual("system", tick.capability)
+        self.assertIn("\"ran\": true", tick.summary.lower())
+
+        status = highway.dispatch("self repair status", cwd=str(self.base))
+        self.assertIn("\"last_tick_utc\":", status.summary)
+
+        alias = highway.dispatch("auto self repair everything", cwd=str(self.base))
+        self.assertEqual("system", alias.capability)
+        self.assertIn("\"actions\":", alias.summary)
+
+    def test_security_harden_apply_and_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("security harden apply", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"ok\": true", out.summary.lower())
+        status = highway.dispatch("security harden status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("\"harden_total\": 5", status.summary)
 
     def test_net_strict_blocks_unverified_fetch(self) -> None:
         highway = Highway(cwd=str(self.base))

@@ -45,7 +45,8 @@ def _normalize(text: str) -> str:
 
 def _infer_domain(prompt: str) -> str:
     p = _normalize(prompt)
-    if any(k in p for k in ("hello", "hi", "hey", "what is", "explain", "help", "chat", "question")):
+    tokens = set(re.findall(r"[a-z0-9']+", p))
+    if any(k in p for k in ("what is", "explain", "question")) or bool(tokens.intersection({"hello", "hi", "hey", "help", "chat"})):
         return "analysis"
     if any(k in p for k in ("build", "code", "file", "compile", "function", "api")):
         return "engineering"

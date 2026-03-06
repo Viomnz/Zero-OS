@@ -26,6 +26,8 @@ class CodeCapability:
             return False
         if text.startswith("beginner os "):
             return False
+        if text.startswith("antivirus "):
+            return False
         keys = (
             "code",
             "build",

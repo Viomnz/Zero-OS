@@ -14,6 +14,7 @@ class Task:
     cwd: str = "."
     mode: str = "casual"
     performance_profile: str = "balanced"
+    compute_tier: str = "tier2"
     recursion_depth: int = 0
 
 

@@ -18,6 +18,20 @@ SCHEMAS = {
         "history": [],
     },
     "slo_report.json": {"schema_version": 1, "ok": True, "score": 100.0, "checks": {}, "violations": []},
+    "compute_runtime.json": {
+        "schema_version": 1,
+        "tier": "tier1",
+        "profile": "low",
+        "hardware": {
+            "cpu_cores": 1,
+            "memory_gb": 4.0,
+            "gpu_count": 0,
+            "distributed_ready": False,
+            "quantum_ready": False,
+        },
+        "profiles": {},
+        "scheduler": {},
+    },
 }
 
 
@@ -45,4 +59,3 @@ def ensure_runtime_schemas(cwd: str) -> dict:
             p.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
             updated.append(name)
     return {"ok": True, "updated": updated}
-

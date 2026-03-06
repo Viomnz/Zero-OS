@@ -8,7 +8,16 @@ from pathlib import Path
 
 DEFAULT_MODE = "casual"
 SUPPORTED_MODES = {"casual", "heavy"}
-SUPPORTED_PROFILES = {"auto", "low", "balanced", "high"}
+SUPPORTED_PROFILES = {
+    "auto",
+    "low",
+    "balanced",
+    "high",
+    "tier1",
+    "tier2",
+    "tier3",
+    "tier4",
+}
 
 
 def _state_path(cwd: str) -> Path:

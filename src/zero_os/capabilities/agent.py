@@ -22,6 +22,8 @@ class AgentCapability:
 
     def can_handle(self, task: Task) -> bool:
         text = task.text.lower().strip()
+        if text.startswith("zero ai agent monitor triad balance"):
+            return False
         return (
             text.startswith("agent ")
             or text.startswith("agent:")

@@ -12,7 +12,7 @@ from zero_os.capabilities.profile import ProfileCapability
 from zero_os.capabilities.system import SystemCapability
 from zero_os.capabilities.web import WebCapability
 from zero_os.core import CORE_POLICY, CorePolicy, run_survival_protocols
-from zero_os.performance import detect_hardware, profile_from_hardware
+from zero_os.performance import detect_hardware, effective_profile
 from zero_os.plugins import load_plugins
 from zero_os.state import get_mode
 from zero_os.state import get_profile_setting
@@ -47,13 +47,14 @@ class Highway:
             return Result("core", "Authentication is required by policy.")
         mode = get_mode(cwd)
         profile_setting = get_profile_setting(cwd)
-        auto_profile = profile_from_hardware(detect_hardware())
-        active_profile = auto_profile if profile_setting == "auto" else profile_setting
+        hw = detect_hardware()
+        active_tier, active_profile = effective_profile(profile_setting, hw)
         task = Task(
             text=text,
             cwd=cwd,
             mode=mode,
             performance_profile=active_profile,
+            compute_tier=active_tier,
             recursion_depth=0,
         )
         survival_state, survival_msg = run_survival_protocols(self.core, task)
@@ -73,13 +74,14 @@ class Highway:
     def _dispatch_non_agent(self, text: str, cwd: str) -> Result:
         mode = get_mode(cwd)
         profile_setting = get_profile_setting(cwd)
-        auto_profile = profile_from_hardware(detect_hardware())
-        active_profile = auto_profile if profile_setting == "auto" else profile_setting
+        hw = detect_hardware()
+        active_tier, active_profile = effective_profile(profile_setting, hw)
         task = Task(
             text=text,
             cwd=cwd,
             mode=mode,
             performance_profile=active_profile,
+            compute_tier=active_tier,
             recursion_depth=1,
         )
         survival_state, survival_msg = run_survival_protocols(self.core, task)

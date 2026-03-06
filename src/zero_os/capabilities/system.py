@@ -101,6 +101,35 @@ from zero_os.state import (
 )
 from zero_os.types import Result, Task
 from zero_os.universal_code_intake import intake_code
+from zero_os.cure_firewall_agent import (
+    cure_firewall_agent_status,
+    run_cure_firewall_agent,
+)
+from zero_os.antivirus import (
+    threat_feed_export_signed as antivirus_threat_feed_export_signed,
+    threat_feed_import_signed as antivirus_threat_feed_import_signed,
+    monitor_set as antivirus_monitor_set,
+    monitor_status as antivirus_monitor_status,
+    monitor_tick as antivirus_monitor_tick,
+    policy_set as antivirus_policy_set,
+    policy_status as antivirus_policy_status,
+    quarantine_file as antivirus_quarantine_file,
+    quarantine_list as antivirus_quarantine_list,
+    quarantine_restore as antivirus_quarantine_restore,
+    scan_target as antivirus_scan_target,
+    threat_feed_status as antivirus_threat_feed_status,
+    threat_feed_update as antivirus_threat_feed_update,
+)
+from zero_os.antivirus_agent import antivirus_agent_status, run_antivirus_agent
+from zero_os.triad_balance import (
+    run_triad_balance,
+    triad_balance_status,
+    triad_ops_set,
+    triad_ops_status,
+    triad_ops_tick,
+)
+from zero_os.self_repair import self_repair_run, self_repair_set, self_repair_status, self_repair_tick
+from zero_os.security_hardening import harden_apply, harden_status, init_trust_root
 
 
 class SystemCapability:
@@ -127,6 +156,7 @@ class SystemCapability:
             "law status",
             "law export",
             "cure firewall",
+            "cure firewall agent",
             "mark strict",
             "mark status",
             "net strict",
@@ -165,6 +195,15 @@ class SystemCapability:
             "cleanup ",
             "storage smart",
             "hyperlayer",
+            "antivirus",
+            "triad balance",
+            "balanced zero os",
+            "triad ops",
+            "zero ai agent monitor triad balance",
+            "self repair",
+            "auto self repair",
+            "security harden",
+            "trust root",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -195,6 +234,137 @@ class SystemCapability:
                     f"Survival protocols: {protocols}"
                 ),
             )
+
+        if text.strip() == "antivirus status":
+            data = {
+                "feed": antivirus_threat_feed_status(task.cwd),
+                "policy": antivirus_policy_status(task.cwd),
+                "monitor": antivirus_monitor_status(task.cwd),
+                "quarantine": antivirus_quarantine_list(task.cwd),
+            }
+            return Result(self.name, json.dumps(data, indent=2))
+        if text.strip() in {"triad balance run", "balanced zero os", "3 balanced zero os"}:
+            return Result(self.name, json.dumps(run_triad_balance(task.cwd), indent=2))
+        if text.strip() == "triad balance status":
+            return Result(self.name, json.dumps(triad_balance_status(task.cwd), indent=2))
+        if text.strip() == "triad ops status":
+            return Result(self.name, json.dumps(triad_ops_status(task.cwd), indent=2))
+        triad_on = re.match(
+            r"^triad ops on(?:\s+interval=(\d+))?(?:\s+sink=(log|inbox|log\+inbox))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if triad_on:
+            iv = int(triad_on.group(1)) if triad_on.group(1) else None
+            sink = triad_on.group(2) if triad_on.group(2) else None
+            return Result(self.name, json.dumps(triad_ops_set(task.cwd, True, iv, sink), indent=2))
+        if text.strip() == "triad ops off":
+            return Result(self.name, json.dumps(triad_ops_set(task.cwd, False), indent=2))
+        if text.strip() == "triad ops tick":
+            return Result(self.name, json.dumps(triad_ops_tick(task.cwd), indent=2))
+        if text.strip() in {
+            "zero ai agent monitor triad balance",
+            "zero ai monitor triad balance",
+        }:
+            tick = triad_ops_tick(task.cwd)
+            if not tick.get("ran", False):
+                triad_ops_set(task.cwd, True, 60, "log+inbox")
+                tick = triad_ops_tick(task.cwd)
+            report = tick.get("report", {})
+            balanced = bool(report.get("balanced", False))
+            alerts = report.get("antivirus_monitor", {}).get("finding_count", 0)
+            readiness = report.get("zero_os", {}).get("readiness_score", 0)
+            summary = (
+                f"triad_balanced: {balanced}\n"
+                f"triad_score: {report.get('triad_score', 0)}/{report.get('triad_total', 3)}\n"
+                f"zero_os_readiness: {readiness}\n"
+                f"antivirus_findings: {alerts}\n"
+                f"playbook_actions: {json.dumps(report.get('playbook_actions', []))}\n"
+                f"ops_enabled: {tick.get('ops', {}).get('enabled', False)}\n"
+                f"last_tick_utc: {tick.get('ops', {}).get('last_tick_utc', '')}"
+            )
+            return Result(self.name, summary)
+        if text.strip() in {"self repair run", "auto self repair everything", "add auto self repair everything"}:
+            return Result(self.name, json.dumps(self_repair_run(task.cwd), indent=2))
+        if text.strip() == "self repair status":
+            return Result(self.name, json.dumps(self_repair_status(task.cwd), indent=2))
+        self_on = re.match(r"^self repair on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if self_on:
+            iv = int(self_on.group(1)) if self_on.group(1) else None
+            return Result(self.name, json.dumps(self_repair_set(task.cwd, True, iv), indent=2))
+        if text.strip() == "self repair off":
+            return Result(self.name, json.dumps(self_repair_set(task.cwd, False), indent=2))
+        if text.strip() == "self repair tick":
+            return Result(self.name, json.dumps(self_repair_tick(task.cwd), indent=2))
+        if text.strip() in {"security harden apply", "go fix it all"}:
+            return Result(self.name, json.dumps(harden_apply(task.cwd), indent=2))
+        if text.strip() == "security harden status":
+            return Result(self.name, json.dumps(harden_status(task.cwd), indent=2))
+        if text.strip() == "security trust init":
+            return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
+        av_agent_run = re.match(
+            r"^antivirus agent run(?:\s+(.+?))?(?:\s+auto_quarantine=(true|false|1|0|yes|no|on|off))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if av_agent_run:
+            target = av_agent_run.group(1).strip().strip("\"'") if av_agent_run.group(1) else "."
+            aq_raw = av_agent_run.group(2) or "false"
+            aq = aq_raw.strip().lower() in {"1", "true", "yes", "on"}
+            return Result(self.name, json.dumps(run_antivirus_agent(task.cwd, target=target, auto_quarantine=aq), indent=2))
+        if text.strip() == "antivirus agent status":
+            return Result(self.name, json.dumps(antivirus_agent_status(task.cwd), indent=2))
+        if text.strip() == "antivirus feed status":
+            return Result(self.name, json.dumps(antivirus_threat_feed_status(task.cwd), indent=2))
+        if text.strip() == "antivirus feed update":
+            return Result(self.name, json.dumps(antivirus_threat_feed_update(task.cwd), indent=2))
+        av_feed_export = re.match(r"^antivirus feed export signed\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if av_feed_export:
+            out_path = av_feed_export.group(1).strip().strip("\"'")
+            return Result(self.name, json.dumps(antivirus_threat_feed_export_signed(task.cwd, out_path), indent=2))
+        av_feed_import = re.match(r"^antivirus feed import signed\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if av_feed_import:
+            in_path = av_feed_import.group(1).strip().strip("\"'")
+            return Result(self.name, json.dumps(antivirus_threat_feed_import_signed(task.cwd, in_path), indent=2))
+        av_scan = re.match(r"^antivirus scan(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if av_scan:
+            target = av_scan.group(1).strip().strip("\"'") if av_scan.group(1) else "."
+            return Result(self.name, json.dumps(antivirus_scan_target(task.cwd, target), indent=2))
+        if text.strip() == "antivirus quarantine list":
+            return Result(self.name, json.dumps(antivirus_quarantine_list(task.cwd), indent=2))
+        av_quarantine = re.match(r"^antivirus quarantine\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if av_quarantine:
+            target = av_quarantine.group(1).strip().strip("\"'")
+            return Result(self.name, json.dumps(antivirus_quarantine_file(task.cwd, target, reason="manual"), indent=2))
+        av_restore = re.match(r"^antivirus restore\s+([a-z0-9]+)$", text.strip(), flags=re.IGNORECASE)
+        if av_restore:
+            return Result(self.name, json.dumps(antivirus_quarantine_restore(task.cwd, av_restore.group(1)), indent=2))
+        av_policy = re.match(r"^antivirus policy set\s+([a-z_]+)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if av_policy:
+            key = av_policy.group(1).strip()
+            value = av_policy.group(2).strip()
+            try:
+                updated = antivirus_policy_set(task.cwd, key, value)
+            except ValueError:
+                return Result(
+                    self.name,
+                    "supported policy keys: heuristic_threshold, auto_quarantine, max_files_per_scan, max_file_mb, archive_max_depth, archive_max_entries, restore_overwrite",
+                )
+            return Result(self.name, json.dumps(updated, indent=2))
+        if text.strip() == "antivirus policy show":
+            return Result(self.name, json.dumps(antivirus_policy_status(task.cwd), indent=2))
+        av_mon_on = re.match(r"^antivirus monitor on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if av_mon_on:
+            iv = int(av_mon_on.group(1)) if av_mon_on.group(1) else None
+            return Result(self.name, json.dumps(antivirus_monitor_set(task.cwd, True, iv), indent=2))
+        if text.strip() == "antivirus monitor off":
+            return Result(self.name, json.dumps(antivirus_monitor_set(task.cwd, False), indent=2))
+        if text.strip() == "antivirus monitor status":
+            return Result(self.name, json.dumps(antivirus_monitor_status(task.cwd), indent=2))
+        av_mon_tick = re.match(r"^antivirus monitor tick(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if av_mon_tick:
+            target = av_mon_tick.group(1).strip().strip("\"'") if av_mon_tick.group(1) else "."
+            return Result(self.name, json.dumps(antivirus_monitor_tick(task.cwd, target), indent=2))
 
         if text.strip() == "system optimize all":
             return Result(self.name, json.dumps(system_optimize_all(task.cwd), indent=2))
@@ -564,7 +734,44 @@ class SystemCapability:
             ]
             if result.beacon_path:
                 lines.append(f"beacon: {result.beacon_path}")
+            if result.backup_path:
+                lines.append(f"backup: {result.backup_path}")
             return Result(self.name, "\n".join(lines))
+
+        cure_agent_run = re.match(
+            r"^cure firewall agent run(?:\s+pressure\s+(\d+))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure_agent_run:
+            pressure = int(cure_agent_run.group(1) or "80")
+            report = run_cure_firewall_agent(task.cwd, pressure=pressure)
+            return Result(self.name, json.dumps(report, indent=2))
+
+        cure_agent_file = re.match(
+            r"^cure firewall agent file\s+(.+?)(?:\s+pressure\s+(\d+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure_agent_file:
+            target = cure_agent_file.group(1).strip().strip("\"'")
+            pressure = int(cure_agent_file.group(2) or "80")
+            report = run_cure_firewall_agent(task.cwd, pressure=pressure, targets=[target])
+            return Result(self.name, json.dumps(report, indent=2))
+
+        cure_agent_net = re.match(
+            r"^cure firewall agent net\s+(.+?)(?:\s+pressure\s+(\d+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if cure_agent_net:
+            url = cure_agent_net.group(1).strip().strip("\"'")
+            pressure = int(cure_agent_net.group(2) or "80")
+            report = run_cure_firewall_agent(task.cwd, pressure=pressure, urls=[url])
+            return Result(self.name, json.dumps(report, indent=2))
+
+        if text.strip() == "cure firewall agent status":
+            return Result(self.name, json.dumps(cure_firewall_agent_status(task.cwd), indent=2))
 
         cure_net = re.match(
             r"^cure firewall net run\s+(.+?)\s+pressure\s+(\d+)$",
@@ -662,6 +869,10 @@ class SystemCapability:
             "- cure firewall verify <path>\n"
             "- cure firewall net run <url> pressure <0-100>\n"
             "- cure firewall net verify <url>\n"
+            "- cure firewall agent run [pressure <0-100>]\n"
+            "- cure firewall agent file <path> [pressure <0-100>]\n"
+            "- cure firewall agent net <url> [pressure <0-100>]\n"
+            "- cure firewall agent status\n"
             "- mark strict on|off|show\n"
             "- mark status <path>\n"
             "- net strict on|off|show\n"
@@ -691,5 +902,43 @@ class SystemCapability:
             "- znet resolve <service|node>\n"
             "- znet topology\n"
             "- znet cure apply pressure <0-100>\n"
-            "- znet cure status"
+            "- znet cure status\n"
+            "- antivirus status\n"
+            "- triad balance run\n"
+            "- triad balance status\n"
+            "- triad ops status\n"
+            "- triad ops on [interval=<seconds>] [sink=log|inbox|log+inbox]\n"
+            "- triad ops off\n"
+            "- triad ops tick\n"
+            "- zero ai agent monitor triad balance\n"
+            "- self repair run\n"
+            "- self repair status\n"
+            "- self repair on [interval=<seconds>]\n"
+            "- self repair off\n"
+            "- self repair tick\n"
+            "- security harden apply\n"
+            "- security harden status\n"
+            "- security trust init\n"
+            "- antivirus agent run [path] [auto_quarantine=true|false]\n"
+            "- antivirus agent status\n"
+            "- antivirus feed status\n"
+            "- antivirus feed update\n"
+            "- antivirus feed export signed <path>\n"
+            "- antivirus feed import signed <path>\n"
+            "- antivirus scan [path]\n"
+            "- antivirus quarantine <path>\n"
+            "- antivirus quarantine list\n"
+            "- antivirus restore <id>\n"
+            "- antivirus policy show\n"
+            "- antivirus policy set heuristic_threshold <0-100>\n"
+            "- antivirus policy set auto_quarantine <true|false>\n"
+            "- antivirus policy set max_files_per_scan <n>\n"
+            "- antivirus policy set max_file_mb <n>\n"
+            "- antivirus policy set archive_max_depth <n>\n"
+            "- antivirus policy set archive_max_entries <n>\n"
+            "- antivirus policy set restore_overwrite <true|false>\n"
+            "- antivirus monitor on [interval=<seconds>]\n"
+            "- antivirus monitor off\n"
+            "- antivirus monitor status\n"
+            "- antivirus monitor tick [path]"
         )

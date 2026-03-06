@@ -6,6 +6,8 @@ import sys
 
 from zero_os.highway import Highway
 from zero_os.readiness import os_readiness
+from zero_os.compute_runtime import initialize_compute_runtime
+from zero_os.state import get_profile_setting
 
 
 def main() -> None:
@@ -16,6 +18,7 @@ def main() -> None:
     args = parser.parse_args()
 
     cwd = os.getcwd()
+    initialize_compute_runtime(cwd, get_profile_setting(cwd))
     min_score = int(os.getenv("ZERO_OS_BOOT_MIN_SCORE", "0"))
     if min_score > 0:
         readiness = os_readiness(cwd)
