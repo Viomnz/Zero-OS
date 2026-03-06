@@ -134,6 +134,19 @@ from zero_os.triad_balance import (
 )
 from zero_os.self_repair import self_repair_run, self_repair_set, self_repair_status, self_repair_tick
 from zero_os.security_hardening import harden_apply, harden_status, init_trust_root
+from zero_os.enterprise_security import (
+    adversarial_validate,
+    enterprise_enable,
+    enterprise_status,
+    integration_configure,
+    integration_probe,
+    integration_status,
+    preexec_check,
+    rollback_playbook_run,
+    set_role as enterprise_set_role,
+    siem_emit,
+    sign_action as enterprise_sign_action,
+)
 
 
 class SystemCapability:
@@ -208,6 +221,13 @@ class SystemCapability:
             "auto self repair",
             "security harden",
             "trust root",
+            "enterprise security",
+            "enterprise role",
+            "enterprise sign",
+            "enterprise siem",
+            "enterprise rollback",
+            "enterprise validate",
+            "enterprise integration",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -306,6 +326,46 @@ class SystemCapability:
             return Result(self.name, json.dumps(harden_status(task.cwd), indent=2))
         if text.strip() == "security trust init":
             return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
+        if text.strip() == "enterprise security status":
+            return Result(self.name, json.dumps(enterprise_status(task.cwd), indent=2))
+        if text.strip() == "enterprise integration status":
+            return Result(self.name, json.dumps(integration_status(task.cwd), indent=2))
+        ent_icfg = re.match(
+            r"^enterprise integration set\s+(edr|siem|iam|zerotrust)\s+(on|off)(?:\s+provider=(\S+))?(?:\s+endpoint=(\S+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ent_icfg:
+            name = ent_icfg.group(1).lower()
+            enabled = ent_icfg.group(2).lower() == "on"
+            provider = ent_icfg.group(3) or ""
+            endpoint = ent_icfg.group(4) or ""
+            return Result(self.name, json.dumps(integration_configure(task.cwd, name, enabled, provider, endpoint), indent=2))
+        ent_iprobe = re.match(r"^enterprise integration probe\s+(edr|siem|iam|zerotrust)$", text.strip(), flags=re.IGNORECASE)
+        if ent_iprobe:
+            return Result(self.name, json.dumps(integration_probe(task.cwd, ent_iprobe.group(1)), indent=2))
+        ent_on = re.match(r"^enterprise security on(?:\s+siem=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ent_on:
+            siem = ent_on.group(1) if ent_on.group(1) else None
+            return Result(self.name, json.dumps(enterprise_enable(task.cwd, True, siem), indent=2))
+        if text.strip() == "enterprise security off":
+            return Result(self.name, json.dumps(enterprise_enable(task.cwd, False), indent=2))
+        ent_role = re.match(r"^enterprise role set\s+([A-Za-z0-9._-]+)\s+(admin|operator|viewer)$", text.strip(), flags=re.IGNORECASE)
+        if ent_role:
+            return Result(self.name, json.dumps(enterprise_set_role(task.cwd, ent_role.group(1), ent_role.group(2)), indent=2))
+        ent_sign = re.match(r"^enterprise sign action\s+user=([A-Za-z0-9._-]+)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if ent_sign:
+            return Result(self.name, json.dumps(enterprise_sign_action(task.cwd, ent_sign.group(1), ent_sign.group(2).strip()), indent=2))
+        ent_siem = re.match(r"^enterprise siem emit\s+(low|medium|high|critical)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if ent_siem:
+            severity = ent_siem.group(1).lower()
+            event = ent_siem.group(2).strip()
+            return Result(self.name, json.dumps(siem_emit(task.cwd, event, severity, {"source": "system_command"}), indent=2))
+        ent_rb = re.match(r"^enterprise rollback run\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
+        if ent_rb:
+            return Result(self.name, json.dumps(rollback_playbook_run(task.cwd, ent_rb.group(1)), indent=2))
+        if text.strip() == "enterprise validate adversarial":
+            return Result(self.name, json.dumps(adversarial_validate(task.cwd), indent=2))
         av_agent_run = re.match(
             r"^antivirus agent run(?:\s+(.+?))?(?:\s+auto_quarantine=(true|false|1|0|yes|no|on|off))?$",
             raw.strip(),
@@ -607,6 +667,9 @@ class SystemCapability:
             allowed, reason = sandbox_check(task.cwd, cmd)
             if not allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": reason, "command": cmd}, indent=2))
+            ent_allowed, ent_reason = preexec_check(task.cwd, f"shell run {cmd}", user="owner")
+            if not ent_allowed:
+                return Result(self.name, json.dumps({"ok": False, "reason": ent_reason, "command": cmd}, indent=2))
             return Result(self.name, json.dumps(unified_shell_run(cmd, task.cwd), indent=2))
 
         if text.strip() == "memory status":
@@ -943,6 +1006,17 @@ class SystemCapability:
             "- security harden apply\n"
             "- security harden status\n"
             "- security trust init\n"
+            "- enterprise security status\n"
+            "- enterprise security on [siem=<webhook_url>]\n"
+            "- enterprise security off\n"
+            "- enterprise role set <user> <admin|operator|viewer>\n"
+            "- enterprise integration status\n"
+            "- enterprise integration set <edr|siem|iam|zerotrust> <on|off> [provider=<name>] [endpoint=<url_or_tenant>]\n"
+            "- enterprise integration probe <edr|siem|iam|zerotrust>\n"
+            "- enterprise sign action user=<user> <action_text>\n"
+            "- enterprise siem emit <low|medium|high|critical> <event>\n"
+            "- enterprise rollback run <critical|ransomware|integrity_failure>\n"
+            "- enterprise validate adversarial\n"
             "- antivirus agent run [path] [auto_quarantine=true|false]\n"
             "- antivirus agent status\n"
             "- antivirus feed status\n"
