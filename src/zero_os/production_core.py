@@ -661,16 +661,45 @@ def process_kill(target: str) -> dict:
 
 
 def memory_status() -> dict:
-    # Windows memory telemetry via wmic fallback.
-    cmd = ["wmic", "OS", "get", "FreePhysicalMemory,TotalVisibleMemorySize", "/Value"]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    # Prefer WMIC when available, but fall back to PowerShell CIM on modern Windows images.
     free_kb = None
     total_kb = None
-    for line in out.stdout.splitlines():
-        if line.startswith("FreePhysicalMemory="):
-            free_kb = int(line.split("=", 1)[1] or "0")
-        if line.startswith("TotalVisibleMemorySize="):
-            total_kb = int(line.split("=", 1)[1] or "0")
+    try:
+        out = subprocess.run(
+            ["wmic", "OS", "get", "FreePhysicalMemory,TotalVisibleMemorySize", "/Value"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for line in out.stdout.splitlines():
+            if line.startswith("FreePhysicalMemory="):
+                free_kb = int(line.split("=", 1)[1] or "0")
+            if line.startswith("TotalVisibleMemorySize="):
+                total_kb = int(line.split("=", 1)[1] or "0")
+    except FileNotFoundError:
+        free_kb = None
+        total_kb = None
+
+    if free_kb is None or total_kb is None or total_kb == 0:
+        try:
+            ps_cmd = (
+                "Get-CimInstance Win32_OperatingSystem | "
+                "Select-Object FreePhysicalMemory,TotalVisibleMemorySize | ConvertTo-Json -Compress"
+            )
+            out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_cmd],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if out.returncode == 0 and out.stdout.strip():
+                payload = json.loads(out.stdout.strip())
+                free_kb = int(payload.get("FreePhysicalMemory", 0) or 0)
+                total_kb = int(payload.get("TotalVisibleMemorySize", 0) or 0)
+        except Exception:
+            free_kb = None
+            total_kb = None
+
     if free_kb is None or total_kb is None or total_kb == 0:
         return {"ok": False, "reason": "memory telemetry unavailable"}
     used_kb = total_kb - free_kb
