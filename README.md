@@ -11,6 +11,10 @@ The only private items are local runtime trust materials and machine-specific se
 - Primary track: AI/runtime platform and Hyperlayer parity (`80%` effort)
 - Secondary track: from-scratch kernel R&D (`20%` effort)
 
+## Contributor Status Note
+- I am using Codex through Microsoft Store.
+- If I stop responding suddenly, I am waiting for Codex/Microsoft to fix major bugs.
+
 Goal now:
 - ship stable cross-platform smart OS behavior first
 - build kernel primitives in parallel without blocking releases
