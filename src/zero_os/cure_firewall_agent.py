@@ -9,6 +9,7 @@ from zero_os.cure_firewall import (
     verify_beacon,
     verify_beacon_net,
 )
+from zero_os.score_system import score_from_checks
 
 
 DEFAULT_FILE_SUFFIXES = {
@@ -70,6 +71,7 @@ def run_cure_firewall_agent(
             "survived": result.survived,
             "score": result.score,
             "notes": result.notes,
+            "smart_logic": result.smart_logic or {},
             "beacon": result.beacon_path,
             "backup": result.backup_path,
         }
@@ -88,6 +90,7 @@ def run_cure_firewall_agent(
             "survived": result.survived,
             "score": result.score,
             "notes": result.notes,
+            "smart_logic": result.smart_logic or {},
             "beacon": result.beacon_path,
         }
         if verify and result.survived:
@@ -100,6 +103,19 @@ def run_cure_firewall_agent(
     file_verified = sum(1 for r in file_runs if r.get("verify_ok") is True)
     net_ok = sum(1 for r in net_runs if r.get("survived") is True)
     net_verified = sum(1 for r in net_runs if r.get("verify_ok") is True)
+    issues = [f"file_failed:{r.get('target')}" for r in file_runs if not bool(r.get("survived", False))]
+    issues += [f"file_verify_failed:{r.get('target')}" for r in file_runs if verify and bool(r.get("survived", False)) and not bool(r.get("verify_ok", False))]
+    issues += [f"net_failed:{r.get('target')}" for r in net_runs if not bool(r.get("survived", False))]
+    issues += [f"net_verify_failed:{r.get('target')}" for r in net_runs if verify and bool(r.get("survived", False)) and not bool(r.get("verify_ok", False))]
+    scoring = score_from_checks(
+        {
+            "files_survived_all": file_ok == len(file_runs) if file_runs else True,
+            "files_verified_all": file_verified == len(file_runs) if verify and file_runs else True,
+            "net_survived_all": net_ok == len(net_runs) if net_runs else True,
+            "net_verified_all": net_verified == len(net_runs) if verify and net_runs else True,
+        },
+        issues=issues,
+    )
 
     report = {
         "ok": True,
@@ -110,6 +126,10 @@ def run_cure_firewall_agent(
         "net_targets": len(net_runs),
         "net_survived": net_ok,
         "net_verified": net_verified,
+        "system_score": scoring["score"],
+        "perfect": scoring["perfect"],
+        "issues": scoring["issues"],
+        "root_issues": scoring["root_issues"],
         "files": file_runs,
         "net": net_runs,
     }

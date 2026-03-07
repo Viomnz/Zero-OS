@@ -64,10 +64,14 @@ def run_agents_monitor(cwd: str) -> dict:
         "time_utc": _utc_now(),
         "smooth": smooth,
         "score": score,
+        "perfect": score == 100.0 and not issues,
+        "root_issues": {
+            "failed_checks": [name for name, ok in checks.items() if not ok],
+            "issue_sources": issues,
+        } if score <= 99 else {},
         "checks": checks,
         "issues": issues,
         "auto_mode": True,
     }
     (runtime / "agents_monitor.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload
-

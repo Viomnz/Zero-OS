@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from zero_os.score_system import score_from_checks
+
 
 def os_readiness(cwd: str) -> dict:
     base = Path(cwd).resolve()
@@ -16,9 +18,15 @@ def os_readiness(cwd: str) -> dict:
         "system_profile": (base / "zero_os_config" / "system_profile.json").exists(),
         "ci_pipeline": (base / ".github" / "workflows" / "ci.yml").exists(),
     }
-    score = int(sum(1 for v in checks.values() if v) * 100 / len(checks))
     missing = [k for k, v in checks.items() if not v]
-    return {"score": score, "checks": checks, "missing": missing}
+    scoring = score_from_checks(checks, issues=missing)
+    return {
+        "score": int(scoring["score"]),
+        "checks": checks,
+        "missing": missing,
+        "perfect": bool(scoring["perfect"]),
+        "error_count": len(missing),
+    }
 
 
 def apply_missing_fix(cwd: str) -> dict:
@@ -85,11 +93,17 @@ def beginner_os_coverage(cwd: str) -> dict:
         "logging_errors": (base / "security" / "error_playbooks.json").exists(),
         "test_recovery": (base / "tests" / "conftest.py").exists(),
     }
-    total = len(checks)
-    passed = sum(1 for v in checks.values() if v)
-    score = int(passed * 100 / total)
     missing = [k for k, v in checks.items() if not v]
-    return {"score": score, "checks": checks, "missing": missing, "passed": passed, "total": total}
+    scoring = score_from_checks(checks, issues=missing)
+    return {
+        "score": int(scoring["score"]),
+        "checks": checks,
+        "missing": missing,
+        "passed": int(scoring["passed"]),
+        "total": int(scoring["total"]),
+        "perfect": bool(scoring["perfect"]),
+        "error_count": len(missing),
+    }
 
 
 def apply_beginner_os_fix(cwd: str) -> dict:

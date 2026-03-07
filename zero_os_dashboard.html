@@ -279,6 +279,21 @@ python src/main.py "security overview"
       <pre id="execStatus" style="margin-top:8px;"></pre>
       <pre id="execOutput" style="margin-top:8px;"></pre>
     </section>
+    <section class="card" data-page="operations">
+      <h2>Smart Logic Finder</h2>
+      <pre>Find files anywhere in workspace and suggest next actions using deterministic logic.</pre>
+      <textarea id="smartFindQuery" style="min-height:88px;">cure firewall antivirus security</textarea>
+      <div class="controls" style="margin-top:8px;">
+        <label>Max Results
+          <input id="smartFindLimit" type="number" min="1" max="120" value="20" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="smartFindBtn">Run Smart Find</button>
+      </div>
+      <pre id="smartFindStatus" style="margin-top:8px;"></pre>
+      <pre id="smartFindOutput" style="margin-top:8px;"></pre>
+    </section>
 
     <section class="card">
       <h2>Theme Studio</h2>
@@ -1019,16 +1034,19 @@ python src/main.py "security overview"
         const data = JSON.parse(raw);
         const checks = data.checks || {};
         const issues = data.issues || [];
+        const roots = data.root_issues || {};
         return [
           `smooth: ${data.smooth ?? false}`,
           `score: ${data.score ?? "?"}`,
+          `perfect: ${data.perfect ?? false}`,
           `heartbeat_running: ${checks.heartbeat_running ?? "?"}`,
           `boot_ok: ${checks.boot_ok ?? "?"}`,
           `integrity_healthy: ${checks.integrity_healthy ?? "?"}`,
           `safe_state_clear: ${checks.safe_state_clear ?? "?"}`,
           `registry_ok: ${checks.registry_ok ?? "?"}`,
           `advanced_layers_ok: ${checks.advanced_layers_ok ?? "?"}`,
-          `issues: ${issues.length ? issues.join(", ") : "(none)"}`
+          `issues: ${issues.length ? issues.join(", ") : "(none)"}`,
+          `root_failed_checks: ${((roots.failed_checks || []).length ? roots.failed_checks.join(", ") : "(none)")}`
         ].join("\n");
       } catch {
         return raw;
@@ -1154,6 +1172,38 @@ python src/main.py "security overview"
         output.textContent = data.output || "";
       } catch (e) {
         status.textContent = `exec failed: ${e.message}`;
+      }
+    }
+
+    async function runSmartFind(query, maxResults) {
+      const status = pick("smartFindStatus");
+      const output = pick("smartFindOutput");
+      status.textContent = "searching...";
+      output.textContent = "";
+      try {
+        const r = await fetch("/api/smart-find", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({query, max_results: maxResults})
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        status.textContent = `mode=${data.logic_mode} results=${data.result_count}`;
+        const lines = [];
+        for (const row of (data.results || [])) {
+          lines.push(
+            `[${row.token_match_ratio}%] ${row.path}`,
+            `security_focus: ${row.security_focus ?? 0}`,
+            `tokens: ${(row.matched_tokens || []).join(", ") || "(none)"}`,
+            `suggestions:`,
+            ...((row.suggestions || []).map((s) => `- ${s}`)),
+            row.preview ? `preview: ${row.preview}` : "preview: (none)",
+            ""
+          );
+        }
+        output.textContent = lines.join("\n") || "(no matches)";
+      } catch (e) {
+        status.textContent = `smart find failed: ${e.message}`;
       }
     }
 
@@ -1353,6 +1403,12 @@ python src/main.py "security overview"
       if (!command) return;
       runUnifiedExec(command);
     });
+    pick("smartFindBtn").addEventListener("click", () => {
+      const query = pick("smartFindQuery").value.trim();
+      if (!query) return;
+      const maxResults = Number(pick("smartFindLimit").value || 20);
+      runSmartFind(query, maxResults);
+    });
     pick("hardwareMapBtn").addEventListener("click", refreshHardwareMap);
     pick("devTemplateBtn").addEventListener("click", () => {
       pick("devInput").value = "codex: option 1: znet cure apply pressure 80 then security overview";
@@ -1382,8 +1438,9 @@ python src/main.py "security overview"
       pick("chatStatus").textContent = hostedApiMsg;
       pick("devStatus").textContent = hostedApiMsg;
       pick("execStatus").textContent = hostedApiMsg;
+      pick("smartFindStatus").textContent = hostedApiMsg;
       pick("hardwareMap").textContent = hostedApiMsg;
-      ["sendBtn","scanBtn","devRunBtn","execRunBtn","hardwareMapBtn","micBtn"].forEach((id) => {
+      ["sendBtn","scanBtn","devRunBtn","execRunBtn","smartFindBtn","hardwareMapBtn","micBtn"].forEach((id) => {
         pick(id).disabled = true;
       });
     }

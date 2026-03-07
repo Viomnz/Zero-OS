@@ -29,6 +29,8 @@ class AgentsMonitorTests(unittest.TestCase):
         self._write("agi_advanced_layers_status.json", {"ok": True})
         out = run_agents_monitor(str(self.base))
         self.assertTrue(out["smooth"])
+        self.assertTrue(out["perfect"])
+        self.assertEqual({}, out["root_issues"])
         self.assertEqual(out["issues"], [])
 
     def test_reports_issues_when_core_signals_fail(self) -> None:
@@ -40,9 +42,11 @@ class AgentsMonitorTests(unittest.TestCase):
         self._write("agi_advanced_layers_status.json", {"ok": False})
         out = run_agents_monitor(str(self.base))
         self.assertFalse(out["smooth"])
+        self.assertFalse(out["perfect"])
+        self.assertIn("failed_checks", out["root_issues"])
+        self.assertIn("issue_sources", out["root_issues"])
         self.assertGreaterEqual(len(out["issues"]), 4)
 
 
 if __name__ == "__main__":
     unittest.main()
-

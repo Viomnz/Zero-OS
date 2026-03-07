@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from zero_os.antivirus import quarantine_file, scan_target
+from zero_os.score_system import score_from_checks
 
 
 def _runtime_report_path(cwd: str) -> Path:
@@ -32,6 +33,24 @@ def run_antivirus_agent(cwd: str, target: str = ".", auto_quarantine: bool = Fal
         "quarantined": quarantined,
         "scan_report": scan,
     }
+    checks = {
+        "scan_ok": bool(scan.get("ok", False)),
+        "no_findings": int(scan.get("finding_count", 0)) == 0,
+        "no_process_findings": int(scan.get("process_finding_count", 0)) == 0,
+    }
+    issues = []
+    if not checks["scan_ok"]:
+        issues.append("scan_not_ok")
+    if not checks["no_findings"]:
+        issues.append("findings_present")
+    if not checks["no_process_findings"]:
+        issues.append("process_findings_present")
+    scoring = score_from_checks(checks, issues=issues)
+    report["system_score"] = scoring["score"]
+    report["perfect"] = scoring["perfect"]
+    report["issues"] = scoring["issues"]
+    report["root_issues"] = scoring["root_issues"]
+
     _runtime_report_path(cwd).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
 

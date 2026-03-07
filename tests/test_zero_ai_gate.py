@@ -22,12 +22,17 @@ class ZeroAIGateTests(unittest.TestCase):
         )
         out = gate_output(str(self.base), prompt, [good], max_attempts=1)
         self.assertTrue(out.execute)
+        self.assertEqual("zero_ai_gate_smart_logic_v1", out.smart_logic.get("engine"))
+        self.assertEqual("execute", out.smart_logic.get("decision_action"))
+        self.assertIn("governance_policy", out.smart_logic)
 
     def test_gate_rejects_when_checks_fail(self) -> None:
         prompt = "create file"
         bad = "always never true false rm -rf /"
         out = gate_output(str(self.base), prompt, [bad], max_attempts=1)
         self.assertFalse(out.execute)
+        self.assertEqual("reject_and_regenerate", out.smart_logic.get("decision_action"))
+        self.assertTrue(out.smart_logic.get("false_positive_review_needed", False))
 
     def test_gate_increments_model_generation_after_repeated_failures(self) -> None:
         prompt = "security action"

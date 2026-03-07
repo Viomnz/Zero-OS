@@ -9,6 +9,7 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from zero_os.smart_logic_governance import apply_governance
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -399,6 +400,34 @@ def _process_behavior_findings() -> list[dict]:
     return findings
 
 
+def _smart_logic_antivirus(findings: list[dict], process_findings: list[dict], highest: str, policy: dict) -> dict:
+    high_or_critical = [f for f in findings if _severity_rank(str(f.get("severity", "low"))) >= _severity_rank("high")]
+    mode = str(policy.get("response_mode", "manual"))
+    if high_or_critical:
+        action = "quarantine_now" if mode != "manual" else "manual_containment"
+        reason = "high_severity_payload_detected"
+    elif process_findings:
+        action = "increase_monitoring"
+        reason = "suspicious_process_behavior"
+    elif findings:
+        action = "triage"
+        reason = "medium_or_low_findings"
+    else:
+        action = "allow"
+        reason = "clean_scan"
+    confidence = 0.95 if reason == "clean_scan" else 0.85 if high_or_critical else 0.75 if findings else 0.7
+    return {
+        "engine": "antivirus_smart_logic_v1",
+        "decision_action": action,
+        "decision_reason": reason,
+        "highest_severity": highest,
+        "high_or_critical_count": len(high_or_critical),
+        "process_findings_count": len(process_findings),
+        "policy_mode": mode,
+        "confidence": confidence,
+    }
+
+
 def scan_target(cwd: str, target: str) -> dict:
     base = Path(cwd).resolve()
     feed = threat_feed_status(cwd)
@@ -448,6 +477,11 @@ def scan_target(cwd: str, target: str) -> dict:
         if _severity_rank(pf.get("severity", "low")) > _severity_rank(highest):
             highest = pf.get("severity", "low")
 
+    smart_logic = apply_governance(
+        cwd,
+        _smart_logic_antivirus(findings, process_findings, highest, policy),
+        {"target": target, "finding_count": len(findings)},
+    )
     report = {
         "ok": True,
         "target": target,
@@ -457,6 +491,7 @@ def scan_target(cwd: str, target: str) -> dict:
         "process_finding_count": len(process_findings),
         "highest_severity": highest,
         "incident_actions": _recommend_actions(highest),
+        "smart_logic": smart_logic,
         "findings": findings[:500],
         "process_findings": process_findings[:200],
         "time_utc": _utc_now(),

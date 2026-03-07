@@ -15,6 +15,11 @@ The only private items are local runtime trust materials and machine-specific se
 - Cure Firewall: completed in this codebase scope.
 - Antivirus: completed in this codebase scope.
 - Both are integrated with runtime commands, backup/quarantine flows, and CI/security gates.
+- Built-in smart logic reasoning is enabled in:
+  - Zero AI Gate (`zero_ai_gate_smart_logic_v1`)
+  - Internal Zero Reasoner (`zero_ai_internal_smart_logic_v1`)
+  - Cure Firewall (`cure_firewall_smart_logic_v1`)
+  - Antivirus (`antivirus_smart_logic_v1`)
 
 ## Contributor Status Note
 - I am using Codex through Microsoft Store.

@@ -7,6 +7,7 @@ from pathlib import Path
 from zero_os.antivirus import monitor_set, monitor_status, monitor_tick
 from zero_os.cure_firewall_agent import run_cure_firewall_agent
 from zero_os.readiness import os_readiness
+from zero_os.score_system import score_from_checks
 
 
 def _report_path(cwd: str) -> Path:
@@ -117,20 +118,42 @@ def run_triad_balance(cwd: str) -> dict:
         score += 1
     if bool(av_tick.get("ok")) and bool(av_tick.get("ran")):
         score += 1
+    issues: list[str] = []
+    if readiness.get("score", 0) < 100:
+        issues.append("zero_os_not_perfect")
+    if cure.get("issues"):
+        issues.append("cure_firewall_issues")
+    if int(av_tick.get("report", {}).get("finding_count", 0)) > 0:
+        issues.append("antivirus_findings")
+    triad_scoring = score_from_checks(
+        {
+            "readiness_perfect": readiness.get("score", 0) == 100,
+            "cure_firewall_perfect": bool(cure.get("perfect", False)),
+            "antivirus_clean": int(av_tick.get("report", {}).get("finding_count", 0)) == 0,
+        },
+        issues=issues,
+    )
 
     report = {
         "ok": True,
         "triad_score": score,
         "triad_total": 3,
         "balanced": score == 3,
+        "system_score": triad_scoring["score"],
+        "perfect": triad_scoring["perfect"],
+        "issues": triad_scoring["issues"],
+        "root_issues": triad_scoring["root_issues"],
         "zero_os": {
             "readiness_score": readiness.get("score", 0),
             "missing": readiness.get("missing", []),
+            "perfect": readiness.get("perfect", False),
         },
         "cure_firewall_agent": {
             "file_targets": cure.get("file_targets", 0),
             "file_survived": cure.get("file_survived", 0),
             "file_verified": cure.get("file_verified", 0),
+            "system_score": cure.get("system_score", 0),
+            "perfect": cure.get("perfect", False),
         },
         "antivirus_monitor": {
             "enabled": av_status.get("enabled", False),

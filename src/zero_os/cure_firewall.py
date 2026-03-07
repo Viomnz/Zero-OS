@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from zero_os.smart_logic_governance import apply_governance
 
 BEACON_SCHEMA_FILE = "zero-os-beacon-v3"
 BEACON_SCHEMA_NET = "zero-os-net-beacon-v3"
@@ -29,6 +30,7 @@ class CureResult:
     score: int = 0
     beacon_path: str | None = None
     backup_path: str | None = None
+    smart_logic: dict | None = None
 
 
 def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResult:
@@ -68,6 +70,11 @@ def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResu
     }
     score = _recursion_score(data, pressure, digest_a, digest_b, digest_c)
     survived = all(checks.values())
+    smart_logic = apply_governance(
+        cwd,
+        _smart_logic_decision("file", checks, score, pressure),
+        {"target": str(target), "pressure": pressure},
+    )
 
     # Part 3: result handler (beacon mark on survival)
     beacon = None
@@ -110,6 +117,7 @@ def run_cure_firewall(cwd: str, target_rel_path: str, pressure: int) -> CureResu
         score=score,
         beacon_path=beacon,
         backup_path=backup_path,
+        smart_logic=smart_logic,
     )
     append_audit(base, "file_run", str(target), "pass" if survived else "collapse", f"score={score}; pressure={pressure}")
     return result
@@ -203,6 +211,11 @@ def run_cure_firewall_net(cwd: str, url: str, pressure: int) -> CureResult:
     }
     score = _recursion_score(data, pressure, digest_a, digest_b, digest_c)
     survived = all(checks.values())
+    smart_logic = apply_governance(
+        cwd,
+        _smart_logic_decision("network", checks, score, pressure),
+        {"target": url, "pressure": pressure},
+    )
 
     beacon = None
     if survived:
@@ -237,6 +250,7 @@ def run_cure_firewall_net(cwd: str, url: str, pressure: int) -> CureResult:
         notes=note,
         score=score,
         beacon_path=beacon,
+        smart_logic=smart_logic,
     )
     append_audit(base, "net_run", url, "pass" if survived else "collapse", f"score={score}; pressure={pressure}")
     return result
@@ -428,6 +442,30 @@ def _recursion_score(data: bytes, pressure: int, a: str, b: str, c: str) -> int:
     pressure_factor = max(0, min(100, pressure))
     score = int((pressure_factor * 0.35) + (chain_factor * 0.30) + (entropy_factor * 0.20) + (size_factor * 0.15))
     return max(0, min(100, score))
+
+
+def _smart_logic_decision(target_kind: str, checks: dict, score: int, pressure: int) -> dict:
+    failed_checks = [k for k, ok in checks.items() if not ok]
+    if failed_checks:
+        action = "block_and_repair"
+        reason = "structural_checks_failed"
+    elif score >= 90 and pressure >= 70:
+        action = "allow_and_mark_beacon"
+        reason = "high_confidence_survival"
+    elif score >= 70:
+        action = "allow_with_monitoring"
+        reason = "medium_confidence_survival"
+    else:
+        action = "contain_and_retest"
+        reason = "low_confidence_survival"
+    return {
+        "engine": "cure_firewall_smart_logic_v1",
+        "target_kind": target_kind,
+        "failed_checks": failed_checks,
+        "decision_reason": reason,
+        "decision_action": action,
+        "confidence": round(score / 100.0, 4),
+    }
 
 
 def _sign_payload(base: Path, payload: dict) -> str:

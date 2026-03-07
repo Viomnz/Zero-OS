@@ -7,8 +7,10 @@ from pathlib import Path
 
 try:
     from ai_from_scratch.universe_laws_guard import check_universe_laws
+    from ai_from_scratch.smart_logic_governance import apply_governance
 except ModuleNotFoundError:
     from universe_laws_guard import check_universe_laws
+    from smart_logic_governance import apply_governance
 
 
 CONTRADICTION_PAIRS = (
@@ -36,6 +38,7 @@ class GateDecision:
     model_generation: int
     checks: dict
     history: list[dict]
+    smart_logic: dict
 
 
 def _runtime_state_path(cwd: str) -> Path:
@@ -82,6 +85,26 @@ def _consensus(checks: dict) -> bool:
     return bool(checks["logic"]["pass"] and checks["environment"]["pass"] and checks["survival"]["pass"])
 
 
+def _smart_logic_from_checks(execute: bool, checks: dict, model_generation: int) -> dict:
+    failed = [k for k in ("logic", "environment", "survival") if not bool(checks.get(k, {}).get("pass", False))]
+    if execute:
+        action = "execute"
+        reason = "all_gate_checks_passed"
+        confidence = 0.95
+    else:
+        action = "reject_and_regenerate"
+        reason = "gate_checks_failed"
+        confidence = 0.25 if failed else 0.5
+    return {
+        "engine": "zero_ai_gate_smart_logic_v1",
+        "decision_action": action,
+        "decision_reason": reason,
+        "confidence": confidence,
+        "model_generation": int(model_generation),
+        "root_issues": {"failed_checks": failed, "issue_sources": [reason] if failed else []},
+    }
+
+
 def _load_state(cwd: str) -> dict:
     p = _runtime_state_path(cwd)
     if not p.exists():
@@ -112,11 +135,35 @@ def gate_output(cwd: str, prompt: str, candidate_outputs: list[str], max_attempt
         history.append({"attempt": idx, "execute": execute, "checks": checks})
         if execute:
             _save_state(cwd, {"model_generation": model_generation})
-            return GateDecision(True, output, idx, model_generation, checks, history)
+            return GateDecision(
+                True,
+                output,
+                idx,
+                model_generation,
+                checks,
+                history,
+                apply_governance(
+                    cwd,
+                    _smart_logic_from_checks(True, checks, model_generation),
+                    {"stage": "accepted", "attempt": idx},
+                ),
+            )
 
     # New model generation trigger after repeated failures.
     model_generation += 1
     _save_state(cwd, {"model_generation": model_generation})
     final = history[-1]["checks"] if history else {"logic": {}, "environment": {}, "survival": {}}
     final_output = candidate_outputs[min(len(candidate_outputs), max_attempts) - 1] if candidate_outputs else ""
-    return GateDecision(False, final_output, min(len(candidate_outputs), max_attempts), model_generation, final, history)
+    return GateDecision(
+        False,
+        final_output,
+        min(len(candidate_outputs), max_attempts),
+        model_generation,
+        final,
+        history,
+        apply_governance(
+            cwd,
+            _smart_logic_from_checks(False, final, model_generation),
+            {"stage": "rejected", "attempts": min(len(candidate_outputs), max_attempts)},
+        ),
+    )

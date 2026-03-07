@@ -14,6 +14,7 @@ try:
     from ai_from_scratch.time_horizon import evaluate_time_horizons
     from ai_from_scratch.universe_laws_guard import check_universe_laws
     from ai_from_scratch.self_monitor import update_self_monitor
+    from ai_from_scratch.smart_logic_governance import apply_governance
 except ModuleNotFoundError:
     from core_rule_layer import attempt_modify_core_rules, ensure_core_rules, verify_core_rules
     from model_evolution import apply_evolution, evaluate_evolution_need
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     from time_horizon import evaluate_time_horizons
     from universe_laws_guard import check_universe_laws
     from self_monitor import update_self_monitor
+    from smart_logic_governance import apply_governance
 
 
 CONTRADICTION_PAIRS = (
@@ -93,6 +95,7 @@ class InternalReasoningResult:
     horizons: dict
     signal_reliability: dict
     evolution: dict
+    smart_logic: dict
 
 
 def _runtime_state_path(cwd: str) -> Path:
@@ -261,6 +264,56 @@ def _combined_confidence(critics: dict, weights: dict[str, float] | None = None)
     )
 
 
+def _smart_logic_block(action: str, reason: str, confidence: float, failed_checks: list[str] | None = None) -> dict:
+    return {
+        "engine": "zero_ai_internal_smart_logic_v1",
+        "decision_action": action,
+        "decision_reason": reason,
+        "confidence": round(max(0.0, min(1.0, float(confidence))), 4),
+        "root_issues": {"failed_checks": list(failed_checks or []), "issue_sources": [reason]},
+    }
+
+
+def _smart_logic_from_critics(
+    accepted: bool,
+    fallback_mode: str,
+    critics: dict,
+    combined_confidence: float,
+    simulation: dict,
+    horizons: dict,
+) -> dict:
+    failed_checks: list[str] = []
+    if not critics.get("logic", {}).get("pass", False):
+        failed_checks.append("logic")
+    if not critics.get("environment", {}).get("pass", False):
+        failed_checks.append("environment")
+    if not critics.get("survival", {}).get("pass", False):
+        failed_checks.append("survival")
+    if not simulation.get("pass", False):
+        failed_checks.append("simulation")
+    if not horizons.get("pass", False):
+        failed_checks.append("horizons")
+    if accepted and fallback_mode == "none":
+        action = "execute"
+        reason = "all_reasoning_checks_passed"
+    elif accepted and fallback_mode == "degraded_execute":
+        action = "execute_degraded"
+        reason = "generation_limit_reached_best_available"
+    else:
+        action = "reject_or_hold"
+        reason = "reasoning_checks_failed"
+    return {
+        "engine": "zero_ai_internal_smart_logic_v1",
+        "decision_action": action,
+        "decision_reason": reason,
+        "confidence": round(max(0.0, min(1.0, float(combined_confidence))), 4),
+        "root_issues": {
+            "failed_checks": failed_checks,
+            "issue_sources": [fallback_mode] if fallback_mode != "none" else [],
+        },
+    }
+
+
 def run_internal_reasoning(
     cwd: str,
     prompt: str,
@@ -293,6 +346,15 @@ def run_internal_reasoning(
             self_monitor={"actions": {}, "drift_detected": True},
             resource=resource,
             core_rule_status=core,
+            simulation={"pass": False, "forward_score": 0.0},
+            horizons={"pass": False, "short_term": 0.0, "mid_term": 0.0, "long_term": 0.0},
+            signal_reliability={"healthy": False, "status": {}, "actions": {}},
+            evolution={"triggered": False, "action": {}},
+            smart_logic=apply_governance(
+                cwd,
+                _smart_logic_block("block", "core_rule_violation", 0.0, ["core_rules"]),
+                {"stage": "core_rules"},
+            ),
         )
 
     state = _load_state(cwd)
@@ -326,6 +388,11 @@ def run_internal_reasoning(
             horizons={"pass": False, "short_term": 0.0, "mid_term": 0.0, "long_term": 0.0},
             signal_reliability=reliability,
             evolution={"triggered": False, "action": {}},
+            smart_logic=apply_governance(
+                cwd,
+                _smart_logic_block("block", "signal_reliability_block", 0.0, ["signal_reliability"]),
+                {"stage": "signal_reliability"},
+            ),
         )
 
     cfg = PROFILE_CONFIGS.get(profile, PROFILE_CONFIGS["balanced"])
@@ -427,6 +494,11 @@ def run_internal_reasoning(
                 horizons=horizons,
                 signal_reliability=reliability,
                 evolution={"triggered": False, "action": {}},
+                smart_logic=apply_governance(
+                    cwd,
+                    _smart_logic_from_critics(True, "none", critics, conf, simulation, horizons),
+                    {"stage": "accepted", "attempt": i},
+                ),
             )
 
     # Time-bound fallback: no deadlock, return best available candidate.
@@ -489,6 +561,18 @@ def run_internal_reasoning(
             horizons=fallback_horizons,
             signal_reliability=reliability,
             evolution=evo,
+            smart_logic=apply_governance(
+                cwd,
+                _smart_logic_from_critics(
+                    False,
+                    "best_available",
+                    fallback_critics,
+                    best_conf if best_conf >= 0 else 0.0,
+                    fallback_simulation,
+                    fallback_horizons,
+                ),
+                {"stage": "fallback", "fallback_mode": "best_available"},
+            ),
         )
 
     # Hard ceiling reached: execute best available under controlled degraded mode.
@@ -527,6 +611,18 @@ def run_internal_reasoning(
         horizons=fallback_horizons,
         signal_reliability=reliability,
         evolution=evo,
+        smart_logic=apply_governance(
+            cwd,
+            _smart_logic_from_critics(
+                True,
+                "degraded_execute",
+                fallback_critics,
+                best_conf if best_conf >= 0 else 0.0,
+                fallback_simulation,
+                fallback_horizons,
+            ),
+            {"stage": "fallback", "fallback_mode": "degraded_execute"},
+        ),
     )
 
 

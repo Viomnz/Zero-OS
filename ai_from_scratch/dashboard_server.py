@@ -5,6 +5,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
 from urllib.parse import parse_qs, urlparse
+import re
 
 
 BASE = Path(__file__).resolve().parents[1]
@@ -15,6 +16,110 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.highway import Highway
+
+
+SKIP_PARTS = {".git", ".zero_os", "__pycache__"}
+TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".ps1", ".html", ".js", ".css"}
+
+
+def _tokenize(text: str) -> list[str]:
+    return [t for t in re.split(r"[^a-z0-9_./-]+", text.lower()) if t]
+
+
+def _logical_suggestions(path: Path, preview: str) -> list[str]:
+    p = str(path).replace("\\", "/").lower()
+    out: list[str] = []
+    if p.endswith((".yml", ".yaml")) and ".github/workflows/" in p:
+        out.append("CI flow found: validate job dependencies and required security gates.")
+    if p.endswith(".py") and "test" in p:
+        out.append("Test file matched: add failing-case coverage before feature expansion.")
+    if p.endswith(".py") and ("antivirus" in p or "firewall" in p or "security" in p):
+        out.append("Security module matched: keep strict defaults and verify score/root_issues output.")
+    if "todo" in preview.lower():
+        out.append("TODO marker found: convert TODOs into tracked issues with acceptance checks.")
+    if "fixme" in preview.lower():
+        out.append("FIXME marker found: prioritize patch or isolate risky behavior.")
+    if "password" in preview.lower() or "token" in preview.lower():
+        out.append("Credential-like text matched: verify secrets are not hardcoded.")
+    if not out:
+        out.append("Direct match found: review nearby logic and update tests for this path.")
+    return out
+
+
+def _security_focus(path_text: str, tokens: list[str]) -> int:
+    p = path_text.lower()
+    token_set = set(tokens)
+    wants_security = bool(token_set.intersection({"cure", "curefirewall", "firewall", "antivirus", "security", "virus"}))
+    is_cure = ("cure_firewall" in p) or ("cure-firewall" in p) or ("firewall" in p)
+    is_av = "antivirus" in p
+    is_sec = "security" in p
+    if not wants_security:
+        return 0
+    score = 0
+    if is_cure:
+        score += 3
+    if is_av:
+        score += 3
+    if is_sec:
+        score += 1
+    return score
+
+
+def smart_find(base: Path, query: str, max_results: int = 25) -> dict:
+    tokens = _tokenize(query)
+    if not tokens:
+        return {"ok": False, "reason": "query required"}
+    results = []
+    cap = max(1, min(120, int(max_results)))
+    for p in base.rglob("*"):
+        if not p.is_file():
+            continue
+        if any(part in SKIP_PARTS for part in p.parts):
+            continue
+        rel = str(p.relative_to(base)).replace("\\", "/")
+        name_l = p.name.lower()
+        text = ""
+        if p.suffix.lower() in TEXT_SUFFIXES:
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                text = ""
+        haystack = f"{rel.lower()}\n{text.lower()}"
+        hit_tokens = [t for t in tokens if t in haystack]
+        if not hit_tokens:
+            continue
+        score = round((len(hit_tokens) / len(tokens)) * 100, 2)
+        security_focus = _security_focus(rel, tokens)
+        idx = max((haystack.find(t) for t in hit_tokens), default=-1)
+        preview = text[max(0, idx - 80): idx + 180].replace("\n", " ").strip() if text and idx >= 0 else ""
+        results.append(
+            {
+                "path": rel,
+                "token_match_count": len(hit_tokens),
+                "token_match_ratio": score,
+                "matched_tokens": hit_tokens,
+                "preview": preview[:240],
+                "suggestions": _logical_suggestions(p, preview),
+                "security_focus": security_focus,
+            }
+        )
+    results.sort(
+        key=lambda x: (
+            x.get("security_focus", 0),
+            x["token_match_count"],
+            x["token_match_ratio"],
+        ),
+        reverse=True,
+    )
+    top = results[:cap]
+    return {
+        "ok": True,
+        "query": query,
+        "token_count": len(tokens),
+        "result_count": len(top),
+        "results": top,
+        "logic_mode": "pure",
+    }
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -29,6 +134,22 @@ class Handler(SimpleHTTPRequestHandler):
         return str(full)
 
     def do_POST(self) -> None:
+        if self.path == "/api/smart-find":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length).decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(body)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
+            query = str(payload.get("query", "")).strip()
+            max_results = int(payload.get("max_results", 25))
+            out = smart_find(BASE, query, max_results=max_results)
+            if not out.get("ok", False):
+                self.send_error(400, out.get("reason", "invalid request"))
+                return
+            self._json(out)
+            return
         if self.path == "/api/exec":
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length).decode("utf-8", errors="replace")

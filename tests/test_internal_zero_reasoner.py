@@ -37,6 +37,9 @@ class InternalZeroReasonerTests(unittest.TestCase):
         self.assertIn("short_term", out.horizons)
         self.assertIn("healthy", out.signal_reliability)
         self.assertIn("triggered", out.evolution)
+        self.assertIn("engine", out.smart_logic)
+        self.assertIn("decision_action", out.smart_logic)
+        self.assertIn("governance_policy", out.smart_logic)
 
     def test_rejects_and_increments_model_generation(self) -> None:
         prompt = "security action"
@@ -48,6 +51,8 @@ class InternalZeroReasonerTests(unittest.TestCase):
         self.assertEqual("failure", out.memory_update["type"])
         self.assertIn("rejection_streak", out.self_monitor)
         self.assertGreaterEqual(out.resource["attempt_limit"], 1)
+        self.assertEqual("zero_ai_internal_smart_logic_v1", out.smart_logic.get("engine"))
+        self.assertIn("false_positive_review_needed", out.smart_logic)
 
     def test_degraded_execute_when_generation_limit_reached(self) -> None:
         prompt = "security action"
@@ -62,6 +67,7 @@ class InternalZeroReasonerTests(unittest.TestCase):
         self.assertTrue(out.accepted)
         self.assertEqual("degraded_execute", out.fallback_mode)
         self.assertEqual("degraded_success", out.memory_update["type"])
+        self.assertEqual("execute_degraded", out.smart_logic.get("decision_action"))
 
     def test_profile_set_and_get(self) -> None:
         s = set_reasoner_profile(str(self.base), "strict")
