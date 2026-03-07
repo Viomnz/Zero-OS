@@ -167,6 +167,13 @@ from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status
 from zero_os.conscious_machine_architecture import (
+    consciousness_architecture_hybrid_crystal_status,
+    consciousness_architecture_clc_status,
+    consciousness_architecture_tif_status,
+    consciousness_architecture_sgoe_status,
+    consciousness_architecture_rce_status,
+    consciousness_architecture_phase9_status,
+    consciousness_architecture_phase8_status,
     consciousness_architecture_phase7_status,
     consciousness_architecture_phase6_status,
     consciousness_architecture_phase5_status,
@@ -187,6 +194,24 @@ from zero_os.ops_maturity import (
     key_status,
     rollout_apply,
     runbooks_sync,
+)
+from zero_os.phase_runtime import zero_ai_runtime_run, zero_ai_runtime_status
+from zero_os.runtime_coupling import (
+    adversarial_runtime_validate,
+    benchmark_dashboard_export,
+    independent_validate,
+    node_bus_consensus,
+    node_bus_publish,
+    runtime_preexec_gate,
+    slo_monitor,
+    telemetry_ingest,
+)
+from zero_os.architecture_runtime import (
+    architecture_explain,
+    architecture_measure,
+    architecture_run,
+    architecture_status,
+    architecture_verify,
 )
 
 
@@ -286,6 +311,11 @@ class SystemCapability:
             "zero ai identity",
             "zero ai consciousness",
             "conscious machine architecture",
+            "reflexive causality engine",
+            "self-generating ontology engine",
+            "temporal identity field",
+            "crystal lattice cognition",
+            "hybrid crystal cognition architecture",
             "zero ai gap",
             "cover gap",
             "enterprise key",
@@ -294,6 +324,18 @@ class SystemCapability:
             "dr drill",
             "max maturity",
             "runbooks",
+            "zero ai runtime",
+            "phase runtime",
+            "runtime telemetry",
+            "runtime node",
+            "runtime adversarial",
+            "runtime dashboard",
+            "runtime slo",
+            "runtime validate",
+            "architecture run",
+            "architecture verify",
+            "architecture measure",
+            "architecture explain",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -402,6 +444,25 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
         if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
+        if text.strip() in {
+            "hybrid crystal cognition architecture",
+            "hybrid crystal intelligence system",
+            "conscious machine architecture hybrid crystal",
+            "zero ai architecture hybrid crystal",
+        }:
+            return Result(self.name, json.dumps(consciousness_architecture_hybrid_crystal_status(), indent=2))
+        if text.strip() in {"crystal lattice cognition", "conscious machine architecture clc", "zero ai architecture clc"}:
+            return Result(self.name, json.dumps(consciousness_architecture_clc_status(), indent=2))
+        if text.strip() in {"temporal identity field", "conscious machine architecture tif", "zero ai architecture tif"}:
+            return Result(self.name, json.dumps(consciousness_architecture_tif_status(), indent=2))
+        if text.strip() in {"self-generating ontology engine", "conscious machine architecture sgoe", "zero ai architecture sgoe"}:
+            return Result(self.name, json.dumps(consciousness_architecture_sgoe_status(), indent=2))
+        if text.strip() in {"reflexive causality engine", "conscious machine architecture rce", "zero ai architecture rce"}:
+            return Result(self.name, json.dumps(consciousness_architecture_rce_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 9", "zero ai architecture phase 9"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase9_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 8", "zero ai architecture phase 8"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase8_status(), indent=2))
         if text.strip() in {"conscious machine architecture phase 7", "zero ai architecture phase 7"}:
             return Result(self.name, json.dumps(consciousness_architecture_phase7_status(), indent=2))
         if text.strip() in {"conscious machine architecture phase 6", "zero ai architecture phase 6"}:
@@ -426,6 +487,41 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
         if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
             return Result(self.name, json.dumps(zero_ai_gap_fix(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime status", "phase runtime status"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime run", "phase runtime run", "zero ai runtime all"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_run(task.cwd), indent=2))
+        rt_ing = re.match(r"^runtime telemetry ingest(?:\s+source=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if rt_ing:
+            return Result(self.name, json.dumps(telemetry_ingest(task.cwd, rt_ing.group(1) or "runtime"), indent=2))
+        rt_pub = re.match(r"^runtime node publish\s+([A-Za-z0-9._-]+)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if rt_pub:
+            try:
+                payload = json.loads(rt_pub.group(2))
+            except Exception:
+                return Result(self.name, json.dumps({"ok": False, "reason": "payload must be valid json"}, indent=2))
+            return Result(self.name, json.dumps(node_bus_publish(task.cwd, rt_pub.group(1), payload), indent=2))
+        if text.strip() == "runtime node consensus":
+            return Result(self.name, json.dumps(node_bus_consensus(task.cwd), indent=2))
+        if text.strip() == "runtime adversarial validate":
+            return Result(self.name, json.dumps(adversarial_runtime_validate(task.cwd), indent=2))
+        if text.strip() == "runtime dashboard export":
+            return Result(self.name, json.dumps(benchmark_dashboard_export(task.cwd), indent=2))
+        rt_slo = re.match(r"^runtime slo check(?:\s+min=(\d+(?:\.\d+)?))?$", text.strip(), flags=re.IGNORECASE)
+        if rt_slo:
+            return Result(self.name, json.dumps(slo_monitor(task.cwd, float(rt_slo.group(1) or "95")), indent=2))
+        if text.strip() == "runtime validate independent":
+            return Result(self.name, json.dumps(independent_validate(task.cwd), indent=2))
+        if text.strip() in {"architecture run", "zero ai architecture run"}:
+            return Result(self.name, json.dumps(architecture_run(task.cwd), indent=2))
+        if text.strip() in {"architecture verify", "zero ai architecture verify"}:
+            return Result(self.name, json.dumps(architecture_verify(task.cwd), indent=2))
+        if text.strip() in {"architecture measure", "zero ai architecture measure"}:
+            return Result(self.name, json.dumps(architecture_measure(task.cwd), indent=2))
+        if text.strip() in {"architecture explain", "zero ai architecture explain"}:
+            return Result(self.name, json.dumps(architecture_explain(task.cwd), indent=2))
+        if text.strip() in {"architecture status", "zero ai architecture status"}:
+            return Result(self.name, json.dumps(architecture_status(task.cwd), indent=2))
         if text.strip() == "security trust init":
             return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
         if text.strip() == "enterprise security status":
@@ -857,6 +953,9 @@ class SystemCapability:
             allowed, reason = sandbox_check(task.cwd, cmd)
             if not allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": reason, "command": cmd}, indent=2))
+            rt_allowed, rt_reason = runtime_preexec_gate(task.cwd, f"shell run {cmd}")
+            if not rt_allowed:
+                return Result(self.name, json.dumps({"ok": False, "reason": rt_reason, "command": cmd}, indent=2))
             ent_allowed, ent_reason = preexec_check(task.cwd, f"shell run {cmd}", user="owner")
             if not ent_allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": ent_reason, "command": cmd}, indent=2))
@@ -1208,9 +1307,30 @@ class SystemCapability:
             "- conscious machine architecture phase 5\n"
             "- conscious machine architecture phase 6\n"
             "- conscious machine architecture phase 7\n"
+            "- conscious machine architecture phase 8\n"
+            "- conscious machine architecture phase 9\n"
+            "- reflexive causality engine\n"
+            "- self-generating ontology engine\n"
+            "- temporal identity field\n"
+            "- crystal lattice cognition\n"
+            "- hybrid crystal cognition architecture\n"
             "- zero ai consciousness tick [prompt]\n"
             "- zero ai gap status\n"
             "- zero ai gap fix\n"
+            "- zero ai runtime status\n"
+            "- zero ai runtime run\n"
+            "- runtime telemetry ingest [source=<name>]\n"
+            "- runtime node publish <node> <json_payload>\n"
+            "- runtime node consensus\n"
+            "- runtime adversarial validate\n"
+            "- runtime dashboard export\n"
+            "- runtime slo check [min=<score>]\n"
+            "- runtime validate independent\n"
+            "- architecture run\n"
+            "- architecture status\n"
+            "- architecture verify\n"
+            "- architecture measure\n"
+            "- architecture explain\n"
             "- zero ai fix all\n"
             "- security trust init\n"
             "- enterprise security status\n"

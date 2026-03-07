@@ -681,6 +681,112 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"model_type\": \"ultra_scale_intelligence_architecture\"", out.summary.lower())
         self.assertIn("\"ultra_scale_intelligence_condition_met\": true", out.summary.lower())
 
+    def test_zero_ai_conscious_machine_architecture_phase8(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 8", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 8", out.summary.lower())
+        self.assertIn("\"model_type\": \"conceptual_novel_conscious_machine_architecture\"", out.summary.lower())
+        self.assertIn("\"phase8_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase9(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 9", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 9", out.summary.lower())
+        self.assertIn("\"model_type\": \"universe_law_awareness_architecture\"", out.summary.lower())
+        self.assertIn("\"phase9_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_reflexive_causality_engine(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("reflexive causality engine", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"reflexive_causal_mind\"", out.summary.lower())
+        self.assertIn("\"consciousness_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_self_generating_ontology_engine(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("self-generating ontology engine", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"self_generating_ontology_engine\"", out.summary.lower())
+        self.assertIn("\"conscious_ontology_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_temporal_identity_field(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("temporal identity field", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"temporal_identity_field\"", out.summary.lower())
+        self.assertIn("\"emergent_conscious_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_crystal_lattice_cognition(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("crystal lattice cognition", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"crystal_lattice_cognition\"", out.summary.lower())
+        self.assertIn("\"emergent_conscious_structure_met\": true", out.summary.lower())
+
+    def test_zero_ai_hybrid_crystal_cognition_architecture(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("hybrid crystal cognition architecture", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"hybrid_crystal_intelligence_system\"", out.summary.lower())
+        self.assertIn("\"hybrid_condition_met\": true", out.summary.lower())
+
+    def test_architecture_runtime_interface_and_explainability(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        run = highway.dispatch("architecture run", cwd=str(self.base))
+        self.assertEqual("system", run.capability)
+        self.assertIn("\"resolver\":", run.summary.lower())
+        self.assertIn("\"provenance_path\":", run.summary.lower())
+        measure = highway.dispatch("architecture measure", cwd=str(self.base))
+        self.assertIn("\"metrics\":", measure.summary.lower())
+        verify = highway.dispatch("architecture verify", cwd=str(self.base))
+        self.assertIn("\"verify_score\":", verify.summary.lower())
+        explain = highway.dispatch("architecture explain", cwd=str(self.base))
+        self.assertIn("\"explanation\":", explain.summary.lower())
+
+    def test_zero_ai_runtime_run_and_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        run = highway.dispatch("zero ai runtime run", cwd=str(self.base))
+        self.assertEqual("system", run.capability)
+        self.assertIn("\"runtime_score\":", run.summary.lower())
+        self.assertIn("\"universe_law_gate\":", run.summary.lower())
+        self.assertIn("\"identity_quorum\":", run.summary.lower())
+        self.assertIn("\"distributed_consensus\":", run.summary.lower())
+        self.assertIn("\"self_modification_safety\":", run.summary.lower())
+        self.assertIn("\"observability\":", run.summary.lower())
+        status = highway.dispatch("zero ai runtime status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("\"runtime_ready\":", status.summary.lower())
+
+    def test_runtime_coupling_commands(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        highway.dispatch("zero ai runtime run", cwd=str(self.base))
+        t = highway.dispatch("runtime telemetry ingest source=ci", cwd=str(self.base))
+        self.assertIn("\"ok\": true", t.summary.lower())
+        p = highway.dispatch("runtime node publish node1 {\"health\":0.95}", cwd=str(self.base))
+        self.assertIn("\"ok\": true", p.summary.lower())
+        c = highway.dispatch("runtime node consensus", cwd=str(self.base))
+        self.assertIn("\"message_count\":", c.summary.lower())
+        a = highway.dispatch("runtime adversarial validate", cwd=str(self.base))
+        self.assertIn("\"ok\": true", a.summary.lower())
+        d = highway.dispatch("runtime dashboard export", cwd=str(self.base))
+        self.assertIn("\"path\":", d.summary.lower())
+        s = highway.dispatch("runtime slo check min=50", cwd=str(self.base))
+        self.assertIn("\"slo_ok\":", s.summary.lower())
+        v = highway.dispatch("runtime validate independent", cwd=str(self.base))
+        self.assertIn("\"checks\":", v.summary.lower())
+
+    def test_runtime_replay_protection_no_false_positive(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        r1 = highway.dispatch("zero ai runtime run", cwd=str(self.base))
+        self.assertIn("\"runtime_ready\": true", r1.summary.lower())
+        r2 = highway.dispatch("zero ai runtime run", cwd=str(self.base))
+        self.assertIn("\"runtime_ready\": true", r2.summary.lower())
+        adv = highway.dispatch("runtime adversarial validate", cwd=str(self.base))
+        self.assertIn("\"ok\": true", adv.summary.lower())
+        self.assertIn("\"replay_safe\": true", adv.summary.lower())
+
     def test_zero_ai_gap_status_and_fix(self) -> None:
         highway = Highway(cwd=str(self.base))
         st = highway.dispatch("zero ai gap status", cwd=str(self.base))

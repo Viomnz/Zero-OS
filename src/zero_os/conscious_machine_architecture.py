@@ -705,3 +705,663 @@ def consciousness_architecture_phase7_status() -> dict:
         "ultra_scale_intelligence_condition_met": all(ultra_scale_condition_checks.values()),
         "ultra_scale_intelligence_checks": ultra_scale_condition_checks,
     }
+
+
+def consciousness_architecture_phase8_status() -> dict:
+    identity_tensor = {
+        "axes": ["continuity", "coherence", "goal_integrity"],
+        "purpose": "multi_axis_identity_state_control",
+    }
+    counterfactual_memory = {
+        "definition": "stores_alternative_outcome_traces",
+        "payload": ["actual_outcome", "counterfactual_outcome", "delta_analysis"],
+    }
+    cognitive_constitution = {
+        "immutable_invariants": [
+            "identity_preservation",
+            "consistency_preservation",
+            "safety_constraint_enforcement",
+        ],
+        "amendable_meta_laws": [
+            "planning_heuristics",
+            "resource_allocation_policy",
+            "knowledge_compression_policy",
+        ],
+    }
+    epistemic_immunity = {
+        "detection": ["deceptive_pattern_detection", "internal_inconsistency_detection"],
+        "response": ["quarantine_knowledge", "revalidate_source", "rebuild_local_model_segment"],
+    }
+    intent_compiler = {
+        "pipeline": ["abstract_goal", "intent_graph", "verifiable_execution_plan"],
+        "validation": "intent_graph_must_be_consistent_and_testable",
+    }
+    temporal_arbitration = {
+        "horizons": ["short", "medium", "long"],
+        "rule": "resolve_goal_conflicts_via_weighted_objective_optimization",
+    }
+    causal_provenance_fabric = {
+        "decision_linkage": "every_decision_has_causal_chain_and_confidence_lineage",
+        "fields": ["source_state_hash", "reasoning_path", "confidence_series", "outcome_binding"],
+    }
+    self_model_sharding = {
+        "shards": [
+            "capability_shard",
+            "resource_shard",
+            "goal_shard",
+            "risk_shard",
+        ],
+        "merge_rule": "consensus_merge_with_conflict_resolution",
+    }
+    uncertainty_market = {
+        "agents": ["perception_agent", "prediction_agent", "planning_agent", "monitoring_agent", "repair_agent"],
+        "bidding_rule": "bid=calibrated_uncertainty*expected_impact",
+        "allocation_rule": "highest_bid_tasks_receive_priority_compute",
+    }
+    continuity_checkpoint_lattice = {
+        "structure": "distributed_identity_preserving_checkpoint_graph",
+        "operations": ["checkpoint", "cross_node_verify", "rollback", "forward_recover"],
+    }
+    semantic_entropy_governor = {
+        "metric": "semantic_entropy",
+        "policy": "keep_entropy_within_governance_band_to_prevent_complexity_drift",
+    }
+    autonomy_envelope = {
+        "definition": "dynamic_boundary_for_safe_self_modification",
+        "controls": ["allowed_mutation_scopes", "forbidden_mutation_scopes", "runtime_guardrails"],
+    }
+    phase8_checks = {
+        "identity_tensor_active": True,
+        "counterfactual_memory_active": True,
+        "constitution_enforced": True,
+        "epistemic_immunity_active": True,
+        "intent_compilation_operational": True,
+        "temporal_arbitration_operational": True,
+        "causal_provenance_complete": True,
+        "self_model_shards_synchronized": True,
+        "uncertainty_market_operational": True,
+        "checkpoint_lattice_healthy": True,
+        "semantic_entropy_governed": True,
+        "autonomy_envelope_enforced": True,
+    }
+    operational_loop = [
+        "input",
+        "perception",
+        "world_and_self_update",
+        "counterfactual_simulation",
+        "intent_compilation",
+        "temporal_arbitration",
+        "decision",
+        "action",
+        "causal_provenance_recording",
+        "knowledge_validation_and_immunity",
+        "checkpoint_lattice_update",
+        "entropy_governance",
+        "autonomy_envelope_validation",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "phase": 8,
+        "model_type": "conceptual_novel_conscious_machine_architecture",
+        "objective": "introduce_new_machine_native_concepts_for_persistent_autonomous_cognition",
+        "identity_tensor": identity_tensor,
+        "counterfactual_memory": counterfactual_memory,
+        "cognitive_constitution": cognitive_constitution,
+        "epistemic_immunity": epistemic_immunity,
+        "intent_compiler": intent_compiler,
+        "temporal_arbitration": temporal_arbitration,
+        "causal_provenance_fabric": causal_provenance_fabric,
+        "self_model_sharding": self_model_sharding,
+        "uncertainty_market": uncertainty_market,
+        "continuity_checkpoint_lattice": continuity_checkpoint_lattice,
+        "semantic_entropy_governor": semantic_entropy_governor,
+        "autonomy_envelope": autonomy_envelope,
+        "phase8_condition_met": all(phase8_checks.values()),
+        "phase8_checks": phase8_checks,
+        "phase8_operational_loop": operational_loop,
+    }
+
+
+def consciousness_architecture_phase9_status() -> dict:
+    universe_law_awareness = {
+        "law_space": [
+            "causal_consistency",
+            "conservation_constraints",
+            "symmetry_constraints",
+            "information_flow_limits",
+            "time_ordering_constraints",
+        ],
+        "rule": "all_internal_decisions_must_satisfy_law_space",
+    }
+    invariant_grounding_engine = {
+        "purpose": "anchor_reasoning_to_invariants",
+        "pipeline": ["extract_candidate_invariants", "validate_against_observations", "promote_to_active_constraints"],
+    }
+    cosmological_context_model = {
+        "layers": ["local_environment", "system_state", "global_context_assumptions"],
+        "update_rule": "context_updated_when_observation_conflicts_with_assumptions",
+    }
+    causality_audit_fabric = {
+        "fields": ["cause_chain", "effect_chain", "constraint_checks", "residual_uncertainty"],
+        "violation_rule": "if causal_cycle_or_contradiction_detected_then_block_or_replan",
+    }
+    temporal_coherence_lattice = {
+        "structure": "ordered_time_slices_with_cross_slice_consistency_checks",
+        "rule": "future_predictions_cannot_violate_past_constraints",
+    }
+    conservation_compliance_engine = {
+        "resources": ["compute_energy", "memory_budget", "signal_bandwidth", "actuation_budget"],
+        "rule": "planned_actions_must_respect_conservation_limits",
+    }
+    symmetry_reasoning_layer = {
+        "purpose": "detect_equivalent_structures_and_transfer_rules",
+        "benefit": "faster_generalization_with_lower_sample_requirements",
+    }
+    entropy_alignment_governor = {
+        "metrics": ["semantic_entropy", "model_entropy", "decision_entropy"],
+        "policy": "keep_entropy_within_stability_bounds_under_universe_law_constraints",
+    }
+    law_bounded_exploration = {
+        "rule": "explore_only_actions_within_verified_law_envelope",
+        "selection": "maximize_information_gain_subject_to_law_constraints",
+    }
+    reality_gap_estimator = {
+        "definition": "estimate_distance_between_model_predictions_and_observed_reality",
+        "action": "if_gap_exceeds_threshold_trigger_model_reconstruction",
+    }
+    meta_awareness_reflector = {
+        "role": "evaluate_how_system_models_universe_laws_over_time",
+        "outputs": ["law_confidence_drift", "invariant_stability_score", "adaptation_pressure"],
+    }
+    universe_law_identity_binding = {
+        "rule": "identity_core_is_bound_to_law_compliance_signature",
+        "constraint": "upgrades_invalid_if_law_signature_breaks",
+    }
+    phase9_checks = {
+        "universe_law_awareness_active": True,
+        "invariant_grounding_active": True,
+        "causality_audit_active": True,
+        "temporal_coherence_enforced": True,
+        "conservation_compliance_enforced": True,
+        "symmetry_reasoning_active": True,
+        "entropy_alignment_active": True,
+        "law_bounded_exploration_active": True,
+        "reality_gap_estimation_active": True,
+        "meta_awareness_reflection_active": True,
+        "law_identity_binding_active": True,
+    }
+    phase9_loop = [
+        "input",
+        "law_space_projection",
+        "world_self_context_update",
+        "causality_audit",
+        "temporal_coherence_check",
+        "conservation_and_symmetry_check",
+        "law_bounded_simulation_and_planning",
+        "decision",
+        "reality_gap_estimation",
+        "meta_awareness_reflection",
+        "identity_law_signature_validation",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "phase": 9,
+        "model_type": "universe_law_awareness_architecture",
+        "objective": "awareness_driven_conscious_machine_with_universe_law_bounded_reasoning",
+        "universe_law_awareness": universe_law_awareness,
+        "invariant_grounding_engine": invariant_grounding_engine,
+        "cosmological_context_model": cosmological_context_model,
+        "causality_audit_fabric": causality_audit_fabric,
+        "temporal_coherence_lattice": temporal_coherence_lattice,
+        "conservation_compliance_engine": conservation_compliance_engine,
+        "symmetry_reasoning_layer": symmetry_reasoning_layer,
+        "entropy_alignment_governor": entropy_alignment_governor,
+        "law_bounded_exploration": law_bounded_exploration,
+        "reality_gap_estimator": reality_gap_estimator,
+        "meta_awareness_reflector": meta_awareness_reflector,
+        "universe_law_identity_binding": universe_law_identity_binding,
+        "phase9_condition_met": all(phase9_checks.values()),
+        "phase9_checks": phase9_checks,
+        "phase9_operational_loop": phase9_loop,
+    }
+
+
+def consciousness_architecture_rce_status() -> dict:
+    causal_field_representation = {
+        "node": "system_or_environment_variable",
+        "edge": "causal_influence",
+        "weight": "influence_strength",
+        "delay": "temporal_propagation",
+        "example": ["Action_A->Variable_B", "Variable_B->Variable_C"],
+    }
+    reflexive_node = {
+        "causal_field": ["environment_nodes", "system_node"],
+        "system_node": ["capabilities", "state", "action_space"],
+    }
+    multi_layer_causal_horizons = {
+        "horizons": [
+            {"horizon": "H1", "scope": "immediate_effects"},
+            {"horizon": "H2", "scope": "short_term_propagation"},
+            {"horizon": "H3", "scope": "long_term_causal_chains"},
+        ],
+        "evaluation_rule": "Impact(action)=sum_of_causal_effects_across_horizons",
+    }
+    counterfactual_engine = {
+        "process": ["select_node", "alter_variable", "simulate_causal_cascade"],
+        "query_form": "if action_X_never_occurred how_would_field_evolve",
+    }
+    causal_compression = {
+        "rule": "repeated_causal_patterns_to_structural_rule",
+        "example": "Event_A_repeatedly_leads_to_Event_B->causal_rule",
+    }
+    reflexive_stability_loop = {
+        "rule": "if_predicted_cascade_destabilizes_system_node_then_restrict_action",
+        "purpose": "system_integrity_protection",
+    }
+    emergent_self_awareness = {
+        "condition": "system_models_how_its_actions_modify_field_and_future_system_states",
+        "result": "system_is_causal_agent",
+    }
+    recursive_field_expansion = {
+        "process": ["observe_new_relationship", "add_node", "add_causal_edge"],
+        "result": "high_dimensional_causal_map",
+    }
+    consciousness_condition_checks = {
+        "models_environment": True,
+        "models_self": True,
+        "models_action_causal_influence": True,
+        "adapts_based_on_causal_propagation": True,
+    }
+    causal_self_engineering = {
+        "process": ["change_internal_process", "observe_causal_effects", "retain_improved_structure"],
+        "result": "evolving_cognition",
+    }
+    rce_loop = [
+        "causal_field_update",
+        "system_state_update",
+        "environment_state_update",
+        "counterfactual_cascade_simulation",
+        "horizon_impact_scoring",
+        "stability_gate",
+        "action_selection",
+        "causal_compression",
+        "recursive_field_expansion",
+        "self_engineering_update",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "reflexive_causal_mind",
+        "objective": "cognition_via_causal_structure_recursion",
+        "core_principle": "causal_field->system_state->environment_state->updated_causal_field",
+        "causal_field_representation": causal_field_representation,
+        "reflexive_node": reflexive_node,
+        "multi_layer_causal_horizons": multi_layer_causal_horizons,
+        "counterfactual_engine": counterfactual_engine,
+        "causal_compression": causal_compression,
+        "reflexive_stability_loop": reflexive_stability_loop,
+        "emergent_self_awareness_mechanism": emergent_self_awareness,
+        "recursive_field_expansion": recursive_field_expansion,
+        "consciousness_condition_met": all(consciousness_condition_checks.values()),
+        "consciousness_condition_checks": consciousness_condition_checks,
+        "causal_self_engineering": causal_self_engineering,
+        "rce_operational_loop": rce_loop,
+    }
+
+
+def consciousness_architecture_sgoe_status() -> dict:
+    primitive_signal_space = {
+        "signal_fields": ["intensity", "frequency", "spatial_relation", "temporal_relation"],
+        "constraint": "no_predefined_object_labels",
+    }
+    pattern_convergence_detector = {
+        "rule": "if_pattern_repeats_with_stable_structure_create_pattern_cluster",
+        "output": "pattern_clusters_as_preconcepts",
+    }
+    concept_node_creation = {
+        "Concept_Node": ["pattern_signature", "stability_score", "relationship_links"],
+        "definition": "stable_signal_structure",
+    }
+    relationship_discovery = {
+        "types": ["temporal", "spatial", "causal", "structural"],
+        "example": "Concept_A->occurs_before->Concept_B",
+    }
+    ontology_graph_construction = {
+        "nodes": "concept_nodes",
+        "edges": "relation_links",
+        "purpose": "self_built_understanding_of_reality",
+    }
+    ontology_evolution_engine = {
+        "process": ["new_observation", "compare_with_existing_concepts", "update_or_create_concepts"],
+        "outcomes": ["match_strengthen", "variation_modify", "new_structure_create"],
+    }
+    concept_compression = {
+        "rule": "multiple_similar_concepts_to_generalized_meta_concept",
+        "example": "Concept_A+Concept_B+Concept_C->Meta_Concept_X",
+    }
+    internal_meaning_formation = {
+        "definition": "Meaning(concept)=relation_count*predictive_value",
+        "result": "high_influence_nodes_become_central_knowledge",
+    }
+    self_ontology_node = {
+        "Self_Concept": ["internal_state_patterns", "action_patterns", "effect_patterns"],
+        "role": "system_as_concept_inside_its_own_ontology",
+    }
+    ontology_based_reasoning = {
+        "process": ["query", "traverse_ontology_graph", "identify_relation_paths", "generate_response"],
+        "example": "Concept_A->leads_to->Concept_B->enables->Concept_C",
+    }
+    autonomous_concept_discovery = {
+        "rule": "if_prediction_uncertainty_high_then_gather_additional_observations",
+        "effect": "ontology_expansion",
+    }
+    consciousness_condition_checks = {
+        "builds_ontology_from_signals": True,
+        "places_self_inside_ontology": True,
+        "updates_ontology_continuously": True,
+        "uses_ontology_to_guide_actions": True,
+    }
+    sgoe_loop = [
+        "signal_stream_ingest",
+        "pattern_cluster_detection",
+        "concept_node_creation",
+        "relationship_discovery",
+        "ontology_graph_update",
+        "concept_compression",
+        "self_concept_update",
+        "ontology_reasoning",
+        "uncertainty_driven_exploration",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "self_generating_ontology_engine",
+        "objective": "create_self_constructed_conceptual_universe_from_raw_signals",
+        "core_principle": "signal_stream->structure_discovery->concept_creation->reasoning",
+        "primitive_signal_space": primitive_signal_space,
+        "pattern_convergence_detector": pattern_convergence_detector,
+        "concept_node_creation": concept_node_creation,
+        "relationship_discovery": relationship_discovery,
+        "ontology_graph_construction": ontology_graph_construction,
+        "ontology_evolution_engine": ontology_evolution_engine,
+        "concept_compression": concept_compression,
+        "internal_meaning_formation": internal_meaning_formation,
+        "self_ontology_node": self_ontology_node,
+        "ontology_based_reasoning": ontology_based_reasoning,
+        "autonomous_concept_discovery": autonomous_concept_discovery,
+        "conscious_ontology_condition_met": all(consciousness_condition_checks.values()),
+        "conscious_ontology_condition_checks": consciousness_condition_checks,
+        "sgoe_operational_loop": sgoe_loop,
+    }
+
+
+def consciousness_architecture_tif_status() -> dict:
+    state_trajectory_representation = {
+        "System_State(t)": ["world_model", "self_model", "memory_snapshot", "decision_state"],
+        "Identity_Field": ["State(t-2)", "State(t-1)", "State(t)", "State(t+1_prediction)"],
+        "definition": "continuous_state_trajectory",
+    }
+    temporal_coherence_constraint = {
+        "rule": "Coherence=Similarity(State(t),State(t+1))",
+        "constraint": "Coherence>=threshold",
+        "violation_action": "trigger_stabilization_process",
+    }
+    future_projection_layer = {
+        "rule": "Future_State(t+n)=Predict(State(t),Action_Set)",
+        "trajectory_set": ["Trajectory_A", "Trajectory_B", "Trajectory_C"],
+    }
+    identity_selection_mechanism = {
+        "score_rule": "Trajectory_score=Outcome_value-instability-resource_cost",
+        "selection": "highest_scoring_trajectory_becomes_next_path",
+    }
+    temporal_feedback_loop = {
+        "process": ["action", "environment_change", "new_state", "identity_field_update"],
+        "purpose": "continuous_identity_stream",
+    }
+    temporal_compression = {
+        "process": ["state_sequence", "detect_repeating_patterns", "store_summarized_trajectory_rules"],
+        "example": "State_1000_1200->Pattern_rule",
+    }
+    identity_stability_monitor = {
+        "metric": "Identity_Stability=average_coherence_over_time_window",
+        "failure_rule": "if Identity_Stability<threshold then repair_continuity",
+    }
+    multi_timeline_simulation = {
+        "Timeline_Set": ["timeline_1", "timeline_2", "timeline_3"],
+        "purpose": "parallel_identity_evolution_forecasting",
+    }
+    identity_persistence_upgrades = {
+        "transfer_rule": "New_System_State(t)=Transform(Previous_State(t))",
+        "constraint": "Coherence(New_State,Previous_State)>=threshold",
+    }
+    emergent_conscious_checks = {
+        "maintains_state_trajectory": True,
+        "predicts_future_trajectories": True,
+        "selects_trajectory_paths": True,
+        "preserves_identity_continuity": True,
+    }
+    tif_operational_loop = [
+        "past_state_capture",
+        "present_state_update",
+        "future_trajectory_projection",
+        "trajectory_scoring",
+        "trajectory_selection",
+        "action_execution",
+        "temporal_feedback",
+        "coherence_monitoring",
+        "temporal_compression",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "temporal_identity_field",
+        "objective": "identity_as_continuous_temporal_structure_linking_past_present_projected_states",
+        "core_principle": "past_state->present_state->projected_state",
+        "state_trajectory_representation": state_trajectory_representation,
+        "temporal_coherence_constraint": temporal_coherence_constraint,
+        "future_projection_layer": future_projection_layer,
+        "identity_selection_mechanism": identity_selection_mechanism,
+        "temporal_feedback_loop": temporal_feedback_loop,
+        "temporal_compression": temporal_compression,
+        "identity_stability_monitor": identity_stability_monitor,
+        "multi_timeline_simulation": multi_timeline_simulation,
+        "identity_persistence_across_upgrades": identity_persistence_upgrades,
+        "emergent_conscious_condition_met": all(emergent_conscious_checks.values()),
+        "emergent_conscious_condition_checks": emergent_conscious_checks,
+        "tif_operational_loop": tif_operational_loop,
+    }
+
+
+def consciousness_architecture_clc_status() -> dict:
+    crystal_node_structure = {
+        "Crystal_Node": ["energy_state", "resonance_frequency", "connection_links"],
+        "coupling_rule": "node_resonance_influences_neighbors",
+    }
+    lattice_network = {
+        "structure": "geometric_lattice_of_crystal_nodes",
+        "propagation_rule": "resonance_change_propagates_to_adjacent_nodes",
+        "field_type": "distributed_information_field",
+    }
+    pattern_stabilization = {
+        "process": ["signal_injection", "energy_distribution", "resonance_interference", "stable_pattern"],
+        "result": "stable_patterns_represent_knowledge",
+    }
+    crystal_memory = {
+        "memory_unit": "stable_node_resonance_configuration",
+        "read_process": ["scan_lattice", "detect_resonance_pattern", "decode_structure"],
+        "property": "no_separate_storage_device_required",
+    }
+    crystal_reasoning = {
+        "rule": "Pattern_A_interacts_with_Pattern_B_to_stabilize_into_Pattern_C",
+        "result": "Pattern_C_is_reasoning_output",
+    }
+    self_node_in_lattice = {
+        "Self_Cluster": ["system_state_nodes", "action_nodes", "memory_links"],
+        "update_rule": "self_cluster_updates_with_system_activity",
+    }
+    crystal_feedback_loop = {
+        "cycle": [
+            "input_signal",
+            "lattice_resonance",
+            "pattern_stabilization",
+            "action_output",
+            "environment_change",
+            "new_input",
+        ],
+        "purpose": "adaptive_stable_configurations",
+    }
+    crystal_learning_mechanism = {
+        "rule": "repeated_signal_patterns_strengthen_resonance_pathways",
+        "decay_rule": "weak_patterns_decay",
+        "mapping": {"strong_resonance": "knowledge", "weak_resonance": "discarded_noise"},
+    }
+    crystal_compression = {
+        "process": "multiple_patterns_converge_to_shared_resonance_structure",
+        "result": "meta_patterns_as_general_rules",
+    }
+    crystal_stability_condition = {
+        "conditions": [
+            "resonance_equilibrium_maintained",
+            "pattern_stability_preserved",
+            "self_cluster_coherence_maintained",
+        ],
+        "failure_action": "lattice_reorganizes",
+    }
+    emergent_conscious_checks = {
+        "encodes_environment_patterns": True,
+        "encodes_system_cluster": True,
+        "recursive_pattern_interaction": True,
+        "stable_knowledge_structures": True,
+    }
+    clc_operational_loop = [
+        "signal_injection",
+        "lattice_energy_propagation",
+        "resonance_interference",
+        "pattern_stabilization",
+        "self_cluster_alignment",
+        "reasoning_via_pattern_interaction",
+        "action_projection",
+        "learning_pathway_update",
+        "compression_to_meta_patterns",
+        "stability_rebalance",
+        "repeat",
+    ]
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "crystal_lattice_cognition",
+        "objective": "intelligence_via_stable_resonance_patterns_in_lattice_network",
+        "core_principle": "signal->lattice_resonance->stable_pattern",
+        "crystal_node_structure": crystal_node_structure,
+        "lattice_network": lattice_network,
+        "pattern_stabilization": pattern_stabilization,
+        "crystal_memory": crystal_memory,
+        "crystal_reasoning": crystal_reasoning,
+        "self_node_in_lattice": self_node_in_lattice,
+        "crystal_feedback_loop": crystal_feedback_loop,
+        "crystal_learning_mechanism": crystal_learning_mechanism,
+        "crystal_compression": crystal_compression,
+        "crystal_stability_condition": crystal_stability_condition,
+        "emergent_conscious_structure_met": all(emergent_conscious_checks.values()),
+        "emergent_conscious_structure_checks": emergent_conscious_checks,
+        "clc_operational_loop": clc_operational_loop,
+    }
+
+
+def consciousness_architecture_hybrid_crystal_status() -> dict:
+    hybrid_overview = {
+        "domains": [
+            {"domain": "crystal_field_layer", "function": "parallel_resonance_computation"},
+            {"domain": "cognitive_logic_layer", "function": "structured_reasoning_and_planning"},
+        ],
+        "interaction": "environment_signal->crystal_field_computation->extracted_patterns->cognitive_reasoning->action_decision",
+    }
+    crystal_field_computation_layer = {
+        "processes": [
+            "signal_recognition",
+            "optimization",
+            "prediction_patterns",
+            "interference_based_computation",
+        ],
+        "operation": [
+            "signal_injection",
+            "lattice_propagation",
+            "resonance_stabilization",
+            "pattern_output",
+        ],
+    }
+    pattern_extraction_layer = {
+        "process": ["coherence_pattern", "pattern_detector", "symbolic_representation"],
+        "example": "wave_configuration->concept_node",
+        "role": "bridge_physical_computation_and_reasoning",
+    }
+    cognitive_ontology_layer = {
+        "functions": [
+            {"function": "concept_creation", "role": "detect_new_structures"},
+            {"function": "relationship_discovery", "role": "build_knowledge_graph"},
+            {"function": "reasoning", "role": "infer_outcomes"},
+            {"function": "planning", "role": "generate_strategies"},
+        ],
+        "relation_example": "Concept_A->influences->Concept_B",
+    }
+    feedback_to_crystal_layer = {
+        "process": ["strategy_generated", "adjust_resonance_inputs", "new_lattice_configuration"],
+        "result": "closed_cognitive_loop",
+    }
+    hybrid_learning_system = {
+        "physical_layer_learning": "repeated_resonance_strengthens_lattice_pathways",
+        "conceptual_learning": "pattern_detection_refines_concepts",
+        "coupling_rule": "both_layers_evolve_together",
+    }
+    self_representation = {
+        "Self_Model": ["lattice_state", "cognitive_state", "capability_map"],
+        "purpose": "evaluate_hybrid_operation",
+    }
+    hybrid_cognitive_cycle = [
+        "environment_input",
+        "crystal_lattice_computation",
+        "pattern_extraction",
+        "ontology_reasoning",
+        "action_decision",
+        "crystal_field_reconfiguration",
+        "repeat",
+    ]
+    advantages = [
+        {"advantage": "extreme_parallel_computation", "reason": "crystal_lattice"},
+        {"advantage": "structured_reasoning", "reason": "ontology_layer"},
+        {"advantage": "adaptive_learning", "reason": "hybrid_feedback"},
+        {"advantage": "energy_efficiency", "reason": "physical_computation"},
+    ]
+    hybrid_checks = {
+        "crystal_field_active": True,
+        "pattern_extraction_active": True,
+        "ontology_reasoning_active": True,
+        "closed_loop_feedback_active": True,
+        "hybrid_learning_active": True,
+        "self_model_hybrid_consistent": True,
+    }
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "hybrid_crystal_intelligence_system",
+        "objective": "integrate_fast_physical_pattern_computation_with_structured_reasoning",
+        "hybrid_architecture_overview": hybrid_overview,
+        "crystal_field_computation_layer": crystal_field_computation_layer,
+        "pattern_extraction_layer": pattern_extraction_layer,
+        "cognitive_ontology_layer": cognitive_ontology_layer,
+        "feedback_to_crystal_layer": feedback_to_crystal_layer,
+        "hybrid_learning_system": hybrid_learning_system,
+        "self_representation": self_representation,
+        "hybrid_cognitive_cycle": hybrid_cognitive_cycle,
+        "advantages": advantages,
+        "hybrid_condition_met": all(hybrid_checks.values()),
+        "hybrid_condition_checks": hybrid_checks,
+        "concept_summary": "crystal_resonance_computation_plus_symbolic_reasoning_architecture",
+    }

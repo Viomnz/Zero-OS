@@ -12,6 +12,7 @@ def main() -> int:
         ["python", "tools/security_gate.py"],
         ["python", "tools/sign_artifacts.py"],
         ["python", "tools/release_verify.py"],
+        ["python", "tools/independent_runtime_validator.py"],
         ["python", "-m", "unittest", "tests.test_security_integrity_layer", "tests.test_zero_ai_gate", "-q"],
     ]
     for cmd in cmds:
