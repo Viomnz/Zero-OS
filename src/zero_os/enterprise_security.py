@@ -73,7 +73,7 @@ def _sign(cwd: str, payload: dict) -> str:
 
 def _policy(cwd: str) -> dict:
     default = {
-        "enabled": False,
+        "enabled": True,
         "require_signed_critical_actions": True,
         "siem_webhook": "",
         "forbidden_prefixes": ["format ", "diskpart ", "rm -rf /", "del c:\\"],

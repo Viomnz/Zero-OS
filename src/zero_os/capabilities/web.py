@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 import json
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from zero_os.cure_firewall import verify_beacon_net
+from zero_os.net_client import request_text
+from zero_os.rate_limit import check_and_record
 from zero_os.state import get_net_strict
 from zero_os.types import Result, Task
 
@@ -28,6 +29,16 @@ class WebCapability:
         return any(k in text for k in keys)
 
     def run(self, task: Task) -> Result:
+        allowed, state = check_and_record(task.cwd, "web", limit=40, window_seconds=60)
+        if not allowed:
+            return Result(
+                self.name,
+                (
+                    "Rate limit exceeded for web lane.\n"
+                    f"retry_after_seconds: {state['retry_after_seconds']}\n"
+                    f"limit: {state['limit']}/{state['window_seconds']}s"
+                ),
+            )
         text = task.text.strip()
         lowered = text.lower()
 
@@ -116,9 +127,10 @@ class WebCapability:
     def _search_duckduckgo(self, query: str, max_results: int) -> list[dict[str, str]]:
         params = urlencode({"q": query})
         url = f"https://duckduckgo.com/html/?{params}"
-        request = Request(url, headers={"User-Agent": "Zero-OS/0.1"})
-        with urlopen(request, timeout=10) as response:
-            html = response.read().decode("utf-8", errors="replace")
+        resp = request_text(url, timeout=10, retries=1)
+        if not resp.get("ok", False):
+            return []
+        html = str(resp.get("body", ""))
         matches = re.findall(
             r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
             html,
@@ -134,10 +146,13 @@ class WebCapability:
         api = "https://en.wikipedia.org/w/api.php?" + urlencode(
             {"action": "opensearch", "search": query, "limit": max_results, "namespace": 0, "format": "json"}
         )
-        req = Request(api, headers={"User-Agent": "Zero-OS/0.1"})
-        with urlopen(req, timeout=10) as response:
-            body = response.read().decode("utf-8", errors="replace")
-        data = json.loads(body)
+        resp = request_text(api, timeout=10, retries=1)
+        if not resp.get("ok", False):
+            return []
+        try:
+            data = json.loads(str(resp.get("body", "")))
+        except Exception:
+            return []
         titles = data[1] if isinstance(data, list) and len(data) > 1 else []
         urls = data[3] if isinstance(data, list) and len(data) > 3 else []
         out = []
@@ -149,10 +164,19 @@ class WebCapability:
         if not (url.startswith("http://") or url.startswith("https://")):
             return Result(self.name, "URL must start with http:// or https://")
 
-        request = Request(url, headers={"User-Agent": "Zero-OS/0.1"})
-        with urlopen(request, timeout=10) as response:
-            content_type = response.headers.get("Content-Type", "")
-            body = response.read().decode("utf-8", errors="replace")
+        response = request_text(url, timeout=10, retries=2)
+        if not response.get("ok", False):
+            return Result(
+                self.name,
+                (
+                    f"{url}\n"
+                    f"status: {response.get('status', 0)}\n"
+                    f"attempts: {response.get('attempts', 1)}\n"
+                    f"error: {response.get('error', 'request failed')}"
+                ),
+            )
+        content_type = str(response.get("content_type", ""))
+        body = str(response.get("body", ""))
 
         text = body
         if "text/html" in content_type:

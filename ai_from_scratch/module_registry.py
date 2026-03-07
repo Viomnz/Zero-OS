@@ -42,6 +42,9 @@ def validate_registry(data: dict) -> dict:
     domain_expected = {d.get("key"): int(d.get("module_count_expected", 0)) for d in domains if isinstance(d, dict)}
     domain_count: dict[str, int] = defaultdict(int)
     status_count: Counter[str] = Counter()
+    bindings = data.get("bindings", {})
+    if not isinstance(bindings, dict):
+        bindings = {}
 
     if not isinstance(modules, list):
         return {"ok": False, "errors": ["modules must be a list"], "warnings": [], "summary": {}}
@@ -77,6 +80,15 @@ def validate_registry(data: dict) -> dict:
             for k in ("inputs", "outputs", "fail_state", "safe_state_action"):
                 if k not in hc:
                     errors.append(f"{mid or f'module[{i}]'} missing health_contract.{k}")
+        if status in {"active", "tested"}:
+            b = bindings.get(mid)
+            if not isinstance(b, dict):
+                errors.append(f"{mid} missing bindings entry for active/tested module")
+            else:
+                if not str(b.get("impl_file", "")).strip():
+                    errors.append(f"{mid} missing bindings.impl_file")
+                if not str(b.get("test_file", "")).strip():
+                    errors.append(f"{mid} missing bindings.test_file")
 
     if expected and len(modules) != expected:
         errors.append(f"total module count mismatch: expected {expected}, got {len(modules)}")
@@ -103,13 +115,32 @@ def validate_registry(data: dict) -> dict:
 def write_registry_status(cwd: str) -> dict:
     data = load_registry(cwd)
     result = validate_registry(data)
+    root = Path(cwd).resolve()
+    bindings = data.get("bindings", {})
+    impl_missing = []
+    test_missing = []
+    if isinstance(bindings, dict):
+        for mid, b in bindings.items():
+            if not isinstance(b, dict):
+                continue
+            impl = str(b.get("impl_file", "")).strip()
+            test = str(b.get("test_file", "")).strip()
+            if impl and not (root / impl).exists():
+                impl_missing.append({"module_id": mid, "path": impl})
+            if test and not (root / test).exists():
+                test_missing.append({"module_id": mid, "path": test})
     payload = {
         "time_utc": _utc_now(),
-        "ok": result["ok"],
+        "ok": result["ok"] and not impl_missing and not test_missing,
         "summary": result["summary"],
         "errors": result["errors"],
         "warnings": result["warnings"],
+        "binding_checks": {
+            "impl_missing_count": len(impl_missing),
+            "test_missing_count": len(test_missing),
+            "impl_missing": impl_missing[:200],
+            "test_missing": test_missing[:200],
+        },
     }
     (_runtime(cwd) / "agi_module_registry_status.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload
-

@@ -18,12 +18,21 @@ class ModuleRegistryTests(unittest.TestCase):
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _write_registry(self, modules: list[dict]) -> None:
+        bindings = {}
+        for m in modules:
+            if m.get("status") in {"active", "tested"}:
+                bindings[m["id"]] = {
+                    "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+                    "entrypoint": "run_module",
+                    "test_file": "tests/test_agi_modules_runtime.py",
+                }
         payload = {
             "schema_version": 1,
             "title": "test",
             "total_modules_expected": len(modules),
             "domains": [{"key": "d1", "module_count_expected": len(modules)}],
             "modules": modules,
+            "bindings": bindings,
         }
         self.registry_path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -50,6 +59,10 @@ class ModuleRegistryTests(unittest.TestCase):
         self.assertEqual(out["summary"]["total_modules"], 1)
 
     def test_write_registry_status_file(self) -> None:
+        (self.base / "ai_from_scratch").mkdir(parents=True, exist_ok=True)
+        (self.base / "tests").mkdir(parents=True, exist_ok=True)
+        (self.base / "ai_from_scratch" / "agi_modules_runtime.py").write_text("# stub\n", encoding="utf-8")
+        (self.base / "tests" / "test_agi_modules_runtime.py").write_text("# stub\n", encoding="utf-8")
         self._write_registry(
             [
                 {
@@ -73,4 +86,3 @@ class ModuleRegistryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

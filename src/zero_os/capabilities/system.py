@@ -215,6 +215,8 @@ from zero_os.architecture_runtime import (
     architecture_status,
     architecture_verify,
 )
+from zero_os.kernel_rnd.foundation_status import kernel_foundation_status
+from zero_os.rate_limit import check_and_record
 
 
 class SystemCapability:
@@ -340,6 +342,7 @@ class SystemCapability:
             "architecture verify",
             "architecture measure",
             "architecture explain",
+            "kernel foundation",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -370,6 +373,9 @@ class SystemCapability:
                     f"Survival protocols: {protocols}"
                 ),
             )
+
+        if text.strip() in {"kernel foundation status", "kernel status"}:
+            return Result(self.name, json.dumps(kernel_foundation_status(task.cwd), indent=2))
 
         if text.strip() == "antivirus status":
             data = {
@@ -962,6 +968,20 @@ class SystemCapability:
         shell_run_m = re.match(r"^(?:shell|terminal|powershell) run\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
         if shell_run_m:
             cmd = shell_run_m.group(1).strip()
+            rl_allowed, rl_state = check_and_record(task.cwd, "shell", limit=20, window_seconds=60)
+            if not rl_allowed:
+                return Result(
+                    self.name,
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "reason": "rate_limited",
+                            "channel": "shell",
+                            "retry_after_seconds": rl_state["retry_after_seconds"],
+                        },
+                        indent=2,
+                    ),
+                )
             allowed, reason = sandbox_check(task.cwd, cmd)
             if not allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": reason, "command": cmd}, indent=2))

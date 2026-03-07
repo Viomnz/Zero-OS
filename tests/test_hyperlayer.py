@@ -18,6 +18,8 @@ class HyperlayerTests(unittest.TestCase):
         self.assertIn("active_backend", status)
         self.assertIn("system_info", status)
         self.assertIn("unified_api", status)
+        self.assertIn("list_files", status["unified_api"])
+        self.assertIn("network_probe", status["unified_api"])
 
     def test_adapter_has_backend_name(self) -> None:
         adapter = get_adapter()

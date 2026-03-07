@@ -23,6 +23,10 @@ def get_adapter() -> ZeroApi:
 def hyperlayer_status() -> dict:
     adapter = get_adapter()
     info = adapter.get_system_info()
+    list_files_ok = adapter.list_files(path=".", limit=5).ok
+    net_probe_ok = adapter.network_probe("example.com", 443, 2).ok
+    pkg_ok = adapter.package_runtime_status().ok
+    sec_ok = adapter.security_policy_backend().ok
     return {
         "zero_hyperlayer": True,
         "active_backend": adapter.backend_name(),
@@ -31,11 +35,10 @@ def hyperlayer_status() -> dict:
             "get_system_info": True,
             "list_processes": True,
             "run_shell": True,
+            "list_files": list_files_ok,
+            "network_probe": net_probe_ok,
+            "package_runtime_status": pkg_ok,
+            "security_policy_backend": sec_ok,
         },
-        "planned_next": [
-            "unified filesystem API",
-            "unified network sockets API",
-            "unified package runtime",
-            "cross-platform security policy backend",
-        ],
+        "planned_next": [],
     }

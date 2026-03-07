@@ -1,17 +1,34 @@
 {
-  "version": 1,
+  "version": 2,
+  "schema": "zero-os-driver-manifest-v2",
+  "compatibility": {
+    "os": ["windows", "linux", "macos"],
+    "runtime": "python>=3.11"
+  },
+  "lifecycle": ["probe", "init", "run", "suspend", "resume", "shutdown"],
+  "health_checks": [
+    "driver_loaded",
+    "interface_contract_valid",
+    "heartbeat_recent"
+  ],
   "drivers": [
     {
       "name": "generic-fs",
-      "status": "active"
+      "group": "storage",
+      "status": "active",
+      "contract_version": "1.0"
     },
     {
       "name": "generic-net",
-      "status": "active"
+      "group": "network",
+      "status": "active",
+      "contract_version": "1.0"
     },
     {
       "name": "generic-display",
-      "status": "planned"
+      "group": "display",
+      "status": "planned",
+      "contract_version": "1.0"
     }
   ]
 }

@@ -2027,5 +2027,457 @@
         "safe_state_action": "fallback_safe_state"
       }
     }
-  ]
+  ],
+  "bindings": {
+    "foundation_infrastructure:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "foundation_infrastructure:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "environment_awareness:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "knowledge_and_memory:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "prediction_and_simulation:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "reasoning_and_cognition:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "decision_architecture:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "action_and_execution:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "learning_and_adaptation:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:01": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:02": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:03": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:04": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:05": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:06": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:07": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:08": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:09": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    },
+    "governance_and_safety:10": {
+      "impl_file": "ai_from_scratch/agi_modules_runtime.py",
+      "entrypoint": "run_module",
+      "test_file": "tests/test_agi_modules_runtime.py"
+    }
+  }
 }

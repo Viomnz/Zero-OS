@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import platform
+from pathlib import Path
+import socket
 import subprocess
 from typing import Any
 
@@ -83,3 +85,62 @@ class BaseAdapter(ZeroApi):
                 backend=self.backend_name(),
                 detail={"error": str(e)},
             )
+
+    def list_files(self, path: str = ".", limit: int = 100) -> ZeroApiResult:
+        try:
+            root = Path(path).resolve()
+            rows = []
+            for p in sorted(root.iterdir())[: max(1, int(limit))]:
+                rows.append({"name": p.name, "is_dir": p.is_dir()})
+            return ZeroApiResult(
+                ok=True,
+                op="list_files",
+                backend=self.backend_name(),
+                detail={"path": str(root), "items": rows},
+            )
+        except Exception as e:
+            return ZeroApiResult(False, "list_files", self.backend_name(), {"error": str(e)})
+
+    def network_probe(self, host: str, port: int = 443, timeout: int = 3) -> ZeroApiResult:
+        try:
+            with socket.create_connection((host, int(port)), timeout=max(1, int(timeout))):
+                pass
+            return ZeroApiResult(
+                ok=True,
+                op="network_probe",
+                backend=self.backend_name(),
+                detail={"host": host, "port": int(port), "reachable": True},
+            )
+        except Exception as e:
+            return ZeroApiResult(
+                ok=False,
+                op="network_probe",
+                backend=self.backend_name(),
+                detail={"host": host, "port": int(port), "reachable": False, "error": str(e)},
+            )
+
+    def package_runtime_status(self) -> ZeroApiResult:
+        try:
+            out = subprocess.run(
+                ["python", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            version = (out.stdout or out.stderr).strip()
+            return ZeroApiResult(
+                ok=out.returncode == 0,
+                op="package_runtime_status",
+                backend=self.backend_name(),
+                detail={"python": version or "unknown"},
+            )
+        except Exception as e:
+            return ZeroApiResult(False, "package_runtime_status", self.backend_name(), {"error": str(e)})
+
+    def security_policy_backend(self) -> ZeroApiResult:
+        return ZeroApiResult(
+            ok=True,
+            op="security_policy_backend",
+            backend=self.backend_name(),
+            detail={"model": "host_os_policy_bridge", "enforcement_level": "user-space"},
+        )

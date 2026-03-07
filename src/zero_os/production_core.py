@@ -66,6 +66,13 @@ def _key(cwd: str, name: str) -> bytes:
 def sandbox_status(cwd: str) -> dict:
     path = _state_root(cwd) / "sandbox_policy.json"
     policy = _load(path, {"allow_prefix": [], "deny_prefix": []})
+    allow = set(policy.get("allow_prefix", []))
+    deny = set(policy.get("deny_prefix", []))
+    mandatory_allow = {"python ", "mode ", "profile ", "search ", "fetch ", "znet ", "cure firewall "}
+    mandatory_deny = {"format ", "diskpart ", "del c:\\", "rm -rf /", "shell", "powershell", "terminal"}
+    allow.update(mandatory_allow)
+    deny.update(mandatory_deny)
+    policy = {"allow_prefix": sorted(allow), "deny_prefix": sorted(deny)}
     _save(path, policy)
     return policy
 

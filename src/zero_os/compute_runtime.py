@@ -21,11 +21,19 @@ def load_compute_profiles(cwd: str) -> dict:
     if not path.exists():
         return _default_profiles()
     try:
-        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        text = path.read_text(encoding="utf-8", errors="replace")
+        data = json.loads(text)
         if isinstance(data, dict):
             return data
     except Exception:
-        pass
+        try:
+            import yaml  # type: ignore
+
+            data = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
     return _default_profiles()
 
 
