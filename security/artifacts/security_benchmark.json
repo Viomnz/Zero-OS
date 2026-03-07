@@ -1,0 +1,69 @@
+{
+  "generated_utc": "2026-03-07T00:44:18.354518+00:00",
+  "config": {
+    "clean_count": 80,
+    "malicious_count": 20,
+    "iterations": 3
+  },
+  "av_scan": {
+    "iterations": [
+      {
+        "iteration": 1,
+        "scan_seconds": 0.374665,
+        "scanned_files": 100,
+        "true_positive": 20,
+        "false_positive": 0,
+        "false_negative": 0,
+        "true_negative": 80,
+        "throughput_files_per_sec": 266.9,
+        "highest_severity": "high"
+      },
+      {
+        "iteration": 2,
+        "scan_seconds": 0.358119,
+        "scanned_files": 100,
+        "true_positive": 20,
+        "false_positive": 0,
+        "false_negative": 0,
+        "true_negative": 80,
+        "throughput_files_per_sec": 279.24,
+        "highest_severity": "high"
+      },
+      {
+        "iteration": 3,
+        "scan_seconds": 0.320048,
+        "scanned_files": 100,
+        "true_positive": 20,
+        "false_positive": 0,
+        "false_negative": 0,
+        "true_negative": 80,
+        "throughput_files_per_sec": 312.45,
+        "highest_severity": "high"
+      }
+    ],
+    "avg": {
+      "scan_seconds": 0.350944,
+      "throughput_files_per_sec": 286.2,
+      "tp_rate": 1.0,
+      "fp_rate": 0.0
+    }
+  },
+  "quarantine_restore": {
+    "quarantine_ok": true,
+    "restore_ok": true
+  },
+  "cure_firewall": {
+    "activated": true,
+    "survived": true,
+    "score": 81,
+    "run_seconds": 0.009584,
+    "beacon_verify_ok": true,
+    "beacon_verify_reason": "signature valid"
+  },
+  "summary": {
+    "antivirus_detection_rate": 1.0,
+    "antivirus_false_positive_rate": 0.0,
+    "quarantine_restore_reliable": true,
+    "cure_firewall_beacon_verified": true
+  }
+}
