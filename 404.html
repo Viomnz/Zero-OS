@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zero OS Open Source Portal</title>
+  <style>
+    :root {
+      --bg: #0f1418;
+      --panel: #172027;
+      --ink: #d9e4ee;
+      --muted: #9db3c7;
+      --line: #2b3b48;
+      --accent: #4db5ff;
+      --ok: #67d98c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #0f1418, #111a22);
+      color: var(--ink);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 16px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 16px; color: #c8def1; }
+    .ok { color: var(--ok); font-weight: 600; }
+    ul { margin: 8px 0 0; padding-left: 18px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Zero OS</h1>
+  <p class="sub">Open source smart OS platform with AI-first architecture and kernel R&amp;D foundation.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="ok">GitHub Pages static mode active</div>
+      <ul>
+        <li>No local runtime fetch dependencies</li>
+        <li>Safe public overview page</li>
+        <li>Full dashboard remains local-only</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Project Links</h2>
+      <ul>
+        <li><a href="./README.md">README</a></li>
+        <li><a href="./ROADMAP.md">ROADMAP</a></li>
+        <li><a href="./zero_os_dashboard.html">Local Dashboard File</a></li>
+        <li><a href="https://github.com/Viomnz/Zero-OS">Repository</a></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Architecture Focus</h2>
+      <ul>
+        <li>AI Runtime Layers: reliability, memory update, adaptation, evolution</li>
+        <li>Security: guard baseline, quarantine, signed policy flows</li>
+        <li>Kernel R&amp;D: boot trust, memory manager, scheduler, syscall ABI</li>
+      </ul>
+    </section>
+  </div>
+
+  <p class="mono">For full runtime view, open <code>zero_os_dashboard.html</code> locally.</p>
+</body>
+</html>
