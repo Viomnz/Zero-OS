@@ -35,6 +35,9 @@ jobs:
       - name: Sign Security Artifacts
         run: python tools/sign_artifacts.py
 
+      - name: Verify Release Security Contracts
+        run: python tools/release_verify.py
+
       - name: Export Compliance Evidence
         run: python tools/export_compliance_evidence.py
 

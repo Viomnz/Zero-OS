@@ -166,6 +166,28 @@ from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status
+from zero_os.conscious_machine_architecture import (
+    consciousness_architecture_phase7_status,
+    consciousness_architecture_phase6_status,
+    consciousness_architecture_phase5_status,
+    consciousness_architecture_phase4_status,
+    consciousness_architecture_phase3_status,
+    consciousness_architecture_phase2_status,
+    consciousness_architecture_status,
+)
+from zero_os.ops_maturity import (
+    alert_routing_emit,
+    alert_routing_set,
+    alert_routing_status,
+    dr_drill,
+    enterprise_max_maturity_apply,
+    immutable_audit_export,
+    key_revoke,
+    key_rotate,
+    key_status,
+    rollout_apply,
+    runbooks_sync,
+)
 
 
 class SystemCapability:
@@ -263,8 +285,15 @@ class SystemCapability:
             "go fix all",
             "zero ai identity",
             "zero ai consciousness",
+            "conscious machine architecture",
             "zero ai gap",
             "cover gap",
+            "enterprise key",
+            "immutable audit",
+            "alert routing",
+            "dr drill",
+            "max maturity",
+            "runbooks",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -373,6 +402,20 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
         if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
+        if text.strip() in {"conscious machine architecture phase 7", "zero ai architecture phase 7"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase7_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 6", "zero ai architecture phase 6"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase6_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 5", "zero ai architecture phase 5"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase5_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 4", "zero ai architecture phase 4"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase4_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 3", "zero ai architecture phase 3"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase3_status(), indent=2))
+        if text.strip() in {"conscious machine architecture phase 2", "zero ai architecture phase 2"}:
+            return Result(self.name, json.dumps(consciousness_architecture_phase2_status(), indent=2))
+        if text.strip() in {"zero ai conscious architecture", "conscious machine architecture", "zero ai architecture"}:
+            return Result(self.name, json.dumps(consciousness_architecture_status(), indent=2))
         ctick = re.match(r"^zero ai consciousness tick(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
         if ctick:
             prompt = (ctick.group(1) or "").strip()
@@ -432,6 +475,48 @@ class SystemCapability:
             return Result(self.name, json.dumps(rollback_playbook_run(task.cwd, ent_rb.group(1)), indent=2))
         if text.strip() == "enterprise validate adversarial":
             return Result(self.name, json.dumps(adversarial_validate(task.cwd), indent=2))
+        if text.strip() == "enterprise key status":
+            return Result(self.name, json.dumps(key_status(task.cwd), indent=2))
+        ent_key_rotate = re.match(r"^enterprise key rotate(?:\s+([A-Za-z0-9._-]+))?$", text.strip(), flags=re.IGNORECASE)
+        if ent_key_rotate:
+            key_name = ent_key_rotate.group(1) or "operator_actions.key"
+            return Result(self.name, json.dumps(key_rotate(task.cwd, key_name), indent=2))
+        ent_key_revoke = re.match(r"^enterprise key revoke\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
+        if ent_key_revoke:
+            return Result(self.name, json.dumps(key_revoke(task.cwd, ent_key_revoke.group(1)), indent=2))
+        if text.strip() == "enterprise immutable audit export":
+            return Result(self.name, json.dumps(immutable_audit_export(task.cwd), indent=2))
+        if text.strip() == "enterprise runbooks sync":
+            return Result(self.name, json.dumps(runbooks_sync(task.cwd), indent=2))
+        ent_rollout_apply = re.match(
+            r"^enterprise rollout apply\s+(dev|stage|prod)(?:\s+canary=(\d+))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ent_rollout_apply:
+            canary = int(ent_rollout_apply.group(2) or "10")
+            return Result(self.name, json.dumps(rollout_apply(task.cwd, ent_rollout_apply.group(1), canary), indent=2))
+        if text.strip() == "enterprise alert routing status":
+            return Result(self.name, json.dumps(alert_routing_status(task.cwd), indent=2))
+        ent_route = re.match(
+            r"^enterprise alert routing set\s+webhook=(\S+)(?:\s+critical=(low|medium|high|critical))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ent_route:
+            sev = ent_route.group(2) or "high"
+            return Result(self.name, json.dumps(alert_routing_set(task.cwd, ent_route.group(1), sev), indent=2))
+        ent_emit = re.match(r"^enterprise alert routing emit\s+(low|medium|high|critical)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if ent_emit:
+            return Result(
+                self.name,
+                json.dumps(alert_routing_emit(task.cwd, ent_emit.group(2).strip(), ent_emit.group(1).lower(), {"source": "routing"}), indent=2),
+            )
+        ent_dr = re.match(r"^enterprise dr drill(?:\s+rto=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if ent_dr:
+            return Result(self.name, json.dumps(dr_drill(task.cwd, int(ent_dr.group(1) or "120")), indent=2))
+        if text.strip() in {"enterprise max maturity apply", "max maturity apply", "max maturity all"}:
+            return Result(self.name, json.dumps(enterprise_max_maturity_apply(task.cwd), indent=2))
         if text.strip() == "maturity status":
             return Result(self.name, json.dumps(maturity_status(task.cwd), indent=2))
         if text.strip() in {"maturity scaffold all", "maturity apply all", "go all"}:
@@ -1116,6 +1201,13 @@ class SystemCapability:
             "- zero ai brain awareness status\n"
             "- zero ai identity\n"
             "- zero ai consciousness status\n"
+            "- zero ai conscious architecture\n"
+            "- conscious machine architecture phase 2\n"
+            "- conscious machine architecture phase 3\n"
+            "- conscious machine architecture phase 4\n"
+            "- conscious machine architecture phase 5\n"
+            "- conscious machine architecture phase 6\n"
+            "- conscious machine architecture phase 7\n"
             "- zero ai consciousness tick [prompt]\n"
             "- zero ai gap status\n"
             "- zero ai gap fix\n"
@@ -1135,6 +1227,17 @@ class SystemCapability:
             "- enterprise siem emit <low|medium|high|critical> <event>\n"
             "- enterprise rollback run <critical|ransomware|integrity_failure>\n"
             "- enterprise validate adversarial\n"
+            "- enterprise key status\n"
+            "- enterprise key rotate [key_name]\n"
+            "- enterprise key revoke <key_name>\n"
+            "- enterprise immutable audit export\n"
+            "- enterprise runbooks sync\n"
+            "- enterprise rollout apply <dev|stage|prod> [canary=<1-100>]\n"
+            "- enterprise alert routing status\n"
+            "- enterprise alert routing set webhook=<url> [critical=<low|medium|high|critical>]\n"
+            "- enterprise alert routing emit <low|medium|high|critical> <event>\n"
+            "- enterprise dr drill [rto=<seconds>]\n"
+            "- enterprise max maturity apply\n"
             "- maturity status\n"
             "- maturity scaffold all\n"
             "- zero ai harmony\n"

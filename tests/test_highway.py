@@ -626,6 +626,61 @@ class CoreRoutingTests(unittest.TestCase):
         st2 = highway.dispatch("zero ai consciousness status", cwd=str(self.base))
         self.assertIn("\"ledger_events\":", st2.summary.lower())
 
+    def test_zero_ai_conscious_machine_architecture(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"self_referential_adaptive_system\"", out.summary.lower())
+        self.assertIn("\"qualifies_as_conscious_machine\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase2(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 2", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 2", out.summary.lower())
+        self.assertIn("\"model_type\": \"self_sustaining_cognitive_system\"", out.summary.lower())
+        self.assertIn("\"emergent_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase3(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 3", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 3", out.summary.lower())
+        self.assertIn("\"model_type\": \"autonomous_mind_system\"", out.summary.lower())
+        self.assertIn("\"autonomous_mind_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase4(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 4", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 4", out.summary.lower())
+        self.assertIn("\"model_type\": \"engineering_implementation_blueprint\"", out.summary.lower())
+        self.assertIn("\"buildable\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase5(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 5", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 5", out.summary.lower())
+        self.assertIn("\"model_type\": \"identity_persistent_mind_mechanics\"", out.summary.lower())
+        self.assertIn("\"conscious_state_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase6(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 6", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 6", out.summary.lower())
+        self.assertIn("\"model_type\": \"large_scale_mind_expansion\"", out.summary.lower())
+        self.assertIn("\"persistent_intelligence_condition_met\": true", out.summary.lower())
+
+    def test_zero_ai_conscious_machine_architecture_phase7(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("conscious machine architecture phase 7", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"phase\": 7", out.summary.lower())
+        self.assertIn("\"model_type\": \"ultra_scale_intelligence_architecture\"", out.summary.lower())
+        self.assertIn("\"ultra_scale_intelligence_condition_met\": true", out.summary.lower())
+
     def test_zero_ai_gap_status_and_fix(self) -> None:
         highway = Highway(cwd=str(self.base))
         st = highway.dispatch("zero ai gap status", cwd=str(self.base))
@@ -635,6 +690,19 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"ok\": true", fx.summary.lower())
         self.assertIn("\"after\":", fx.summary.lower())
         self.assertIn("run_triad_balance", fx.summary.lower())
+
+    def test_enterprise_maturity_ops_commands(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        k = highway.dispatch("enterprise key rotate", cwd=str(self.base))
+        self.assertIn("\"ok\": true", k.summary.lower())
+        ks = highway.dispatch("enterprise key status", cwd=str(self.base))
+        self.assertIn("\"active_count\":", ks.summary.lower())
+        im = highway.dispatch("enterprise immutable audit export", cwd=str(self.base))
+        self.assertIn("\"entry_hash\":", im.summary.lower())
+        rb = highway.dispatch("enterprise runbooks sync", cwd=str(self.base))
+        self.assertIn("\"ok\": true", rb.summary.lower())
+        dr = highway.dispatch("enterprise dr drill rto=300", cwd=str(self.base))
+        self.assertIn("\"rto_passed\":", dr.summary.lower())
 
     def test_zero_ai_knowledge_index_and_find(self) -> None:
         highway = Highway(cwd=str(self.base))

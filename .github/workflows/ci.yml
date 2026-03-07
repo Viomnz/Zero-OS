@@ -25,4 +25,4 @@ jobs:
 
       - name: Run Security Gate
         run: |
-          python tools/security_gate.py
+          python tools/ci_security_gates.py
