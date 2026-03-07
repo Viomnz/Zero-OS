@@ -209,6 +209,15 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertEqual("system", status.capability)
         self.assertIn("\"harden_total\": 5", status.summary)
 
+    def test_zero_ai_security_apply_and_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai security apply", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"ok\": true", out.summary.lower())
+        status = highway.dispatch("zero ai security status", cwd=str(self.base))
+        self.assertEqual("system", status.capability)
+        self.assertIn("\"zero_ai_security_total\": 4", status.summary.lower())
+
     def test_net_strict_blocks_unverified_fetch(self) -> None:
         highway = Highway(cwd=str(self.base))
         highway.dispatch("net strict on", cwd=str(self.base))
@@ -571,6 +580,95 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"platform\":", d.summary)
         s = highway.dispatch("security overview", cwd=str(self.base))
         self.assertIn("\"freedom_mode\":", s.summary)
+
+    def test_maturity_status_and_scaffold(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        before = highway.dispatch("maturity status", cwd=str(self.base))
+        self.assertIn("\"score\":", before.summary)
+        scaffold = highway.dispatch("maturity scaffold all", cwd=str(self.base))
+        self.assertIn("\"ok\": true", scaffold.summary.lower())
+        after = highway.dispatch("maturity status", cwd=str(self.base))
+        self.assertIn("\"passed\":", after.summary)
+
+    def test_false_positive_review_commands(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        # Trigger a review-needed decision in gate path.
+        highway.dispatch("antivirus scan .", cwd=str(self.base))
+        listed = highway.dispatch("false positive review list limit=10", cwd=str(self.base))
+        self.assertIn("\"ok\": true", listed.summary.lower())
+        # Decision command should handle empty or present list safely.
+        decide = highway.dispatch(
+            "false positive review decide index=0 verdict=false_positive note=triage",
+            cwd=str(self.base),
+        )
+        self.assertTrue(("\"ok\": true" in decide.summary.lower()) or ("out of range" in decide.summary.lower()))
+
+    def test_zero_ai_harmony_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai harmony", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"harmony_score\":", out.summary)
+        self.assertIn("\"checks\":", out.summary)
+
+    def test_zero_ai_identity(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai identity", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"is_rsi\": false", out.summary.lower())
+        self.assertIn("filtration engine", out.summary.lower())
+
+    def test_zero_ai_consciousness_status_and_tick(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        st = highway.dispatch("zero ai consciousness status", cwd=str(self.base))
+        self.assertIn("\"ok\": true", st.summary.lower())
+        tick = highway.dispatch("zero ai consciousness tick secure loop", cwd=str(self.base))
+        self.assertIn("\"tick\":", tick.summary.lower())
+        st2 = highway.dispatch("zero ai consciousness status", cwd=str(self.base))
+        self.assertIn("\"ledger_events\":", st2.summary.lower())
+
+    def test_zero_ai_knowledge_index_and_find(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        (self.base / "docs").mkdir(parents=True, exist_ok=True)
+        (self.base / "docs" / "knowledge_note.md").write_text("antivirus cure firewall harmony", encoding="utf-8")
+        build = highway.dispatch("zero ai knowledge build", cwd=str(self.base))
+        self.assertIn("\"ok\": true", build.summary.lower())
+        status = highway.dispatch("zero ai knowledge status", cwd=str(self.base))
+        self.assertIn("\"file_count\":", status.summary)
+        find = highway.dispatch("zero ai knowledge find antivirus firewall limit=5", cwd=str(self.base))
+        self.assertIn("\"result_count\":", find.summary)
+        self.assertIn("knowledge_note.md", find.summary)
+
+    def test_zero_ai_know_everything_alias(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai know everything", cwd=str(self.base))
+        self.assertIn("\"build\":", out.summary)
+        self.assertIn("\"status\":", out.summary)
+
+    def test_zero_ai_backup_and_recover(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        st = highway.dispatch("zero ai backup status", cwd=str(self.base))
+        self.assertIn("\"snapshot_count\":", st.summary)
+        created = highway.dispatch("zero ai backup create", cwd=str(self.base))
+        self.assertIn("\"ok\": true", created.summary.lower())
+        recovered = highway.dispatch("zero ai recover", cwd=str(self.base))
+        self.assertIn("\"ok\": true", recovered.summary.lower())
+        self.assertIn("\"recovery_mode\": \"controlled\"", recovered.summary.lower())
+
+    def test_zero_ai_brain_awareness_build_and_status(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        built = highway.dispatch("zero ai brain awareness build", cwd=str(self.base))
+        self.assertIn("\"ok\": true", built.summary.lower())
+        self.assertIn("\"brain_awareness_score\":", built.summary)
+        status = highway.dispatch("zero ai brain awareness status", cwd=str(self.base))
+        self.assertIn("\"checks\":", status.summary)
+
+    def test_zero_ai_fix_all_sync(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("zero ai fix all", cwd=str(self.base))
+        self.assertIn("\"ok\": true", out.summary.lower())
+        self.assertIn("\"brain_awareness\":", out.summary.lower())
+        self.assertIn("\"knowledge_build\":", out.summary.lower())
+        self.assertIn("\"consciousness_tick\":", out.summary.lower())
 
     def test_unified_shell_run_and_alias(self) -> None:
         highway = Highway(cwd=str(self.base))

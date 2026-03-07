@@ -28,6 +28,8 @@ class CodeCapability:
             return False
         if text.startswith("antivirus "):
             return False
+        if text.startswith("zero ai "):
+            return False
         keys = (
             "code",
             "build",

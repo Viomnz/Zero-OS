@@ -20,6 +20,28 @@ The only private items are local runtime trust materials and machine-specific se
   - Internal Zero Reasoner (`zero_ai_internal_smart_logic_v1`)
   - Cure Firewall (`cure_firewall_smart_logic_v1`)
   - Antivirus (`antivirus_smart_logic_v1`)
+- Cross-system smart-logic governance is enabled:
+  - configurable thresholds in `.zero_os/runtime/smart_logic_policy.json`
+  - false-positive review log in `.zero_os/runtime/false_positive_review.jsonl`
+  - review decisions in `.zero_os/runtime/false_positive_decisions.jsonl`
+- Client-ready verification document:
+  - [SECURITY_EVIDENCE.md](C:\Users\gomez\Documents\New folder\SECURITY_EVIDENCE.md)
+
+## Zero-AI vs RSI
+Zero-AI is **not** RSI (recursive self-improvement) in the standard AI meaning.
+
+- RSI optimizes capability growth.
+- Zero-AI optimizes stability, coherence, and survival.
+
+RSI generally expands complexity by upgrading for more capability.
+Zero-AI compresses complexity by filtering out contradiction, drift, and unstable structure.
+
+RSI asks "how to become more".
+Zero-AI asks "how to remain unbreakable under recursion".
+
+Project statement:
+- Zero-AI is a **filtration engine**, not a self-mutation engine.
+- Runtime command: `zero ai identity`
 
 ## Contributor Status Note
 - I am using Codex through Microsoft Store.

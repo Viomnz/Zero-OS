@@ -133,7 +133,13 @@ from zero_os.triad_balance import (
     triad_ops_tick,
 )
 from zero_os.self_repair import self_repair_run, self_repair_set, self_repair_status, self_repair_tick
-from zero_os.security_hardening import harden_apply, harden_status, init_trust_root
+from zero_os.security_hardening import (
+    harden_apply,
+    harden_status,
+    init_trust_root,
+    zero_ai_security_apply,
+    zero_ai_security_status,
+)
 from zero_os.enterprise_security import (
     adversarial_validate,
     enterprise_enable,
@@ -150,6 +156,15 @@ from zero_os.enterprise_security import (
     siem_emit,
     sign_action as enterprise_sign_action,
 )
+from zero_os.maturity import maturity_scaffold_all, maturity_status
+from zero_os.smart_logic_governance import decide_false_positive, list_false_positive_reviews
+from zero_os.harmony import zero_ai_harmony_status
+from zero_os.knowledge_map import build_knowledge_index, knowledge_find, knowledge_status
+from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
+from zero_os.brain_awareness import brain_awareness_status, build_brain_awareness
+from zero_os.zero_ai_sync import zero_ai_sync_all
+from zero_os.zero_ai_identity import zero_ai_identity
+from zero_os.consciousness_core import consciousness_status, consciousness_tick
 
 
 class SystemCapability:
@@ -233,6 +248,20 @@ class SystemCapability:
             "enterprise integration",
             "rollout",
             "policy lock",
+            "maturity status",
+            "maturity scaffold all",
+            "false positive",
+            "zero ai harmony",
+            "zero ai knowledge",
+            "zero ai know everything",
+            "zero ai backup",
+            "zero ai recover",
+            "zero ai security",
+            "zero ai brain awareness",
+            "zero ai fix all",
+            "go fix all",
+            "zero ai identity",
+            "zero ai consciousness",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -329,6 +358,24 @@ class SystemCapability:
             return Result(self.name, json.dumps(harden_apply(task.cwd), indent=2))
         if text.strip() == "security harden status":
             return Result(self.name, json.dumps(harden_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai security apply", "zero ai security harden apply"}:
+            return Result(self.name, json.dumps(zero_ai_security_apply(task.cwd), indent=2))
+        if text.strip() in {"zero ai security status", "zero ai security harden status"}:
+            return Result(self.name, json.dumps(zero_ai_security_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai brain awareness build", "zero ai brain build", "make zero ai have everything brain awareness"}:
+            return Result(self.name, json.dumps(build_brain_awareness(task.cwd), indent=2))
+        if text.strip() in {"zero ai brain awareness status", "zero ai brain status"}:
+            return Result(self.name, json.dumps(brain_awareness_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai identity", "zero ai rsi status"}:
+            return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
+        if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
+            return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
+        ctick = re.match(r"^zero ai consciousness tick(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ctick:
+            prompt = (ctick.group(1) or "").strip()
+            return Result(self.name, json.dumps(consciousness_tick(task.cwd, prompt=prompt), indent=2))
+        if text.strip() in {"zero ai fix all", "go fix all"}:
+            return Result(self.name, json.dumps(zero_ai_sync_all(task.cwd), indent=2))
         if text.strip() == "security trust init":
             return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
         if text.strip() == "enterprise security status":
@@ -378,6 +425,45 @@ class SystemCapability:
             return Result(self.name, json.dumps(rollback_playbook_run(task.cwd, ent_rb.group(1)), indent=2))
         if text.strip() == "enterprise validate adversarial":
             return Result(self.name, json.dumps(adversarial_validate(task.cwd), indent=2))
+        if text.strip() == "maturity status":
+            return Result(self.name, json.dumps(maturity_status(task.cwd), indent=2))
+        if text.strip() in {"maturity scaffold all", "maturity apply all", "go all"}:
+            return Result(self.name, json.dumps(maturity_scaffold_all(task.cwd), indent=2))
+        if text.strip() in {"zero ai harmony", "zero ai harmony status"}:
+            return Result(self.name, json.dumps(zero_ai_harmony_status(task.cwd, autocorrect=True), indent=2))
+        if text.strip() in {"zero ai knowledge build", "zero ai know everything"}:
+            out = build_knowledge_index(task.cwd)
+            st = knowledge_status(task.cwd)
+            return Result(self.name, json.dumps({"build": out, "status": st}, indent=2))
+        if text.strip() == "zero ai backup status":
+            return Result(self.name, json.dumps(zero_ai_backup_status(task.cwd), indent=2))
+        if text.strip() == "zero ai backup create":
+            return Result(self.name, json.dumps(zero_ai_backup_create(task.cwd), indent=2))
+        rec = re.match(r"^zero ai recover(?:\s+snapshot=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if rec:
+            snap = rec.group(1) or "latest"
+            return Result(self.name, json.dumps(zero_ai_recover(task.cwd, snapshot_id=snap), indent=2))
+        if text.strip() == "zero ai knowledge status":
+            return Result(self.name, json.dumps(knowledge_status(task.cwd), indent=2))
+        kfind = re.match(r"^zero ai knowledge find\s+(.+?)(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if kfind:
+            query = kfind.group(1).strip().strip("\"'")
+            limit = int(kfind.group(2) or "20")
+            return Result(self.name, json.dumps(knowledge_find(task.cwd, query, limit=limit), indent=2))
+        fp_list = re.match(r"^false positive review list(?:\s+limit=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if fp_list:
+            limit = int(fp_list.group(1) or "100")
+            return Result(self.name, json.dumps(list_false_positive_reviews(task.cwd, limit=limit), indent=2))
+        fp_decide = re.match(
+            r"^false positive review decide\s+index=(\d+)\s+verdict=(confirmed|false_positive)(?:\s+note=(.+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if fp_decide:
+            idx = int(fp_decide.group(1))
+            verdict = fp_decide.group(2)
+            note = (fp_decide.group(3) or "").strip()
+            return Result(self.name, json.dumps(decide_false_positive(task.cwd, idx, verdict, note), indent=2))
         av_agent_run = re.match(
             r"^antivirus agent run(?:\s+(.+?))?(?:\s+auto_quarantine=(true|false|1|0|yes|no|on|off))?$",
             raw.strip(),
@@ -1017,6 +1103,14 @@ class SystemCapability:
             "- self repair tick\n"
             "- security harden apply\n"
             "- security harden status\n"
+            "- zero ai security apply\n"
+            "- zero ai security status\n"
+            "- zero ai brain awareness build\n"
+            "- zero ai brain awareness status\n"
+            "- zero ai identity\n"
+            "- zero ai consciousness status\n"
+            "- zero ai consciousness tick [prompt]\n"
+            "- zero ai fix all\n"
             "- security trust init\n"
             "- enterprise security status\n"
             "- enterprise security on [siem=<webhook_url>]\n"
@@ -1032,6 +1126,18 @@ class SystemCapability:
             "- enterprise siem emit <low|medium|high|critical> <event>\n"
             "- enterprise rollback run <critical|ransomware|integrity_failure>\n"
             "- enterprise validate adversarial\n"
+            "- maturity status\n"
+            "- maturity scaffold all\n"
+            "- zero ai harmony\n"
+            "- zero ai knowledge build\n"
+            "- zero ai knowledge status\n"
+            "- zero ai knowledge find <query> [limit=<n>]\n"
+            "- zero ai know everything\n"
+            "- zero ai backup status\n"
+            "- zero ai backup create\n"
+            "- zero ai recover [snapshot=<id|latest>]\n"
+            "- false positive review list [limit=<n>]\n"
+            "- false positive review decide index=<n> verdict=<confirmed|false_positive> [note=<text>]\n"
             "- antivirus agent run [path] [auto_quarantine=true|false]\n"
             "- antivirus agent status\n"
             "- antivirus feed status\n"

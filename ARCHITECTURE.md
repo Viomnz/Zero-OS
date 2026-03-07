@@ -63,3 +63,14 @@ Dashboard and launcher route into this same path.
 5. Measurable behavior through logs and tests
 6. Open source and local-first operation
 
+## Zero-AI Identity (Non-RSI)
+Zero-AI is not recursive self-improvement (RSI) in standard form.
+
+- RSI orientation: capability expansion via repeated self-upgrade.
+- Zero-AI orientation: stability filtration via contradiction/drift elimination.
+
+Architectural implication:
+- Zero-AI keeps structures that survive recursive checks.
+- Zero-AI rejects unstable growth that weakens coherence/survival.
+
+This architecture treats Zero-AI as a recursion filtration core, not a runaway self-mutation loop.

@@ -9,6 +9,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from uuid import uuid4
+import re
 
 
 def _runtime(base: Path) -> Path:
@@ -103,6 +104,58 @@ def _db_recent(path: Path, tenant_id: str, session_id: str, limit: int = 8) -> l
         return [(str(r[0]), str(r[1])) for r in rows]
     finally:
         conn.close()
+
+
+def _db_last_by_role(path: Path, tenant_id: str, session_id: str, role: str) -> tuple[str, str] | None:
+    conn = sqlite3.connect(path)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, content
+            FROM chat_messages
+            WHERE tenant_id=? AND session_id=? AND role=?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (tenant_id, session_id, role),
+        ).fetchone()
+        if not row:
+            return None
+        return (str(row[0]), str(row[1]))
+    finally:
+        conn.close()
+
+
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-zA-Z0-9']+", text.lower()))
+
+
+def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, pool: int = 60, keep: int = 6) -> list[tuple[str, str]]:
+    conn = sqlite3.connect(path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT role, content
+            FROM chat_messages
+            WHERE tenant_id=? AND session_id=?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (tenant_id, session_id, max(1, int(pool))),
+        ).fetchall()
+    finally:
+        conn.close()
+    q = _tokens(query)
+    scored: list[tuple[float, str, str]] = []
+    for role, content in rows:
+        c = str(content)
+        t = _tokens(c)
+        score = 0.0 if not q else (len(q.intersection(t)) / max(1, len(q)))
+        scored.append((score, str(role), c))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    out = [(r, c) for _, r, c in scored[: max(1, int(keep))]]
+    out.reverse()
+    return out
 
 
 def _idempotency_get(path: Path, key: str) -> dict | None:
@@ -228,8 +281,17 @@ def run_chat_api(base: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
                 return
             payload = _read_json_bytes(self)
             tenant_id = str(payload.get("tenant_id", self.headers.get("X-Tenant-ID", "default"))).strip() or "default"
-            session_id = str(payload.get("session_id", "default")).strip() or "default"
+            session_id = str(payload.get("session_id", "")).strip() or uuid4().hex
+            action = str(payload.get("action", "chat")).strip().lower()
             content = str(payload.get("message", "")).strip()
+            if action == "regenerate":
+                last_user = _db_last_by_role(db_path, tenant_id, session_id, "user")
+                if last_user:
+                    content = last_user[1]
+            elif action == "continue":
+                last_assistant = _db_last_by_role(db_path, tenant_id, session_id, "assistant")
+                if last_assistant:
+                    content = f"Continue this response with consistent style and facts:\n{last_assistant[1]}"
             if not content:
                 with stats_lock:
                     stats["errors_total"] += 1
@@ -246,10 +308,21 @@ def run_chat_api(base: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
                 return
             request_id = uuid4().hex
             turn_id = uuid4().hex
-            recent = _db_recent(db_path, tenant_id, session_id, limit=8)
+            recent = _db_recent(db_path, tenant_id, session_id, limit=4)
+            ranked = _db_ranked_context(db_path, tenant_id, session_id, content, pool=60, keep=6)
             context_lines = [f"{r}: {c}" for r, c in recent]
-            merged = content if not context_lines else f"Conversation context:\n" + "\n".join(context_lines) + f"\nUser: {content}"
-            _db_write(db_path, uuid4().hex, tenant_id, session_id, "user", content)
+            ranked_lines = [f"{r}: {c}" for r, c in ranked]
+            merged = content
+            if ranked_lines or context_lines:
+                merged = (
+                    "Relevant memory:\n"
+                    + "\n".join(ranked_lines)
+                    + "\nRecent turns:\n"
+                    + "\n".join(context_lines)
+                    + f"\nUser: {content}"
+                )
+            user_message_id = uuid4().hex
+            _db_write(db_path, user_message_id, tenant_id, session_id, "user", content)
             with req_path.open("a", encoding="utf-8") as handle:
                 handle.write(
                     json.dumps(
@@ -258,6 +331,7 @@ def run_chat_api(base: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
                             "tenant_id": tenant_id,
                             "session_id": session_id,
                             "turn_id": turn_id,
+                            "action": action,
                             "content": merged,
                             "time_utc": time.time(),
                         },
@@ -298,13 +372,15 @@ def run_chat_api(base: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
                 return
 
             answer = str(response_payload.get("output", ""))
-            _db_write(db_path, uuid4().hex, tenant_id, session_id, "assistant", answer)
+            assistant_message_id = uuid4().hex
+            _db_write(db_path, assistant_message_id, tenant_id, session_id, "assistant", answer)
             if self.path == "/v1/chat/stream":
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-cache")
                 self.send_header("Connection", "keep-alive")
                 self.end_headers()
+                self.wfile.write(f"data: {json.dumps({'session_id': session_id, 'turn_id': turn_id, 'action': action})}\n\n".encode("utf-8"))
                 for token in answer.split():
                     self.wfile.write(f"data: {json.dumps({'delta': token + ' '})}\n\n".encode("utf-8"))
                 self.wfile.write(b"data: [DONE]\n\n")
@@ -318,6 +394,9 @@ def run_chat_api(base: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
                 "tenant_id": tenant_id,
                 "session_id": session_id,
                 "turn_id": turn_id,
+                "action": action,
+                "message_id": assistant_message_id,
+                "parent_user_message_id": user_message_id,
                 "status": response_payload.get("status", "ok"),
                 "message": answer,
             }

@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 import urllib.request
+import urllib.error
 from pathlib import Path
 
 from ai_from_scratch.chat_api_server import run_chat_api
@@ -89,6 +90,35 @@ class ChatApiServerTests(unittest.TestCase):
         self.assertEqual(a["request_id"], b["request_id"])
         self.assertEqual(a["session_id"], "s1")
         self.assertEqual(a["tenant_id"], "t1")
+
+    def test_auto_session_id_and_message_ids(self) -> None:
+        body = {"tenant_id": "t1", "message": "hello autosession"}
+        out = self._post_json("/v1/chat/completions", body)
+        self.assertTrue(out["ok"])
+        self.assertTrue(bool(out.get("session_id")))
+        self.assertTrue(bool(out.get("message_id")))
+        self.assertTrue(bool(out.get("parent_user_message_id")))
+
+    def test_regenerate_and_continue_actions(self) -> None:
+        base = self._post_json("/v1/chat/completions", {"tenant_id": "t1", "session_id": "s2", "message": "seed content"})
+        self.assertTrue(base["ok"])
+        regen = self._post_json("/v1/chat/completions", {"tenant_id": "t1", "session_id": "s2", "action": "regenerate"})
+        self.assertTrue(regen["ok"])
+        self.assertEqual("regenerate", regen.get("action"))
+        cont = self._post_json("/v1/chat/completions", {"tenant_id": "t1", "session_id": "s2", "action": "continue"})
+        self.assertTrue(cont["ok"])
+        self.assertEqual("continue", cont.get("action"))
+
+    def test_stream_endpoint_emits_done(self) -> None:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/v1/chat/stream",
+            data=json.dumps({"tenant_id": "t1", "session_id": "s3", "message": "stream hello"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        self.assertIn("data: [DONE]", text)
 
 
 if __name__ == "__main__":

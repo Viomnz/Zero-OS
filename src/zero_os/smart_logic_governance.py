@@ -19,6 +19,10 @@ def _review_log_path(cwd: str) -> Path:
     return _runtime(cwd) / "false_positive_review.jsonl"
 
 
+def _review_decisions_path(cwd: str) -> Path:
+    return _runtime(cwd) / "false_positive_decisions.jsonl"
+
+
 def _default_policy() -> dict:
     return {
         "global": {"review_enabled": True},
@@ -83,3 +87,36 @@ def apply_governance(cwd: str, logic: dict, context: dict | None = None) -> dict
             h.write(json.dumps(rec, sort_keys=True) + "\n")
     return out
 
+
+def list_false_positive_reviews(cwd: str, limit: int = 100) -> dict:
+    path = _review_log_path(cwd)
+    if not path.exists():
+        return {"ok": True, "count": 0, "items": []}
+    lines = [ln for ln in path.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip()]
+    items = []
+    for ln in lines[-max(1, min(500, int(limit))):]:
+        try:
+            items.append(json.loads(ln))
+        except Exception:
+            continue
+    return {"ok": True, "count": len(items), "items": items}
+
+
+def decide_false_positive(cwd: str, index: int, verdict: str, note: str = "") -> dict:
+    verdict_norm = verdict.strip().lower()
+    if verdict_norm not in {"confirmed", "false_positive"}:
+        return {"ok": False, "reason": "verdict must be confirmed|false_positive"}
+    reviews = list_false_positive_reviews(cwd, limit=10000).get("items", [])
+    if index < 0 or index >= len(reviews):
+        return {"ok": False, "reason": "index out of range"}
+    rec = reviews[index]
+    decision = {
+        "time_utc": datetime.now(timezone.utc).isoformat(),
+        "index": index,
+        "verdict": verdict_norm,
+        "note": note,
+        "review": rec,
+    }
+    with _review_decisions_path(cwd).open("a", encoding="utf-8") as h:
+        h.write(json.dumps(decision, sort_keys=True) + "\n")
+    return {"ok": True, "decision": decision}
