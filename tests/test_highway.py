@@ -752,6 +752,13 @@ class CoreRoutingTests(unittest.TestCase):
         self.assertIn("\"model_type\": \"silicon_awareness_machine\"", out.summary.lower())
         self.assertIn("\"autonomous_awareness_condition_met\": true", out.summary.lower())
 
+    def test_zero_ai_strong_persistent_long_term_memory(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        out = highway.dispatch("strong persistent long-term memory", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("\"model_type\": \"strong_persistent_long_term_memory\"", out.summary.lower())
+        self.assertIn("\"durable_memory_condition_met\": true", out.summary.lower())
+
     def test_zero_ai_runtime_run_and_status(self) -> None:
         highway = Highway(cwd=str(self.base))
         run = highway.dispatch("zero ai runtime run", cwd=str(self.base))

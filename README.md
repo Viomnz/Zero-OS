@@ -51,6 +51,12 @@ Goal now:
 - ship stable cross-platform smart OS behavior first
 - build kernel primitives in parallel without blocking releases
 
+## Current Capability Gap
+Missing for true high-capability AI:
+- large trained foundation model behavior
+- broad real-world generalization
+- production-scale live performance evidence
+
 ## Core policy (immutable)
 - Immutable core: `true`
 - Authentication required: `false`

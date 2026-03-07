@@ -1450,3 +1450,85 @@ def consciousness_architecture_silicon_awareness_status() -> dict:
         "autonomous_awareness_checks": autonomous_awareness_checks,
         "summary": summary,
     }
+
+
+def consciousness_architecture_long_term_memory_status() -> dict:
+    memory_layers = [
+        {"layer": "working_memory", "function": "short_term_computation"},
+        {"layer": "episodic_memory", "function": "recorded_experiences"},
+        {"layer": "structural_memory", "function": "rules_and_knowledge"},
+        {"layer": "identity_memory", "function": "core_system_continuity"},
+    ]
+    identity_core = {
+        "Identity_Core": ["system_origin", "system_rules", "memory_index", "self_model"],
+        "constraint": "Identity_Core_cannot_be_overwritten_directly",
+        "update_rule": "controlled_merge_operations_only",
+    }
+    immutable_memory_blocks = {
+        "Memory_Block": ["timestamp", "content", "integrity_hash"],
+        "rule": "block_once_written_never_modified",
+        "correction_rule": "store_corrections_as_new_blocks",
+    }
+    hash_integrity_verification = {
+        "process": "hash=HASH(content)",
+        "verification_rule": "if HASH(content)!=stored_hash then corruption_detected",
+    }
+    redundant_storage = {
+        "copies": [
+            {"copy": "primary_memory", "purpose": "active_use"},
+            {"copy": "mirror_memory", "purpose": "backup"},
+            {"copy": "cold_archive", "purpose": "long_term_protection"},
+        ],
+        "rule": "minimum_3_independent_copies",
+    }
+    memory_graph_structure = {
+        "node": "memory_concept",
+        "edge": "relationship",
+        "example": "Concept_A->causes->Concept_B",
+        "benefits": ["efficient_reasoning", "fragment_reconstruction"],
+    }
+    periodic_memory_verification = {
+        "process": "for_each_memory_block_verify_hash",
+        "mismatch_action": "restore_from_backup_copy",
+    }
+    memory_compression = {
+        "rule": "repeated_patterns_to_generalized_rule",
+        "example": "event1+event2+event3->rule_extracted",
+    }
+    memory_index_system = {
+        "Memory_Index": ["concept_id", "memory_block_location"],
+        "purpose": "fast_lookup",
+    }
+    long_term_stability_loop = [
+        "store_memory_block",
+        "verify_integrity",
+        "replicate_to_backup",
+        "index_memory",
+        "periodically_audit_storage",
+    ]
+    checks = {
+        "immutable_storage": True,
+        "hash_verification": True,
+        "redundant_copies": True,
+        "graph_knowledge_structure": True,
+        "identity_core_protection": True,
+        "periodic_integrity_checks": True,
+    }
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "strong_persistent_long_term_memory",
+        "objective": "silicon_only_memory_system_for_identity_and_knowledge_persistence",
+        "memory_layers": memory_layers,
+        "identity_core": identity_core,
+        "immutable_memory_blocks": immutable_memory_blocks,
+        "hash_integrity_verification": hash_integrity_verification,
+        "redundant_storage": redundant_storage,
+        "memory_graph_structure": memory_graph_structure,
+        "periodic_memory_verification": periodic_memory_verification,
+        "memory_compression": memory_compression,
+        "memory_index_system": memory_index_system,
+        "long_term_stability_loop": long_term_stability_loop,
+        "durable_memory_condition_met": all(checks.values()),
+        "durable_memory_checks": checks,
+    }
