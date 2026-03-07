@@ -175,11 +175,19 @@ python -m unittest discover -s tests -p "test_*.py" -v
 Run repeatable benchmark results for Cure Firewall + Antivirus:
 ```powershell
 python tools/benchmark_security_stack.py
+python tools/benchmark_security_stack.py --preset small --seed 1337
+python tools/benchmark_security_stack.py --preset large --seed 1337
 ```
 
 Outputs:
 - [security_benchmark.json](C:\Users\gomez\Documents\New folder\security\artifacts\security_benchmark.json)
 - [security_benchmark.md](C:\Users\gomez\Documents\New folder\security\artifacts\security_benchmark.md)
+- [dataset_manifest_v1.json](C:\Users\gomez\Documents\New folder\security\benchmarks\dataset_manifest_v1.json)
+
+Benchmark includes:
+- fixed-seed synthetic dataset manifest
+- preset sizes (`small`, `medium`, `large`)
+- baseline comparison (`keyword_baseline`, `heuristic_baseline`) with delta metrics
 
 Try your own experiment:
 - Create clean and suspicious files in your workspace.
