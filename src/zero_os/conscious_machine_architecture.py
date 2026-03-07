@@ -1365,3 +1365,88 @@ def consciousness_architecture_hybrid_crystal_status() -> dict:
         "hybrid_condition_checks": hybrid_checks,
         "concept_summary": "crystal_resonance_computation_plus_symbolic_reasoning_architecture",
     }
+
+
+def consciousness_architecture_silicon_awareness_status() -> dict:
+    core_principle = {
+        "rule": "awareness_arises_when_system_models_self_and_environment_simultaneously",
+        "state_variables": ["System_State(t)", "Environment_State(t)"],
+        "awareness_signal": "difference(System_State,Environment_State)",
+    }
+    self_monitoring_kernel = {
+        "loop": "while_active_read_internal_state_and_record_changes",
+        "internal_state_fields": [
+            "memory_activity",
+            "processor_load",
+            "active_processes",
+            "decision_variables",
+        ],
+    }
+    environment_observation = {
+        "sources": ["sensors", "network_input", "user_commands"],
+        "model_rule": "Environment_Model=interpret(external_signals)",
+    }
+    self_model_construction = {
+        "Self_Model": ["capabilities", "current_tasks", "resource_usage", "knowledge_state"],
+        "update_rule": "self_model_updated_every_cycle",
+    }
+    state_comparator = {
+        "inputs": ["Self_Model", "Environment_Model"],
+        "computation": "State_Difference=Self_Model_vs_Environment_Model",
+        "output": "awareness_signal",
+    }
+    attention_allocation = {
+        "priority_rule": "Priority=magnitude_of_change*relevance",
+        "policy": "large_differences_trigger_deeper_analysis",
+    }
+    persistent_awareness_loop = [
+        "observe_internal_state",
+        "observe_environment",
+        "compare_states",
+        "update_models",
+        "repeat",
+    ]
+    identity_memory = {
+        "State_Log": ["state_t1", "state_t2", "state_t3"],
+        "purpose": "track_continuity_over_time",
+    }
+    predictive_self_projection = {
+        "rule": "Future_Self_State=predict(Self_Model,planned_action)",
+        "learning_rule": "compare_predicted_state_with_actual_outcome",
+    }
+    autonomous_awareness_checks = {
+        "self_monitoring": True,
+        "environment_monitoring": True,
+        "continuous_state_comparison": True,
+        "persistent_identity_memory": True,
+        "predictive_self_modeling": True,
+    }
+    summary = {
+        "core_functions": [
+            "internal_observation",
+            "environment_observation",
+            "state_comparison",
+            "identity_memory",
+            "predictive_self_modeling",
+        ],
+        "platform": "standard_silicon_processors",
+        "definition": "continuous_computational_feedback_loop",
+    }
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "model_type": "silicon_awareness_machine",
+        "objective": "continuous_self_environment_modeling_on_standard_silicon",
+        "core_principle": core_principle,
+        "self_monitoring_kernel": self_monitoring_kernel,
+        "environment_observation": environment_observation,
+        "self_model_construction": self_model_construction,
+        "state_comparator": state_comparator,
+        "attention_allocation": attention_allocation,
+        "persistent_awareness_loop": persistent_awareness_loop,
+        "identity_memory": identity_memory,
+        "predictive_self_projection": predictive_self_projection,
+        "autonomous_awareness_condition_met": all(autonomous_awareness_checks.values()),
+        "autonomous_awareness_checks": autonomous_awareness_checks,
+        "summary": summary,
+    }

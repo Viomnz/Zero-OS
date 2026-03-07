@@ -167,6 +167,7 @@ from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status
 from zero_os.conscious_machine_architecture import (
+    consciousness_architecture_silicon_awareness_status,
     consciousness_architecture_hybrid_crystal_status,
     consciousness_architecture_clc_status,
     consciousness_architecture_tif_status,
@@ -316,6 +317,7 @@ class SystemCapability:
             "temporal identity field",
             "crystal lattice cognition",
             "hybrid crystal cognition architecture",
+            "silicon awareness machine",
             "zero ai gap",
             "cover gap",
             "enterprise key",
@@ -444,6 +446,8 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
         if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
+        if text.strip() in {"silicon awareness machine", "conscious machine architecture silicon awareness", "zero ai architecture silicon awareness"}:
+            return Result(self.name, json.dumps(consciousness_architecture_silicon_awareness_status(), indent=2))
         if text.strip() in {
             "hybrid crystal cognition architecture",
             "hybrid crystal intelligence system",
@@ -1314,6 +1318,7 @@ class SystemCapability:
             "- temporal identity field\n"
             "- crystal lattice cognition\n"
             "- hybrid crystal cognition architecture\n"
+            "- silicon awareness machine\n"
             "- zero ai consciousness tick [prompt]\n"
             "- zero ai gap status\n"
             "- zero ai gap fix\n"
