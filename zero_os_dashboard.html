@@ -82,6 +82,44 @@
       grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
       gap: var(--gap);
     }
+    .menuBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+    .menuBtn {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 80%, #fff 20%);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .menuBtn.active {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+      color: #e8f8ff;
+    }
+    .layerPanel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .layerPanel summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 12px;
+      font-weight: 600;
+      color: #cde5f7;
+      border-bottom: 1px solid var(--line);
+    }
+    .layerPanel summary::-webkit-details-marker { display: none; }
+    .layerPanelBody { padding: 8px 12px; color: var(--muted); font-size: 12px; }
     .card {
       border: 1px solid var(--line);
       background: var(--panel);
@@ -192,6 +230,23 @@ python src/main.py "znet status"
 python src/main.py "security overview"
 .\zero_os_launcher.ps1 suggest:your goal</pre>
   </div>
+
+  <div class="menuBar" id="pageMenu">
+    <button class="menuBtn active" data-page="all">All</button>
+    <button class="menuBtn" data-page="overview">Overview</button>
+    <button class="menuBtn" data-page="operations">Operations</button>
+    <button class="menuBtn" data-page="security">Security</button>
+    <button class="menuBtn" data-page="intelligence">Intelligence</button>
+    <button class="menuBtn" data-page="settings">Settings</button>
+  </div>
+
+  <details class="layerPanel" open>
+    <summary>Expandable Layer Pages Menu</summary>
+    <div class="layerPanelBody">
+      Switch between menu pages to focus on specific dashboard layers.
+      Use <b>All</b> to view the full stack.
+    </div>
+  </details>
 
   <div class="grid">
     <section class="card">
@@ -537,6 +592,39 @@ python src/main.py "security overview"
           "textarea,input,select{background:#fbfbfb;color:#111;border-color:#bdbdbd;}"
       }
     };
+
+    function classifyCardPage(title){
+      const t = String(title || "").toLowerCase();
+      if (t.includes("theme") || t.includes("interface mode")) return "settings";
+      if (t.includes("security") || t.includes("cure") || t.includes("audit")) return "security";
+      if (t.includes("monitor") || t.includes("reasoner") || t.includes("memory") || t.includes("strategy") || t.includes("registry") || t.includes("advanced")) return "intelligence";
+      if (t.includes("executor") || t.includes("developer") || t.includes("hardware") || t.includes("quick paths")) return "operations";
+      if (t.includes("chatbox") || t.includes("output") || t.includes("scan") || t.includes("heartbeat")) return "overview";
+      return "overview";
+    }
+
+    function applyPageFilter(page){
+      const cards = Array.from(document.querySelectorAll(".grid .card"));
+      cards.forEach((card) => {
+        const h = card.querySelector("h2");
+        const assigned = card.dataset.page || classifyCardPage(h ? h.textContent : "");
+        card.dataset.page = assigned;
+        card.style.display = (page === "all" || page === assigned) ? "" : "none";
+      });
+      document.querySelectorAll(".menuBtn").forEach((b) => {
+        b.classList.toggle("active", b.dataset.page === page);
+      });
+      localStorage.setItem("zero_os_page_menu_v1", page);
+    }
+
+    function setupPageMenu(){
+      const buttons = Array.from(document.querySelectorAll(".menuBtn"));
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => applyPageFilter(btn.dataset.page || "all"));
+      });
+      const saved = localStorage.getItem("zero_os_page_menu_v1") || "all";
+      applyPageFilter(saved);
+    }
 
     function pick(id){ return document.getElementById(id); }
     function readTheme(){ try { return JSON.parse(localStorage.getItem(THEME_KEY)) || {...defaults}; } catch { return {...defaults}; } }
@@ -1284,6 +1372,7 @@ python src/main.py "security overview"
     const saved = readTheme();
     syncInputs(saved);
     applyTheme(saved);
+    setupPageMenu();
     setInterfaceMode(localStorage.getItem(INTERFACE_KEY) || "gui");
     restoreChatPrefs();
     loadVoices();
