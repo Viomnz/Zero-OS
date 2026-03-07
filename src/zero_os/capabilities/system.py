@@ -165,6 +165,7 @@ from zero_os.brain_awareness import brain_awareness_status, build_brain_awarenes
 from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
+from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status
 
 
 class SystemCapability:
@@ -262,6 +263,8 @@ class SystemCapability:
             "go fix all",
             "zero ai identity",
             "zero ai consciousness",
+            "zero ai gap",
+            "cover gap",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -376,6 +379,10 @@ class SystemCapability:
             return Result(self.name, json.dumps(consciousness_tick(task.cwd, prompt=prompt), indent=2))
         if text.strip() in {"zero ai fix all", "go fix all"}:
             return Result(self.name, json.dumps(zero_ai_sync_all(task.cwd), indent=2))
+        if text.strip() in {"zero ai gap status", "zero ai cover gap status"}:
+            return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
+            return Result(self.name, json.dumps(zero_ai_gap_fix(task.cwd), indent=2))
         if text.strip() == "security trust init":
             return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
         if text.strip() == "enterprise security status":
@@ -1110,6 +1117,8 @@ class SystemCapability:
             "- zero ai identity\n"
             "- zero ai consciousness status\n"
             "- zero ai consciousness tick [prompt]\n"
+            "- zero ai gap status\n"
+            "- zero ai gap fix\n"
             "- zero ai fix all\n"
             "- security trust init\n"
             "- enterprise security status\n"

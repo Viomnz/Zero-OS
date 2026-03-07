@@ -626,6 +626,16 @@ class CoreRoutingTests(unittest.TestCase):
         st2 = highway.dispatch("zero ai consciousness status", cwd=str(self.base))
         self.assertIn("\"ledger_events\":", st2.summary.lower())
 
+    def test_zero_ai_gap_status_and_fix(self) -> None:
+        highway = Highway(cwd=str(self.base))
+        st = highway.dispatch("zero ai gap status", cwd=str(self.base))
+        self.assertIn("\"gap_coverage_score\":", st.summary.lower())
+        self.assertIn("\"root_issues\":", st.summary.lower())
+        fx = highway.dispatch("zero ai gap fix", cwd=str(self.base))
+        self.assertIn("\"ok\": true", fx.summary.lower())
+        self.assertIn("\"after\":", fx.summary.lower())
+        self.assertIn("run_triad_balance", fx.summary.lower())
+
     def test_zero_ai_knowledge_index_and_find(self) -> None:
         highway = Highway(cwd=str(self.base))
         (self.base / "docs").mkdir(parents=True, exist_ok=True)
