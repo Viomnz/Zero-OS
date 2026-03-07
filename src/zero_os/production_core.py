@@ -584,22 +584,42 @@ def znet_cure_status(cwd: str) -> dict:
 
 
 def process_list(limit: int = 20) -> dict:
+    items = []
+    cap = max(1, min(200, int(limit)))
+    if os.name == "nt":
+        out = subprocess.run(
+            ["tasklist", "/fo", "csv", "/nh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for line in out.stdout.splitlines():
+            line = line.strip()
+            if not line.startswith('"'):
+                continue
+            parts = [p.strip('"') for p in line.split('","')]
+            if len(parts) < 2:
+                continue
+            items.append({"name": parts[0], "pid": parts[1]})
+            if len(items) >= cap:
+                break
+        return {"count": len(items), "items": items}
+
     out = subprocess.run(
-        ["tasklist", "/fo", "csv", "/nh"],
+        ["ps", "-eo", "pid,comm", "--no-headers"],
         capture_output=True,
         text=True,
         check=False,
     )
-    items = []
     for line in out.stdout.splitlines():
-        line = line.strip()
-        if not line.startswith('"'):
+        row = line.strip()
+        if not row:
             continue
-        parts = [p.strip('"') for p in line.split('","')]
-        if len(parts) < 2:
+        parts = row.split(None, 1)
+        if len(parts) != 2:
             continue
-        items.append({"name": parts[0], "pid": parts[1]})
-        if len(items) >= max(1, min(200, limit)):
+        items.append({"name": parts[1], "pid": parts[0]})
+        if len(items) >= cap:
             break
     return {"count": len(items), "items": items}
 
@@ -661,6 +681,28 @@ def process_kill(target: str) -> dict:
 
 
 def memory_status() -> dict:
+    if os.name != "nt":
+        try:
+            total_kb = 0
+            free_kb = 0
+            for line in Path("/proc/meminfo").read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("MemTotal:"):
+                    total_kb = int(line.split()[1])
+                elif line.startswith("MemAvailable:"):
+                    free_kb = int(line.split()[1])
+            if total_kb <= 0:
+                return {"ok": False, "reason": "memory telemetry unavailable"}
+            used_kb = max(0, total_kb - free_kb)
+            return {
+                "ok": True,
+                "total_mb": int(total_kb / 1024),
+                "free_mb": int(free_kb / 1024),
+                "used_mb": int(used_kb / 1024),
+                "used_percent": round((used_kb / total_kb) * 100, 2),
+            }
+        except Exception:
+            return {"ok": False, "reason": "memory telemetry unavailable"}
+
     # Prefer WMIC when available, but fall back to PowerShell CIM on modern Windows images.
     free_kb = None
     total_kb = None
