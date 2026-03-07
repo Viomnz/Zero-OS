@@ -11,6 +11,11 @@ The only private items are local runtime trust materials and machine-specific se
 - Primary track: AI/runtime platform and Hyperlayer parity (`80%` effort)
 - Secondary track: from-scratch kernel R&D (`20%` effort)
 
+## Security Milestone (Completed)
+- Cure Firewall: completed in this codebase scope.
+- Antivirus: completed in this codebase scope.
+- Both are integrated with runtime commands, backup/quarantine flows, and CI/security gates.
+
 ## Contributor Status Note
 - I am using Codex through Microsoft Store.
 - If I stop responding suddenly, I am waiting for Codex/Microsoft to fix major bugs.
@@ -165,6 +170,21 @@ Notes:
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
+
+## Benchmark and Experiments
+Run repeatable benchmark results for Cure Firewall + Antivirus:
+```powershell
+python tools/benchmark_security_stack.py
+```
+
+Outputs:
+- [security_benchmark.json](C:\Users\gomez\Documents\New folder\security\artifacts\security_benchmark.json)
+- [security_benchmark.md](C:\Users\gomez\Documents\New folder\security\artifacts\security_benchmark.md)
+
+Try your own experiment:
+- Create clean and suspicious files in your workspace.
+- Run `python src/main.py "antivirus scan ."` and `python src/main.py "cure firewall run <file> pressure 95"`.
+- Verify with `python src/main.py "cure firewall verify <file>"`.
 
 ## Memory storage
 - Path: `.zero_os/memory.json`
