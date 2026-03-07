@@ -189,6 +189,19 @@ Benchmark includes:
 - preset sizes (`small`, `medium`, `large`)
 - baseline comparison (`keyword_baseline`, `heuristic_baseline`) with delta metrics
 
+User-friendly benchmark tools:
+```powershell
+python tools/benchmark_user_tools.py run --preset medium --seed 1337 --label public-baseline
+python tools/benchmark_user_tools.py history
+python tools/benchmark_user_tools.py compare --write
+```
+
+User benchmark outputs:
+- [latest.json](C:\Users\gomez\Documents\New folder\security\benchmarks\latest.json)
+- [history.jsonl](C:\Users\gomez\Documents\New folder\security\benchmarks\history.jsonl)
+- [history_summary.md](C:\Users\gomez\Documents\New folder\security\benchmarks\history_summary.md)
+- [compare_latest.md](C:\Users\gomez\Documents\New folder\security\benchmarks\compare_latest.md)
+
 Try your own experiment:
 - Create clean and suspicious files in your workspace.
 - Run `python src/main.py "antivirus scan ."` and `python src/main.py "cure firewall run <file> pressure 95"`.

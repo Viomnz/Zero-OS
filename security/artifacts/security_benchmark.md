@@ -1,15 +1,15 @@
 # Security Stack Benchmark
 
-- Generated UTC: 2026-03-07T00:49:51.222814+00:00
+- Generated UTC: 2026-03-07T00:52:07.458775+00:00
 - Config: preset=medium, seed=1337, clean=200, malicious=60, iterations=4
 
 ## Summary
 - Antivirus detection rate: 1.0000
 - Antivirus false positive rate: 0.0000
-- Avg scan seconds: 0.613387
-- Avg throughput files/sec: 602.08
+- Avg scan seconds: 0.384466
+- Avg throughput files/sec: 701.52
 - Quarantine restore reliable: True
-- Cure firewall survived: True (score=81, run_seconds=0.009129)
+- Cure firewall survived: True (score=81, run_seconds=0.008625)
 - Cure firewall beacon verified: True (signature valid)
 
 ## Baseline Comparison
