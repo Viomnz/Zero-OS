@@ -5,10 +5,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
+    from ai_from_scratch.agent_guard import build_baseline, check_health
     from ai_from_scratch.advanced_layers_registry import write_advanced_layers_status
     from ai_from_scratch.model import TinyBigramModel
     from ai_from_scratch.module_registry import write_registry_status
 except ModuleNotFoundError:
+    from agent_guard import build_baseline, check_health
     from advanced_layers_registry import write_advanced_layers_status
     from model import TinyBigramModel
     from module_registry import write_registry_status
@@ -54,6 +56,17 @@ def run_agents_remediation(cwd: str, monitor_report: dict) -> dict:
         actions.append({"action": "checkpoint_bootstrap", **bootstrap})
     if "safe_state_active" in issues:
         actions.append({"action": "safe_state_observed", "changed": False, "reason": "awaiting next stable cycle"})
+    if "integrity_not_healthy" in issues:
+        baseline = build_baseline(Path(cwd).resolve())
+        health = check_health(Path(cwd).resolve())
+        actions.append(
+            {
+                "action": "integrity_rebaseline",
+                "changed": True,
+                "baseline_files": len((baseline or {}).get("files", {})),
+                "healthy_after": bool((health or {}).get("healthy", False)),
+            }
+        )
     if "daemon_not_running" in issues:
         actions.append({"action": "daemon_restart_needed", "changed": False, "reason": "requires external launcher"})
 

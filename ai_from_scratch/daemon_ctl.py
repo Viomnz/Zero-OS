@@ -16,6 +16,7 @@ from open_system_logic import run_sandbox_experiment
 from security_core import assess_security, load_policy, save_policy, scan_reputation, trust_file
 from smart_flow import run_smart_flow
 from agents_monitor import run_agents_monitor
+from agents_remediation import run_agents_remediation
 from chat_api_server import run_chat_api
 
 
@@ -320,7 +321,9 @@ def smart_flow(base: Path, workspace: str) -> None:
 
 
 def refresh_monitor(base: Path) -> None:
-    print(json.dumps(run_agents_monitor(str(base)), indent=2))
+    monitor = run_agents_monitor(str(base))
+    remediation = run_agents_remediation(str(base), monitor)
+    print(json.dumps({"monitor": monitor, "remediation": remediation}, indent=2))
 
 
 def stabilize(base: Path) -> None:

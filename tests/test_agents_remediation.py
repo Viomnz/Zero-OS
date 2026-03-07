@@ -74,7 +74,15 @@ class AgentsRemediationTests(unittest.TestCase):
         out = run_agents_remediation(str(self.base), {"score": 100, "smooth": True, "issues": []})
         self.assertEqual(out["actions"][0]["action"], "no_op")
 
+    def test_integrity_issue_triggers_rebaseline(self) -> None:
+        out = run_agents_remediation(
+            str(self.base),
+            {"score": 60, "smooth": False, "issues": ["integrity_not_healthy"]},
+        )
+        self.assertTrue(any(a.get("action") == "integrity_rebaseline" for a in out["actions"]))
+        self.assertTrue((self.base / ".zero_os" / "runtime" / "agent_integrity_baseline.json").exists())
+        self.assertTrue((self.base / ".zero_os" / "runtime" / "agent_health.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
-
