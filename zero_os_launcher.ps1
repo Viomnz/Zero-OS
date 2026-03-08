@@ -220,6 +220,32 @@ function Native-Smoke {
     powershell -ExecutionPolicy Bypass -File .\scripts\native_qemu_smoke.ps1
   }
 }
+function Native-StoreVendor {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-store-vendor:<app>,<version>" }
+  $parts = $ArgsText.Split(",")
+  if ($parts.Length -lt 2) { throw "Use native-store-vendor:<app>,<version>" }
+  python src/main.py "native store scaffold vendor app=$($parts[0]) version=$($parts[1])"
+}
+function Native-StoreServices { python src/main.py "native store scaffold services" }
+function Native-StoreBackend { python src/main.py "native store scaffold backend" }
+function Native-StoreGui { python src/main.py "native store scaffold gui" }
+function Native-StoreBackendInit { python src/main.py "native store backend init" }
+function Native-StoreDesktop { python src/main.py "native store desktop scaffold" }
+function Native-StoreBuildWindows {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-store-build-windows:<app>,<version>" }
+  $parts = $ArgsText.Split(",")
+  if ($parts.Length -lt 2) { throw "Use native-store-build-windows:<app>,<version>" }
+  python src/main.py "native store build windows app=$($parts[0]) version=$($parts[1])"
+}
+function Native-StoreBuildLinux {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-store-build-linux:<app>,<version>" }
+  $parts = $ArgsText.Split(",")
+  if ($parts.Length -lt 2) { throw "Use native-store-build-linux:<app>,<version>" }
+  python src/main.py "native store build linux app=$($parts[0]) version=$($parts[1])"
+}
 
 function Show-Menu {
   @"
@@ -240,6 +266,14 @@ Actions:
   native-build-all          Build kernel image + userland modules + manifest
   native-smoke              Run QEMU integration smoke test
   native-smoke:<seconds>    Run QEMU smoke test with timeout
+  native-store-vendor:<a,v> Generate vendor package specs for app/version
+  native-store-services     Generate privileged installer service manifests
+  native-store-backend      Generate native store backend scaffold
+  native-store-gui          Generate native store GUI scaffold
+  native-store-backend-init Initialize persistent backend database
+  native-store-desktop      Generate desktop client shell
+  native-store-build-windows:<a,v> Invoke Windows MSIX/MSI build path
+  native-store-build-linux:<a,v> Invoke Linux DEB/RPM build path
   suggest:<goal>            Suggest up to 9 best actions for user goal
 
   open-dashboard            Start local dashboard server and print URL
@@ -304,6 +338,14 @@ switch -Regex ($Action) {
   "^native-build-all$" { Native-BuildAll; break }
   "^native-smoke$" { Native-Smoke; break }
   "^native-smoke:(.+)$" { Native-Smoke -TimeoutSec $Matches[1]; break }
+  "^native-store-vendor:(.+)$" { Native-StoreVendor -ArgsText $Matches[1]; break }
+  "^native-store-services$" { Native-StoreServices; break }
+  "^native-store-backend$" { Native-StoreBackend; break }
+  "^native-store-gui$" { Native-StoreGui; break }
+  "^native-store-backend-init$" { Native-StoreBackendInit; break }
+  "^native-store-desktop$" { Native-StoreDesktop; break }
+  "^native-store-build-windows:(.+)$" { Native-StoreBuildWindows -ArgsText $Matches[1]; break }
+  "^native-store-build-linux:(.+)$" { Native-StoreBuildLinux -ArgsText $Matches[1]; break }
   "^suggest:(.+)$" { Suggest-Actions -Goal $Matches[1]; break }
 
   "^open-dashboard$" { Open-Dashboard; break }

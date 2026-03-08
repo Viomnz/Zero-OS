@@ -339,6 +339,111 @@ from zero_os.rcrp import (
     status as rcrp_status,
     token_set as rcrp_token_set,
 )
+from zero_os.serp import (
+    analyze as serp_analyze,
+    deploy_staged as serp_deploy_staged,
+    mutation_propose as serp_mutation_propose,
+    rollback as serp_rollback,
+    state_export as serp_state_export,
+    state_import as serp_state_import,
+    status as serp_status,
+    telemetry_submit as serp_telemetry_submit,
+)
+from zero_os.autonomous_runtime_ecosystem import (
+    ai_optimize as are_ai_optimize,
+    ecosystem_grade as are_grade,
+    governance_propose as are_gov_propose,
+    governance_rollout as are_gov_rollout,
+    governance_simulate as are_gov_simulate,
+    governance_validate as are_gov_validate,
+    maximize as are_maximize,
+    node_register as are_node_register,
+    status as are_status,
+)
+from zero_os.hardware_runtime_fabric import (
+    evolve_application as hrf_evolve_application,
+    fabric_dispatch as hrf_fabric_dispatch,
+    fabric_node_register as hrf_fabric_node_register,
+    fabric_status as hrf_fabric_status,
+    hardware_maximize as hrf_hardware_maximize,
+    hardware_set as hrf_hardware_set,
+    memory_get as hrf_memory_get,
+    memory_learn as hrf_memory_learn,
+    status as hrf_status,
+)
+from zero_os.ria import (
+    execute as ria_execute,
+    program_register as ria_program_register,
+    program_validate as ria_program_validate,
+    status as ria_status,
+)
+from zero_os.runtime_economy import (
+    actor_register as re_actor_register,
+    contribution_record as re_contribution_record,
+    payout as re_payout,
+    status as re_status,
+)
+from zero_os.platform_blueprint import (
+    scaffold as pb_scaffold,
+    status as pb_status,
+)
+from zero_os.native_store_backend import (
+    backup_db as nsb_backup_db,
+    charge_user as nsb_charge_user,
+    create_user as nsb_create_user,
+    init_db as nsb_init_db,
+    issue_token as nsb_issue_token,
+    record_event as nsb_record_event,
+    restore_db as nsb_restore_db,
+    scaffold_deploy as nsb_scaffold_deploy,
+    status as nsb_status,
+)
+from zero_os.native_store_desktop import (
+    launch as nsd_launch,
+    scaffold as nsd_scaffold,
+)
+from zero_os.native_store_enterprise_ops import (
+    backend_prod_set as nseo_backend_prod_set,
+    deployed_test_record as nseo_deployed_test_record,
+    desktop_prod_set as nseo_desktop_prod_set,
+    ops_governance_set as nseo_ops_governance_set,
+    secrets_platform_set as nseo_secrets_platform_set,
+    signing_provider_set as nseo_signing_provider_set,
+    status as nseo_status,
+    vendor_channel_configure as nseo_vendor_channel_configure,
+)
+from zero_os.native_app_store import (
+    backend_integrate as nas_backend_integrate,
+    build_linux_native as nas_build_linux_native,
+    build_macos_native as nas_build_macos_native,
+    build_mobile_distribution as nas_build_mobile_distribution,
+    build_windows_native as nas_build_windows_native,
+    cert_rotate as nas_cert_rotate,
+    e2e_runner as nas_e2e_runner,
+    gui_set as nas_gui_set,
+    incident_open as nas_incident_open,
+    install as nas_install,
+    installer_service_set as nas_installer_service_set,
+    maximize as nas_maximize,
+    notarize_release as nas_notarize_release,
+    pipeline_run as nas_pipeline_run,
+    release_prepare as nas_release_prepare,
+    rollback_checkpoint as nas_rollback_checkpoint,
+    rollback_restore as nas_rollback_restore,
+    scaffold_backend as nas_scaffold_backend,
+    scaffold_desktop_production as nas_scaffold_desktop_production,
+    scaffold_gui_client as nas_scaffold_gui_client,
+    scaffold_installer_services as nas_scaffold_installer_services,
+    scaffold_vendor_artifacts as nas_scaffold_vendor_artifacts,
+    secret_set as nas_secret_set,
+    sign_artifact as nas_sign_artifact,
+    status as nas_status,
+    stress_test as nas_stress_test,
+    trust_channel_set as nas_trust_channel_set,
+    uninstall as nas_uninstall,
+    upgrade as nas_upgrade,
+    verify_artifact as nas_verify_artifact,
+)
 
 
 class SystemCapability:
@@ -506,6 +611,16 @@ class SystemCapability:
             "runtime protocol ecosystem",
             "rcrp ",
             "recursive capability runtime protocol",
+            "serp ",
+            "self-evolving runtime protocol",
+            "autonomous runtime ecosystem",
+            "hardware runtime",
+            "runtime fabric",
+            "ria ",
+            "runtime economy",
+            "platform blueprint",
+            "idea to platform",
+            "native store",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -914,6 +1029,337 @@ class SystemCapability:
         rcrp_l = re.match(r"^rcrp learning observe\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
         if rcrp_l:
             return Result(self.name, json.dumps(rcrp_learning_observe(task.cwd, rcrp_l.group(1)), indent=2))
+        if text.strip() in {"serp status", "self-evolving runtime protocol status"}:
+            return Result(self.name, json.dumps(serp_status(task.cwd), indent=2))
+        serp_t = re.match(
+            r"^serp telemetry submit\s+node=(\S+)\s+region=(\S+)\s+cpu=(\d+(?:\.\d+)?)\s+memory=(\d+(?:\.\d+)?)\s+gpu=(\d+(?:\.\d+)?)\s+latency=(\d+(?:\.\d+)?)\s+energy=(\d+(?:\.\d+)?)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if serp_t:
+            return Result(
+                self.name,
+                json.dumps(
+                    serp_telemetry_submit(
+                        task.cwd,
+                        serp_t.group(1),
+                        serp_t.group(2),
+                        float(serp_t.group(3)),
+                        float(serp_t.group(4)),
+                        float(serp_t.group(5)),
+                        float(serp_t.group(6)),
+                        float(serp_t.group(7)),
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "serp analyze":
+            return Result(self.name, json.dumps(serp_analyze(task.cwd), indent=2))
+        serp_m = re.match(r"^serp mutation propose\s+component=(\S+)\s+strategy=(\S+)\s+signer=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if serp_m:
+            return Result(self.name, json.dumps(serp_mutation_propose(task.cwd, serp_m.group(1), serp_m.group(2), serp_m.group(3)), indent=2))
+        serp_d = re.match(r"^serp deploy staged\s+mutation=(\S+)\s+percent=(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if serp_d:
+            return Result(self.name, json.dumps(serp_deploy_staged(task.cwd, serp_d.group(1), int(serp_d.group(2))), indent=2))
+        if text.strip() == "serp rollback":
+            return Result(self.name, json.dumps(serp_rollback(task.cwd), indent=2))
+        serp_se = re.match(r"^serp state export\s+app=([A-Za-z0-9._-]+)\s+json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if serp_se:
+            return Result(self.name, json.dumps(serp_state_export(task.cwd, serp_se.group(1), serp_se.group(2)), indent=2))
+        serp_si = re.match(r"^serp state import\s+id=(\S+)\s+target=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if serp_si:
+            return Result(self.name, json.dumps(serp_state_import(task.cwd, serp_si.group(1), serp_si.group(2)), indent=2))
+        if text.strip() in {"autonomous runtime ecosystem status", "global autonomous runtime ecosystem status"}:
+            return Result(self.name, json.dumps(are_status(task.cwd), indent=2))
+        are_node = re.match(r"^autonomous runtime ecosystem node register\s+role=(\S+)\s+name=(\S+)(?:\s+os=(\S+))?(?:\s+power=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if are_node:
+            return Result(
+                self.name,
+                json.dumps(
+                    are_node_register(
+                        task.cwd,
+                        are_node.group(1),
+                        are_node.group(2),
+                        are_node.group(3) or "linux",
+                        are_node.group(4) or "normal",
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "autonomous runtime ecosystem optimize":
+            return Result(self.name, json.dumps(are_ai_optimize(task.cwd), indent=2))
+        are_prop = re.match(r"^autonomous runtime ecosystem governance propose\s+component=(\S+)\s+strategy=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if are_prop:
+            return Result(self.name, json.dumps(are_gov_propose(task.cwd, are_prop.group(1), are_prop.group(2)), indent=2))
+        if text.strip() == "autonomous runtime ecosystem governance simulate":
+            return Result(self.name, json.dumps(are_gov_simulate(task.cwd), indent=2))
+        are_roll = re.match(r"^autonomous runtime ecosystem governance rollout\s+percent=(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if are_roll:
+            return Result(self.name, json.dumps(are_gov_rollout(task.cwd, int(are_roll.group(1))), indent=2))
+        if text.strip() == "autonomous runtime ecosystem governance validate":
+            return Result(self.name, json.dumps(are_gov_validate(task.cwd), indent=2))
+        if text.strip() == "autonomous runtime ecosystem grade":
+            return Result(self.name, json.dumps(are_grade(task.cwd), indent=2))
+        if text.strip() in {"autonomous runtime ecosystem maximize", "maximize autonomous runtime protocol ecosystem"}:
+            return Result(self.name, json.dumps(are_maximize(task.cwd), indent=2))
+        if text.strip() == "hardware runtime status":
+            return Result(self.name, json.dumps(hrf_status(task.cwd), indent=2))
+        hrf_hw = re.match(
+            r"^hardware runtime set(?:\s+accelerator=(on|off))?(?:\s+security=(on|off))?(?:\s+memory=(on|off))?(?:\s+network=(on|off))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if hrf_hw:
+            return Result(
+                self.name,
+                json.dumps(
+                    hrf_hardware_set(
+                        task.cwd,
+                        None if not hrf_hw.group(1) else (hrf_hw.group(1).lower() == "on"),
+                        None if not hrf_hw.group(2) else (hrf_hw.group(2).lower() == "on"),
+                        None if not hrf_hw.group(3) else (hrf_hw.group(3).lower() == "on"),
+                        None if not hrf_hw.group(4) else (hrf_hw.group(4).lower() == "on"),
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "hardware runtime maximize":
+            return Result(self.name, json.dumps(hrf_hardware_maximize(task.cwd), indent=2))
+        hrf_evo = re.match(r"^runtime evolve app\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if hrf_evo:
+            return Result(self.name, json.dumps(hrf_evolve_application(task.cwd, hrf_evo.group(1)), indent=2))
+        hrf_ml = re.match(r"^runtime memory learn\s+app=([A-Za-z0-9._-]+)\s+key=(\S+)\s+value=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if hrf_ml:
+            return Result(self.name, json.dumps(hrf_memory_learn(task.cwd, hrf_ml.group(1), hrf_ml.group(2), hrf_ml.group(3)), indent=2))
+        hrf_mg = re.match(r"^runtime memory get\s+app=([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if hrf_mg:
+            return Result(self.name, json.dumps(hrf_memory_get(task.cwd, hrf_mg.group(1)), indent=2))
+        hrf_fn = re.match(r"^runtime fabric node register\s+name=(\S+)\s+power=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if hrf_fn:
+            return Result(self.name, json.dumps(hrf_fabric_node_register(task.cwd, hrf_fn.group(1), hrf_fn.group(2)), indent=2))
+        hrf_fd = re.match(r"^runtime fabric dispatch\s+app=([A-Za-z0-9._-]+)\s+task=(\S+)(?:\s+nodes=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if hrf_fd:
+            nodes = int(hrf_fd.group(3)) if hrf_fd.group(3) else 1
+            return Result(self.name, json.dumps(hrf_fabric_dispatch(task.cwd, hrf_fd.group(1), hrf_fd.group(2), nodes), indent=2))
+        if text.strip() == "runtime fabric status":
+            return Result(self.name, json.dumps(hrf_fabric_status(task.cwd), indent=2))
+        if text.strip() == "ria status":
+            return Result(self.name, json.dumps(ria_status(task.cwd), indent=2))
+        ria_reg = re.match(r"^ria program register\s+app=([A-Za-z0-9._-]+)\s+json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if ria_reg:
+            return Result(self.name, json.dumps(ria_program_register(task.cwd, ria_reg.group(1), ria_reg.group(2)), indent=2))
+        ria_val = re.match(r"^ria program validate\s+id=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if ria_val:
+            return Result(self.name, json.dumps(ria_program_validate(task.cwd, ria_val.group(1)), indent=2))
+        ria_ex = re.match(r"^ria execute\s+id=(\S+)(?:\s+caps=(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ria_ex:
+            return Result(self.name, json.dumps(ria_execute(task.cwd, ria_ex.group(1), ria_ex.group(2) or "{}"), indent=2))
+        if text.strip() == "runtime economy status":
+            return Result(self.name, json.dumps(re_status(task.cwd), indent=2))
+        rea = re.match(r"^runtime economy actor register\s+role=(\S+)\s+name=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rea:
+            return Result(self.name, json.dumps(re_actor_register(task.cwd, rea.group(1), rea.group(2)), indent=2))
+        rec = re.match(r"^runtime economy contribution\s+actor=(\S+)\s+kind=(\S+)\s+units=(\d+(?:\.\d+)?)$", raw.strip(), flags=re.IGNORECASE)
+        if rec:
+            return Result(self.name, json.dumps(re_contribution_record(task.cwd, rec.group(1), rec.group(2), float(rec.group(3))), indent=2))
+        rep = re.match(r"^runtime economy payout\s+actor=(\S+)\s+amount=(\d+(?:\.\d+)?)$", raw.strip(), flags=re.IGNORECASE)
+        if rep:
+            return Result(self.name, json.dumps(re_payout(task.cwd, rep.group(1), float(rep.group(2))), indent=2))
+        if text.strip() in {"platform blueprint status", "idea to platform status"}:
+            return Result(self.name, json.dumps(pb_status(task.cwd), indent=2))
+        if text.strip() in {"platform blueprint scaffold", "idea to platform scaffold"}:
+            return Result(self.name, json.dumps(pb_scaffold(task.cwd), indent=2))
+        if text.strip() == "native store status":
+            return Result(self.name, json.dumps(nas_status(task.cwd), indent=2))
+        if text.strip() == "native store enterprise status":
+            return Result(self.name, json.dumps(nseo_status(task.cwd), indent=2))
+        nseos = re.match(r"^native store enterprise signing set\s+type=(\S+)\s+name=(\S+)\s+key=(\S+)\s+hsm=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nseos:
+            return Result(self.name, json.dumps(nseo_signing_provider_set(task.cwd, nseos.group(1), nseos.group(2), nseos.group(3), nseos.group(4).lower() == "on"), indent=2))
+        nseov = re.match(r"^native store enterprise vendor configure\s+channel=(\S+)\s+identity=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nseov:
+            return Result(self.name, json.dumps(nseo_vendor_channel_configure(task.cwd, nseov.group(1), nseov.group(2)), indent=2))
+        nseob = re.match(
+            r"^native store enterprise backend set\s+replicas=(\d+)\s+tls=(on|off)\s+monitoring=(on|off)\s+alerting=(on|off)\s+storage=(on|off)\s+dr=(\S+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if nseob:
+            return Result(
+                self.name,
+                json.dumps(
+                    nseo_backend_prod_set(
+                        task.cwd,
+                        int(nseob.group(1)),
+                        nseob.group(2).lower() == "on",
+                        nseob.group(3).lower() == "on",
+                        nseob.group(4).lower() == "on",
+                        nseob.group(5).lower() == "on",
+                        nseob.group(6),
+                    ),
+                    indent=2,
+                ),
+            )
+        nseod = re.match(
+            r"^native store enterprise desktop set\s+binary=(on|off)\s+updater=(on|off)\s+service=(on|off)\s+registration=(on|off)\s+crash=(on|off)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if nseod:
+            return Result(
+                self.name,
+                json.dumps(
+                    nseo_desktop_prod_set(
+                        task.cwd,
+                        nseod.group(1).lower() == "on",
+                        nseod.group(2).lower() == "on",
+                        nseod.group(3).lower() == "on",
+                        nseod.group(4).lower() == "on",
+                        nseod.group(5).lower() == "on",
+                    ),
+                    indent=2,
+                ),
+            )
+        nseosp = re.match(r"^native store enterprise secrets set\s+provider=(\S+)\s+ca=(\S+)\s+revocation=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nseosp:
+            return Result(self.name, json.dumps(nseo_secrets_platform_set(task.cwd, nseosp.group(1), nseosp.group(2), nseosp.group(3).lower() == "on"), indent=2))
+        nseog = re.match(r"^native store enterprise governance set\s+oncall=(\S+)\s+approvers=(\S+)\s+freeze=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nseog:
+            oncall = [x for x in nseog.group(1).split(",") if x]
+            approvers = [x for x in nseog.group(2).split(",") if x]
+            return Result(self.name, json.dumps(nseo_ops_governance_set(task.cwd, oncall, approvers, nseog.group(3).lower() == "on"), indent=2))
+        nseot = re.match(r"^native store enterprise deployed test\s+target=(\S+)\s+passed=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nseot:
+            return Result(self.name, json.dumps(nseo_deployed_test_record(task.cwd, nseot.group(1), nseot.group(2).lower() == "on"), indent=2))
+        nsv = re.match(r"^native store scaffold vendor\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsv:
+            return Result(self.name, json.dumps(nas_scaffold_vendor_artifacts(task.cwd, nsv.group(1), nsv.group(2)), indent=2))
+        if text.strip() == "native store scaffold services":
+            return Result(self.name, json.dumps(nas_scaffold_installer_services(task.cwd), indent=2))
+        if text.strip() == "native store scaffold backend":
+            return Result(self.name, json.dumps(nas_scaffold_backend(task.cwd), indent=2))
+        if text.strip() == "native store scaffold gui":
+            return Result(self.name, json.dumps(nas_scaffold_gui_client(task.cwd), indent=2))
+        if text.strip() == "native store backend init":
+            return Result(self.name, json.dumps(nsb_init_db(task.cwd), indent=2))
+        if text.strip() == "native store backend status":
+            return Result(self.name, json.dumps(nsb_status(task.cwd), indent=2))
+        if text.strip() == "native store backend deploy scaffold":
+            return Result(self.name, json.dumps(nsb_scaffold_deploy(task.cwd), indent=2))
+        nsbb = re.match(r"^native store backend backup(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsbb:
+            return Result(self.name, json.dumps(nsb_backup_db(task.cwd, nsbb.group(1) or ""), indent=2))
+        nsbr = re.match(r"^native store backend restore\s+path=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsbr:
+            return Result(self.name, json.dumps(nsb_restore_db(task.cwd, nsbr.group(1)), indent=2))
+        nsbu = re.match(r"^native store backend user create\s+id=(\S+)\s+email=(\S+)\s+tier=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsbu:
+            return Result(self.name, json.dumps(nsb_create_user(task.cwd, nsbu.group(1), nsbu.group(2), nsbu.group(3)), indent=2))
+        nsbt = re.match(r"^native store backend token issue\s+id=(\S+)\s+scope=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsbt:
+            return Result(self.name, json.dumps(nsb_issue_token(task.cwd, nsbt.group(1), nsbt.group(2)), indent=2))
+        nsbc = re.match(r"^native store backend charge\s+id=(\S+)\s+user=(\S+)\s+amount=(\d+(?:\.\d+)?)\s+currency=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsbc:
+            return Result(self.name, json.dumps(nsb_charge_user(task.cwd, nsbc.group(1), nsbc.group(2), float(nsbc.group(3)), nsbc.group(4)), indent=2))
+        nsbe = re.match(r"^native store backend event\s+kind=(\S+)\s+json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsbe:
+            try:
+                payload = json.loads(nsbe.group(2))
+            except Exception as exc:
+                return Result(self.name, json.dumps({"ok": False, "reason": f"invalid json: {exc}"}, indent=2))
+            return Result(self.name, json.dumps(nsb_record_event(task.cwd, nsbe.group(1), payload), indent=2))
+        if text.strip() == "native store desktop scaffold":
+            return Result(self.name, json.dumps(nsd_scaffold(task.cwd), indent=2))
+        if text.strip() == "native store desktop launch":
+            return Result(self.name, json.dumps(nsd_launch(task.cwd), indent=2))
+        nsw = re.match(r"^native store build windows\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsw:
+            return Result(self.name, json.dumps(nas_build_windows_native(task.cwd, nsw.group(1), nsw.group(2)), indent=2))
+        nsl = re.match(r"^native store build linux\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsl:
+            return Result(self.name, json.dumps(nas_build_linux_native(task.cwd, nsl.group(1), nsl.group(2)), indent=2))
+        nsm = re.match(r"^native store build macos\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)(?:\s+signer=(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsm:
+            return Result(self.name, json.dumps(nas_build_macos_native(task.cwd, nsm.group(1), nsm.group(2), nsm.group(3) or "Developer ID Application: Zero OS"), indent=2))
+        nsmob = re.match(r"^native store build mobile\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsmob:
+            return Result(self.name, json.dumps(nas_build_mobile_distribution(task.cwd, nsmob.group(1), nsmob.group(2)), indent=2))
+        nsp = re.match(r"^native store pipeline run\s+app=([A-Za-z0-9._-]+)\s+os=(\S+)(?:\s+format=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsp:
+            return Result(self.name, json.dumps(nas_pipeline_run(task.cwd, nsp.group(1), nsp.group(2), nsp.group(3) or ""), indent=2))
+        nsi = re.match(r"^native store install\s+app=([A-Za-z0-9._-]+)(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsi:
+            return Result(self.name, json.dumps(nas_install(task.cwd, nsi.group(1), nsi.group(2) or ""), indent=2))
+        nsu = re.match(r"^native store uninstall\s+id=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsu:
+            return Result(self.name, json.dumps(nas_uninstall(task.cwd, nsu.group(1)), indent=2))
+        nsg = re.match(r"^native store upgrade\s+id=(\S+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsg:
+            return Result(self.name, json.dumps(nas_upgrade(task.cwd, nsg.group(1), nsg.group(2)), indent=2))
+        nss = re.match(r"^native store service set\s+os=(\S+)\s+enabled=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nss:
+            return Result(self.name, json.dumps(nas_installer_service_set(task.cwd, nss.group(1), nss.group(2).lower() == "on"), indent=2))
+        nst = re.match(r"^native store trust channel set\s+name=(\S+)\s+signed=(on|off)\s+notarization=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nst:
+            return Result(
+                self.name,
+                json.dumps(nas_trust_channel_set(task.cwd, nst.group(1), nst.group(2).lower() == "on", nst.group(3).lower() == "on"), indent=2),
+            )
+        nsn = re.match(r"^native store notarize\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)\s+signer=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsn:
+            return Result(self.name, json.dumps(nas_notarize_release(task.cwd, nsn.group(1), nsn.group(2), nsn.group(3)), indent=2))
+        nsb = re.match(r"^native store backend integrate\s+component=(\S+)\s+provider=(\S+)\s+enabled=(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if nsb:
+            return Result(
+                self.name,
+                json.dumps(nas_backend_integrate(task.cwd, nsb.group(1), nsb.group(2), nsb.group(3).lower() == "on"), indent=2),
+            )
+        nsgu = re.match(r"^native store gui set(?:\s+first_run=(on|off))?(?:\s+deep=(on|off))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsgu:
+            first_run = None if not nsgu.group(1) else (nsgu.group(1).lower() == "on")
+            deep = None if not nsgu.group(2) else (nsgu.group(2).lower() == "on")
+            return Result(self.name, json.dumps(nas_gui_set(task.cwd, first_run, deep), indent=2))
+        nsdp = re.match(r"^native store desktop package\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsdp:
+            return Result(self.name, json.dumps(nas_scaffold_desktop_production(task.cwd, nsdp.group(1), nsdp.group(2)), indent=2))
+        nsss = re.match(r"^native store secret set\s+name=(\S+)\s+value=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsss:
+            return Result(self.name, json.dumps(nas_secret_set(task.cwd, nsss.group(1), nsss.group(2)), indent=2))
+        nscr = re.match(r"^native store cert rotate\s+name=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nscr:
+            return Result(self.name, json.dumps(nas_cert_rotate(task.cwd, nscr.group(1)), indent=2))
+        nsrc = re.match(r"^native store rollback checkpoint\s+name=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsrc:
+            return Result(self.name, json.dumps(nas_rollback_checkpoint(task.cwd, nsrc.group(1)), indent=2))
+        nsrr = re.match(r"^native store rollback restore\s+name=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsrr:
+            return Result(self.name, json.dumps(nas_rollback_restore(task.cwd, nsrr.group(1)), indent=2))
+        nsio = re.match(r"^native store incident open\s+severity=(\S+)\s+summary=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsio:
+            return Result(self.name, json.dumps(nas_incident_open(task.cwd, nsio.group(1), nsio.group(2)), indent=2))
+        nsst = re.match(r"^native store stress test\s+traffic=(\d+)\s+abuse=(\d+)\s+failures=(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsst:
+            return Result(self.name, json.dumps(nas_stress_test(task.cwd, int(nsst.group(1)), int(nsst.group(2)), int(nsst.group(3))), indent=2))
+        nsrp = re.match(r"^native store release prepare\s+version=(\S+)(?:\s+channel=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsrp:
+            return Result(self.name, json.dumps(nas_release_prepare(task.cwd, nsrp.group(1), nsrp.group(2) or "stable"), indent=2))
+        nssa = re.match(r"^native store artifact sign\s+path=(.+?)\s+signer=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nssa:
+            return Result(self.name, json.dumps(nas_sign_artifact(task.cwd, nssa.group(1), nssa.group(2)), indent=2))
+        nsvf = re.match(r"^native store artifact verify\s+path=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsvf:
+            return Result(self.name, json.dumps(nas_verify_artifact(task.cwd, nsvf.group(1)), indent=2))
+        nse2e = re.match(r"^native store e2e run\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)\s+traffic=(\d+)\s+abuse=(\d+)\s+failures=(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if nse2e:
+            return Result(
+                self.name,
+                json.dumps(
+                    nas_e2e_runner(task.cwd, nse2e.group(1), nse2e.group(2), int(nse2e.group(3)), int(nse2e.group(4)), int(nse2e.group(5))),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "native store maximize":
+            return Result(self.name, json.dumps(nas_maximize(task.cwd), indent=2))
 
         if text.strip() == "antivirus status":
             data = {
@@ -1926,6 +2372,91 @@ class SystemCapability:
             "- rcrp mesh node register name=<node> power=<tier>\n"
             "- rcrp migrate app=<name> plan=<plan_id> target=<node_id>\n"
             "- rcrp learning observe <observation>\n"
+            "- serp status\n"
+            "- serp telemetry submit node=<n> region=<r> cpu=<p> memory=<p> gpu=<p> latency=<ms> energy=<p>\n"
+            "- serp analyze\n"
+            "- serp mutation propose component=<scheduler|memory|translator|gpu> strategy=<name> signer=<id>\n"
+            "- serp deploy staged mutation=<id> percent=<1..100>\n"
+            "- serp rollback\n"
+            "- serp state export app=<name> json=<state_json>\n"
+            "- serp state import id=<state_id> target=<node>\n"
+            "- autonomous runtime ecosystem status\n"
+            "- autonomous runtime ecosystem node register role=<edge|compute|coordination|archive> name=<n> [os=<os>] [power=<p>]\n"
+            "- autonomous runtime ecosystem optimize\n"
+            "- autonomous runtime ecosystem governance propose component=<name> strategy=<name>\n"
+            "- autonomous runtime ecosystem governance simulate\n"
+            "- autonomous runtime ecosystem governance rollout percent=<1..100>\n"
+            "- autonomous runtime ecosystem governance validate\n"
+            "- autonomous runtime ecosystem grade\n"
+            "- autonomous runtime ecosystem maximize\n"
+            "- hardware runtime status\n"
+            "- hardware runtime set [accelerator=on|off] [security=on|off] [memory=on|off] [network=on|off]\n"
+            "- hardware runtime maximize\n"
+            "- runtime evolve app <app_name>\n"
+            "- runtime memory learn app=<name> key=<k> value=<v>\n"
+            "- runtime memory get app=<name>\n"
+            "- runtime fabric node register name=<node> power=<tier>\n"
+            "- runtime fabric dispatch app=<name> task=<task> [nodes=<n>]\n"
+            "- runtime fabric status\n"
+            "- ria status\n"
+            "- ria program register app=<name> json=<instruction_json>\n"
+            "- ria program validate id=<program_id>\n"
+            "- ria execute id=<program_id> [caps=<json>]\n"
+            "- runtime economy status\n"
+            "- runtime economy actor register role=<developer|runtime_node_operator|storage_node|optimization_node> name=<name>\n"
+            "- runtime economy contribution actor=<id> kind=<compute|bandwidth|optimization> units=<n>\n"
+            "- runtime economy payout actor=<id> amount=<n>\n"
+            "- platform blueprint status\n"
+            "- platform blueprint scaffold\n"
+            "- native store status\n"
+            "- native store enterprise status\n"
+            "- native store enterprise signing set type=<kms|hsm> name=<provider> key=<ref> hsm=<on|off>\n"
+            "- native store enterprise vendor configure channel=<microsoft|apple|google_play|app_store_connect> identity=<id>\n"
+            "- native store enterprise backend set replicas=<n> tls=<on|off> monitoring=<on|off> alerting=<on|off> storage=<on|off> dr=<strategy>\n"
+            "- native store enterprise desktop set binary=<on|off> updater=<on|off> service=<on|off> registration=<on|off> crash=<on|off>\n"
+            "- native store enterprise secrets set provider=<name> ca=<name> revocation=<on|off>\n"
+            "- native store enterprise governance set oncall=<a,b> approvers=<a,b> freeze=<on|off>\n"
+            "- native store enterprise deployed test target=<env> passed=<on|off>\n"
+            "- native store scaffold vendor app=<name> version=<v>\n"
+            "- native store scaffold services\n"
+            "- native store scaffold backend\n"
+            "- native store scaffold gui\n"
+            "- native store backend init\n"
+            "- native store backend status\n"
+            "- native store backend deploy scaffold\n"
+            "- native store backend backup [name=<name>]\n"
+            "- native store backend restore path=<backup_path>\n"
+            "- native store backend user create id=<id> email=<email> tier=<tier>\n"
+            "- native store backend token issue id=<id> scope=<scope>\n"
+            "- native store backend charge id=<charge_id> user=<user_id> amount=<n> currency=<code>\n"
+            "- native store backend event kind=<name> json=<json>\n"
+            "- native store desktop scaffold\n"
+            "- native store desktop launch\n"
+            "- native store build windows app=<name> version=<v>\n"
+            "- native store build linux app=<name> version=<v>\n"
+            "- native store build macos app=<name> version=<v> [signer=<identity>]\n"
+            "- native store build mobile app=<name> version=<v>\n"
+            "- native store pipeline run app=<name> os=<windows|linux|macos|android|ios> [format=<msix|msi|deb|rpm|pkg|app|apk|ipa>]\n"
+            "- native store install app=<name> [os=<target_os>]\n"
+            "- native store uninstall id=<install_id>\n"
+            "- native store upgrade id=<install_id> version=<v>\n"
+            "- native store service set os=<windows|linux|macos|android|ios> enabled=<on|off>\n"
+            "- native store trust channel set name=<stable|beta> signed=<on|off> notarization=<on|off>\n"
+            "- native store notarize app=<name> version=<v> signer=<id>\n"
+            "- native store backend integrate component=<identity|payments|fraud|cdn|compliance|legal_ops> provider=<name> enabled=<on|off>\n"
+            "- native store gui set [first_run=<on|off>] [deep=<on|off>]\n"
+            "- native store desktop package app=<name> version=<v>\n"
+            "- native store secret set name=<name> value=<value>\n"
+            "- native store cert rotate name=<cert>\n"
+            "- native store rollback checkpoint name=<checkpoint>\n"
+            "- native store rollback restore name=<checkpoint>\n"
+            "- native store incident open severity=<sev> summary=<text>\n"
+            "- native store stress test traffic=<n> abuse=<n> failures=<n>\n"
+            "- native store release prepare version=<v> [channel=<stable|beta|canary>]\n"
+            "- native store artifact sign path=<artifact_path> signer=<name>\n"
+            "- native store artifact verify path=<artifact_path>\n"
+            "- native store e2e run app=<name> version=<v> traffic=<n> abuse=<n> failures=<n>\n"
+            "- native store maximize\n"
             "- universal runtime install [version=<v>]\n"
             "- universal runtime status\n"
             "- universal adapters status\n"

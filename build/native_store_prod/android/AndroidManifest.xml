@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest package="zero.store.zerostore">
+  <application android:label="ZeroStore" />
+</manifest>

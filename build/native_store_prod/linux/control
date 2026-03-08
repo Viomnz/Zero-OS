@@ -1,0 +1,7 @@
+Package: zerostore
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Zero OS
+Description: Native Zero OS package for ZeroStore

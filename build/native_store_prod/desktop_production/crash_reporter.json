@@ -1,0 +1,4 @@
+{
+  "endpoint": "https://crash.zero-os.local/report",
+  "minidump": true
+}

@@ -31,6 +31,157 @@ jobs:
         run: |
           python -m pytest -q tests/test_enterprise_security.py tests/test_resilience.py tests/test_kernel_stack.py tests/test_real_os_status.py tests/test_native_boot_ops.py tests/test_native_dev_ecosystem.py
 
+  native-store-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Install WiX toolset
+        shell: powershell
+        run: |
+          choco install wixtoolset --no-progress -y
+          $wixBin = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+          if (-not (Test-Path $wixBin)) {
+            Write-Error "WiX bin directory not found at $wixBin"
+          }
+          "$wixBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Add makeappx from Windows SDK
+        shell: powershell
+        run: |
+          $kitsRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
+          if (-not (Test-Path $kitsRoot)) {
+            Write-Error "Windows SDK bin root not found at $kitsRoot"
+          }
+          $makeappx = Get-ChildItem -Path $kitsRoot -Recurse -Filter makeappx.exe -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $makeappx) {
+            Write-Error "makeappx.exe not found under $kitsRoot"
+          }
+          $makeappx.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Native store status smoke
+        run: |
+          python src/main.py "native store status"
+
+      - name: Require Windows packaging toolchain
+        shell: powershell
+        run: |
+          $missing = @()
+          if (-not (Get-Command makeappx -ErrorAction SilentlyContinue)) { $missing += "makeappx" }
+          if (-not (Get-Command candle -ErrorAction SilentlyContinue)) { $missing += "candle" }
+          if (-not (Get-Command light -ErrorAction SilentlyContinue)) { $missing += "light" }
+          if ($missing.Count -gt 0) {
+            Write-Error ("Missing required Windows packaging tools: " + ($missing -join ", "))
+          }
+
+      - name: Windows native packaging smoke
+        run: |
+          python src/main.py "native store build windows app=ZeroStore version=1.0"
+
+      - name: Native store tests
+        run: |
+          python -m pytest -q tests/test_native_app_store.py
+
+      - name: Upload Windows native store artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-store-windows
+          path: build/native_store_prod/windows
+          if-no-files-found: warn
+
+  native-store-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packaging toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Native store status smoke
+        run: |
+          python src/main.py "native store status"
+
+      - name: Require Linux packaging toolchain
+        run: |
+          command -v dpkg-deb >/dev/null 2>&1 || { echo "Missing required tool: dpkg-deb" >&2; exit 1; }
+          command -v rpmbuild >/dev/null 2>&1 || { echo "Missing required tool: rpmbuild" >&2; exit 1; }
+
+      - name: Linux native packaging smoke
+        run: |
+          python src/main.py "native store build linux app=ZeroStore version=1.0"
+
+      - name: Native store tests
+        run: |
+          python -m pytest -q tests/test_native_app_store.py
+
+      - name: Upload Linux native store artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-store-linux
+          path: build/native_store_prod/linux
+          if-no-files-found: warn
+
+  native-store-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Native store status smoke
+        run: |
+          python src/main.py "native store status"
+
+      - name: macOS native packaging smoke
+        run: |
+          python src/main.py "native store build macos app=ZeroStore version=1.0"
+
+      - name: Native store tests
+        run: |
+          python -m pytest -q tests/test_native_app_store.py
+
+      - name: Upload macOS native store artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-store-macos
+          path: build/native_store_prod/macos
+          if-no-files-found: warn
+
   native-integration:
     runs-on: ubuntu-latest
     steps:
