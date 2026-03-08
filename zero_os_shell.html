@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -40,7 +40,7 @@
       height: calc(100% - var(--taskbar-h));
       padding: 18px;
       display: grid;
-      grid-template-columns: 270px 1fr;
+      grid-template-columns: 290px 1fr;
       gap: 14px;
     }
 
@@ -103,7 +103,7 @@
     .window .content {
       padding: 12px;
       font-size: 12px;
-      max-height: 300px;
+      max-height: 320px;
       overflow: auto;
       color: #dfe9f8;
     }
@@ -116,6 +116,221 @@
     .ok { background: rgba(102,214,167,.2); color: var(--ok); }
     .warn { background: rgba(255,206,117,.2); color: var(--warn); }
     .bad { background: rgba(255,127,146,.2); color: var(--bad); }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      padding: 10px;
+    }
+
+    .summary-card .label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .value {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .action-list,
+    .notice-list,
+    .recent-list,
+    .task-list,
+    .drawer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-chip,
+    .notice-chip,
+    .recent-chip,
+    .task-chip,
+    .drawer-chip {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      padding: 8px 10px;
+    }
+
+    .action-chip button,
+    .task-actions button {
+      width: auto;
+      margin-top: 6px;
+    }
+
+    .task-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .chip-title {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .app-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .app-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(91, 184, 255, 0.16);
+      font-size: 16px;
+    }
+
+    .state-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .mini-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .recent-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .recent-app {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      padding: 8px 10px;
+      min-width: 120px;
+    }
+
+    .chip-copy {
+      color: #d9e6fb;
+      line-height: 1.4;
+    }
+
+    .onboarding {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .onboarding-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .onboarding-copy {
+      color: #d9e6fb;
+      margin-bottom: 10px;
+      line-height: 1.45;
+    }
+
+    .onboarding-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .details {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      overflow: hidden;
+    }
+
+    .details summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .details pre {
+      padding: 10px;
+    }
+
+    .drawer {
+      position: fixed;
+      right: 10px;
+      bottom: calc(var(--taskbar-h) + 10px);
+      width: min(360px, 92vw);
+      max-height: 60vh;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 25, 43, 0.96);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      padding: 14px;
+      display: none;
+      z-index: 101;
+    }
+
+    .drawer.show { display: block; }
 
     .taskbar {
       height: var(--taskbar-h);
@@ -166,6 +381,14 @@
     }
 
     .start-menu.show { display: block; }
+    .menu-section { margin-top: 12px; }
+    .menu-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
 
     .menu-grid {
       margin-top: 10px;
@@ -181,6 +404,13 @@
       padding: 10px;
       min-height: 72px;
       font-size: 12px;
+    }
+
+    .tile-action {
+      width: 100%;
+      text-align: left;
+      color: var(--text);
+      cursor: pointer;
     }
 
     .search {
@@ -208,8 +438,9 @@
       .win-a, .win-b, .win-c { position: relative; left: auto; right: auto; top: auto; bottom: auto; width: 100%; margin-bottom: 10px; }
       .taskbar { grid-template-columns: 1fr auto; }
       .task-center { display: none; }
+      .menu-grid, .summary-grid, .home-grid { grid-template-columns: 1fr; }
     }
-</style>
+  </style>
   <script src="zero_os_shell_bridge_config.js"></script>
 </head>
 <body>
@@ -219,8 +450,8 @@
       <div class="status-item">
         <div class="status-key">First-Run Checklist</div>
         <div class="status-val">
-          1) `.\zero_os_launcher.ps1 first-run`
-          <br/>2) `.\zero_os_launcher.ps1 open-dashboard`
+          1) `./zero_os_launcher.ps1 first-run`
+          <br/>2) `./zero_os_launcher.ps1 open-dashboard`
         </div>
       </div>
       <div class="status-item"><div class="status-key">Core</div><div class="status-val" id="v-core">Loading...</div></div>
@@ -228,6 +459,8 @@
       <div class="status-item"><div class="status-key">Security</div><div class="status-val" id="v-sec">Loading...</div></div>
       <div class="status-item"><div class="status-key">Recovery</div><div class="status-val" id="v-rec">Loading...</div></div>
       <div class="status-item"><div class="status-key">Data Feed</div><div class="status-val" id="v-hint">Checking runtime files...</div></div>
+      <div class="status-item"><div class="status-key">Last Action</div><div class="status-val" id="v-action">No action run yet</div></div>
+      <div class="status-item"><div class="status-key">Action Result</div><div class="status-val" id="v-action-detail">Use Start or the taskbar to run a task.</div></div>
       <button class="btn" id="refreshBtn">Refresh Layers</button>
       <button class="btn" id="bridgeBtn">Run Platform Status</button>
       <button class="btn" id="platformMaxBtn">Platform Maximize</button>
@@ -239,58 +472,33 @@
     <main class="canvas" id="canvas">
       <section class="window win-a" data-win>
         <div class="bar"><span>Start Layer</span><span class="badge ok">Ready</span></div>
-        <div class="content"><pre id="startLayer">Loading start layer...</pre></div>
+        <div class="content" id="startLayer">Loading start layer...</div>
       </section>
       <section class="window win-b" data-win>
         <div class="bar"><span>Security Layer</span><span class="badge warn" id="secBadge">Checking</span></div>
-        <div class="content"><pre id="securityLayer">Loading security layer...</pre></div>
+        <div class="content" id="securityLayer">Loading security layer...</div>
       </section>
       <section class="window win-c" data-win>
         <div class="bar"><span>Runtime Layer</span><span class="badge ok">Live</span></div>
-        <div class="content"><pre id="runtimeLayer">Loading runtime layer...</pre></div>
+        <div class="content" id="runtimeLayer">Loading runtime layer...</div>
       </section>
     </main>
   </div>
 
   <div class="start-menu" id="startMenu">
     <input class="search" placeholder="Search apps, commands, settings" />
-    <div class="menu-grid" id="menuGrid">
-      <div class="tile"><strong>Fix All</strong><br/>Run `fix all now`</div>
-      <div class="tile"><strong>Resilience</strong><br/>Run `resilience status`</div>
-      <div class="tile"><strong>Security</strong><br/>Run `security overview`</div>
-      <div class="tile"><strong>Unified Shell</strong><br/>Run `shell:&lt;command&gt;`</div>
-      <div class="tile"><strong>Terminal Alias</strong><br/>Run `terminal:&lt;command&gt;`</div>
-      <div class="tile"><strong>PowerShell Alias</strong><br/>Run `powershell:&lt;command&gt;`</div>
-      <div class="tile"><strong>Open Dashboard</strong><br/>Run `.\zero_os_launcher.ps1 open-dashboard`</div>
-      <div class="tile"><strong>Start Daemon</strong><br/>Run `.\zero_os_launcher.ps1 start-daemon`</div>
-      <div class="tile"><strong>Status Daemon</strong><br/>Run `.\zero_os_launcher.ps1 status-daemon`</div>
-      <div class="tile"><strong>Command Lines Book</strong><br/>Run `.\zero_os_launcher.ps1 menu`</div>
-      <div class="tile"><strong>Native Build</strong><br/>Run `.\zero_os_launcher.ps1 native-build`</div>
-      <div class="tile"><strong>Native Build All</strong><br/>Run `.\zero_os_launcher.ps1 native-build-all`</div>
-      <div class="tile"><strong>Native Smoke</strong><br/>Run `.\zero_os_launcher.ps1 native-smoke`</div>
-      <div class="tile"><strong>Native Run</strong><br/>Run `.\zero_os_launcher.ps1 native-run`</div>
-      <div class="tile"><strong>Vendor Packages</strong><br/>Run `.\zero_os_launcher.ps1 native-store-vendor:ZeroStore,1.0`</div>
-      <div class="tile"><strong>Installer Services</strong><br/>Run `.\zero_os_launcher.ps1 native-store-services`</div>
-      <div class="tile"><strong>Store Backend</strong><br/>Run `.\zero_os_launcher.ps1 native-store-backend`</div>
-      <div class="tile"><strong>Store GUI</strong><br/>Run `.\zero_os_launcher.ps1 native-store-gui`</div>
-      <div class="tile"><strong>Backend Init</strong><br/>Run `.\zero_os_launcher.ps1 native-store-backend-init`</div>
-      <div class="tile"><strong>Desktop Shell</strong><br/>Run `.\zero_os_launcher.ps1 native-store-desktop`</div>
-      <div class="tile"><strong>Windows Build</strong><br/>Run `.\zero_os_launcher.ps1 native-store-build-windows:ZeroStore,1.0`</div>
-      <div class="tile"><strong>Linux Build</strong><br/>Run `.\zero_os_launcher.ps1 native-store-build-linux:ZeroStore,1.0`</div>
-      <div class="tile"><strong>Platform Status</strong><br/>Run `.\zero_os_launcher.ps1 native-platform-status`</div>
-      <div class="tile"><strong>Platform Max</strong><br/>Run `.\zero_os_launcher.ps1 native-platform-max`</div>
-      <div class="tile"><strong>Desktop Status</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-status`</div>
-      <div class="tile"><strong>Open Zero Files</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-window:Zero Files,top`</div>
-      <div class="tile"><strong>Maximize Window</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-action:Zero Files,maximize`</div>
-      <div class="tile"><strong>Compositor</strong><br/>Run `.\zero_os_launcher.ps1 native-compositor:layer-compositor,snap,stack,blur`</div>
-      <div class="tile"><strong>Kernel Process</strong><br/>Run `.\zero_os_launcher.ps1 kernel-process-spawn:init,user`</div>
-      <div class="tile"><strong>Kernel Isolation</strong><br/>Run `.\zero_os_launcher.ps1 kernel-isolation-max`</div>
-      <div class="tile"><strong>Kernel Stack</strong><br/>Run `kernel stack status`</div>
-      <div class="tile"><strong>Trust Backup</strong><br/>Run `resilience trust backup create`</div>
-      <div class="tile"><strong>Outage Failover</strong><br/>Run `resilience outage failover`</div>
-      <div class="tile"><strong>Kernel Lockdown</strong><br/>Run `resilience kernel lockdown`</div>
-    </div>
+    <div id="menuGrid"></div>
   </div>
+
+  <aside class="drawer" id="notifyDrawer">
+    <div class="panel-title">Notification Center</div>
+    <div class="drawer-list" id="drawerList">
+      <div class="drawer-chip">
+        <div class="chip-title">Loading</div>
+        <div class="chip-copy">Notifications will appear here.</div>
+      </div>
+    </div>
+  </aside>
 
   <footer class="taskbar">
     <div class="task-left">
@@ -303,16 +511,98 @@
       <button class="btn" id="btnRuntime">Zero Runtime</button>
     </div>
     <div class="task-right">
+      <button class="btn" id="notifyBtn">Notifications</button>
       <span id="clock" class="btn"></span>
     </div>
   </footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const RECENT_KEY = "zero_os_shell_recent_v1";
+    const PIN_KEY = "zero_os_shell_pins_v1";
+    const menuSections = [
+      {
+        title: "Everyday",
+        items: [
+          { label: "Open Zero Files", desc: "Open the file workspace.", command: "native desktop window open app=Zero Files layer=top" },
+          { label: "Check System", desc: "Refresh overall platform health.", command: "native platform status" },
+          { label: "Open Security", desc: "Inspect Zero AI security posture.", command: "zero ai security status" }
+        ]
+      },
+      {
+        title: "Recovery",
+        items: [
+          { label: "Maximize Platform", desc: "Apply the current platform hardening path.", command: "native platform maximize" },
+          { label: "Check Runtime", desc: "Inspect kernel and runtime state.", command: "kernel stack status" },
+          { label: "Enable Isolation", desc: "Apply sandboxed kernel isolation.", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" }
+        ]
+      },
+      {
+        title: "Window Actions",
+        items: [
+          { label: "Maximize Zero Files", desc: "Bring the file window forward.", command: "native desktop window action app=Zero Files action=maximize" },
+          { label: "Close Zero Files", desc: "Close the current file window.", command: "native desktop window action app=Zero Files action=close" }
+        ]
+      }
+    ];
+    const menuActions = menuSections.flatMap((section) => section.items);
+    const appCatalog = [
+      { label: "Zero Files", icon: "F", desc: "File workspace and desktop storage view.", favorite: true, installed: true, command: "native desktop window open app=Zero Files layer=top" },
+      { label: "Zero Security", icon: "S", desc: "Security posture and protection review.", favorite: true, installed: true, command: "zero ai security status" },
+      { label: "Zero Runtime", icon: "R", desc: "Kernel and runtime inspection.", favorite: false, installed: true, command: "kernel stack status" },
+      { label: "System Status", icon: "P", desc: "Platform readiness and health checks.", favorite: true, installed: true, command: "native platform status" }
+    ];
 
     function tickClock() {
       const now = new Date();
       $("clock").textContent = now.toLocaleString();
+    }
+
+    function setActionFeedback(title, detail) {
+      $("v-action").textContent = title || "No action run yet";
+      $("v-action-detail").textContent = detail || "No result available";
+    }
+
+    function readRecentActions() {
+      try {
+        return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function pushRecentAction(label, detail) {
+      const next = [{ label, detail, at: new Date().toLocaleTimeString() }, ...readRecentActions()].slice(0, 5);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    }
+
+    function readPins() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PIN_KEY) || "[]");
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function writePins(labels) {
+      localStorage.setItem(PIN_KEY, JSON.stringify(labels));
+    }
+
+    function pinnedAppEntries() {
+      return appCatalog.filter((app) => isPinned(app));
+    }
+
+    function isPinned(app) {
+      const saved = readPins();
+      if (!saved.length) return Boolean(app.favorite);
+      return saved.includes(app.label);
+    }
+
+    function togglePinned(label) {
+      const saved = new Set(readPins());
+      if (saved.has(label)) saved.delete(label); else saved.add(label);
+      writePins(Array.from(saved));
     }
 
     async function loadJson(path) {
@@ -329,8 +619,11 @@
       try {
         const res = await fetch("http://127.0.0.1:8766/action", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Zero-Token": window.ZERO_SHELL_BRIDGE_TOKEN || "" },
-          body: JSON.stringify({ command }),
+          headers: {
+            "Content-Type": "application/json",
+            "X-Zero-Token": window.ZERO_SHELL_BRIDGE_TOKEN || ""
+          },
+          body: JSON.stringify({ command })
         });
         if (!res.ok) return null;
         return await res.json();
@@ -339,21 +632,254 @@
       }
     }
 
-    const menuActions = [
-      { label: "Platform Status", command: "native platform status" },
-      { label: "Platform Maximize", command: "native platform maximize" },
-      { label: "Open Zero Files", command: "native desktop window open app=Zero Files layer=top" },
-      { label: "Maximize Zero Files", command: "native desktop window action app=Zero Files action=maximize" },
-      { label: "Close Zero Files", command: "native desktop window action app=Zero Files action=close" },
-      { label: "Security Status", command: "zero ai security status" },
-      { label: "Kernel Stack", command: "kernel stack status" },
-      { label: "Kernel Isolation", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" },
-    ];
-
     function pickSecurityBadge(sec) {
       if (!sec) return { cls: "warn", txt: "Unknown" };
       if (sec.hardened || sec.mark_strict) return { cls: "ok", txt: "Hardened" };
       return { cls: "bad", txt: "Risk" };
+    }
+
+    function onboardingDecision(platform, sec, backup, triad) {
+      const hasRuntime = Boolean(platform || sec || backup || triad);
+      if (!hasRuntime) {
+        return {
+          title: "Finish setup",
+          copy: "Zero OS has not produced its runtime state yet. Run the first setup path before using the shell.",
+          actions: [
+            { label: "Check System", command: "native platform status" },
+            { label: "Open Security", command: "zero ai security status" }
+          ]
+        };
+      }
+      if (!backup || !backup.ok) {
+        return {
+          title: "Review recovery",
+          copy: "The shell can read runtime state, but recovery proof is missing or stale. Confirm recovery before relying on autonomous actions.",
+          actions: [
+            { label: "Check System", command: "native platform status" },
+            { label: "Check Runtime", command: "kernel stack status" }
+          ]
+        };
+      }
+      if (!sec || (!sec.hardened && !sec.mark_strict)) {
+        return {
+          title: "Review security",
+          copy: "The system is running, but the current security posture is not marked hardened. Review security before normal daily use.",
+          actions: [
+            { label: "Open Security", command: "zero ai security status" },
+            { label: "Enable Isolation", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" }
+          ]
+        };
+      }
+      return {
+        title: "Ready for normal use",
+        copy: "Core platform, recovery, and security signals are present. You can work normally and use the shell for everyday actions.",
+        actions: [
+          { label: "Open Zero Files", command: "native desktop window open app=Zero Files layer=top" },
+          { label: "Check System", command: "native platform status" }
+        ]
+      };
+    }
+
+    function renderOnboarding(state) {
+      return `
+        <div class="onboarding">
+          <div class="onboarding-title">${state.title}</div>
+          <div class="onboarding-copy">${state.copy}</div>
+          <div class="onboarding-actions">
+            ${state.actions.map((action) => `<button class="btn" data-onboard-command="${action.command}" data-onboard-label="${action.label}">${action.label}</button>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSummaryCards(items) {
+      return `<div class="summary-grid">${items.map((item) => `
+        <div class="summary-card">
+          <div class="label">${item.label}</div>
+          <div class="value">${item.value}</div>
+        </div>`).join("")}</div>`;
+    }
+
+    function renderDetails(title, data) {
+      return `<details class="details"><summary>${title}</summary><pre>${JSON.stringify(data, null, 2)}</pre></details>`;
+    }
+
+    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) {
+      const notices = [];
+      if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
+      if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
+      if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
+      if (!notices.length) notices.push({ title: "No urgent alerts", copy: "System alerts are currently quiet." });
+
+      const recents = readRecentActions();
+      const recentApps = appCatalog.filter((app) => recents.some((item) => String(item.label || "").includes(app.label))).slice(0, 4);
+      const pinned = pinnedAppEntries();
+      return `
+        <div class="home-grid">
+          <section class="panel">
+            <div class="panel-title">App Library</div>
+            <div class="recent-strip">
+              ${recentApps.length ? recentApps.map((app) => `
+                <div class="recent-app">
+                  <div class="chip-title">${app.label}</div>
+                  <div class="chip-copy">Recent app</div>
+                </div>
+              `).join("") : `<div class="recent-app"><div class="chip-title">No recent apps</div><div class="chip-copy">Launch an app to track it here.</div></div>`}
+            </div>
+            <div class="action-list">
+              ${renderLibraryCards(desktop, storeState, storeRegistry)}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Pinned Apps</div>
+            <div class="action-list">
+              ${(pinned.length ? pinned : pinnedAppEntries()).map((item) => `
+                <div class="action-chip">
+                  <div class="chip-title">${item.label}</div>
+                  <div class="chip-copy">${item.copy || item.desc}</div>
+                  <button class="btn" data-home-command="${item.command}" data-home-label="${item.label}">Open</button>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Notifications</div>
+            <div class="notice-list">
+              ${notices.map((item) => `
+                <div class="notice-chip">
+                  <div class="chip-title">${item.title}</div>
+                  <div class="chip-copy">${item.copy}</div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Recent Actions</div>
+            <div class="recent-list">
+              ${recents.length ? recents.map((item) => `
+                <div class="recent-chip">
+                  <div class="chip-title">${item.label}</div>
+                  <div class="chip-copy">${item.detail} · ${item.at}</div>
+                </div>
+              `).join("") : `<div class="recent-chip"><div class="chip-title">No recent actions</div><div class="chip-copy">Run an app or system action and it will appear here.</div></div>`}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Quick Recovery</div>
+            <div class="action-list">
+              ${onboarding.actions.map((action) => `
+                <div class="action-chip">
+                  <div class="chip-title">${action.label}</div>
+                  <div class="chip-copy">Recommended from the current onboarding state.</div>
+                  <button class="btn" data-home-command="${action.command}" data-home-label="${action.label}">Run</button>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderLibraryCards(desktop, storeState, storeRegistry) {
+      const openApps = new Set((((desktop || {}).windows) || []).filter((item) => item.state !== "closed").map((item) => String(item.app || "")));
+      const installs = Object.values((((storeState || {}).installs) || {}));
+      const publishedApps = (((storeRegistry || {}).apps) || []);
+      const recent = readRecentActions().map((item) => String(item.label || ""));
+      return appCatalog.map((app) => {
+        const installedRecord = installs.find((item) => String(item.app || "").toLowerCase() === app.label.toLowerCase() && String(item.state || "").toLowerCase() === "installed");
+        const publishedRecord = publishedApps.find((item) => String(item.name || "").toLowerCase() === app.label.toLowerCase());
+        const releaseVersion = (((storeState || {}).release) || {}).version || "";
+        const installedVersion = installedRecord ? String(installedRecord.version || "") : "";
+        const publishedVersion = publishedRecord ? String(publishedRecord.version || "") : "";
+        const installed = Boolean(app.installed || installedRecord);
+        const state = openApps.has(app.label) ? "Open" : "Ready";
+        const recentMark = recent.some((label) => label.includes(app.label)) ? "Recent" : "Idle";
+        const fav = isPinned(app) ? "Pinned" : "App";
+        const updateState = installed && publishedVersion && installedVersion && publishedVersion !== installedVersion ? "Update available" : (installed ? "Installed" : (publishedRecord ? "Available" : "Built-in"));
+        return `
+          <div class="action-chip">
+            <div class="app-head">
+              <div class="app-title">
+                <span class="app-icon">${app.icon || "A"}</span>
+                <div class="chip-title">${app.label}</div>
+              </div>
+              <span class="mini-badge">${updateState}</span>
+            </div>
+            <div class="chip-copy">${app.desc}</div>
+            <div class="state-badges">
+              <span class="mini-badge">${fav}</span>
+              <span class="mini-badge">${state}</span>
+              <span class="mini-badge">${recentMark}</span>
+              <span class="mini-badge">Installed ${installedVersion || "-"}</span>
+              <span class="mini-badge">Published ${publishedVersion || releaseVersion || "-"}</span>
+            </div>
+            <button class="btn" data-home-command="${app.command}" data-home-label="${app.label}">${openApps.has(app.label) ? "Open Again" : (installed ? "Open" : (publishedRecord ? "Install" : "Launch"))}</button>
+            <button class="btn" data-pin-label="${app.label}">${isPinned(app) ? "Unpin" : "Pin"}</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTaskSwitcher(desktop) {
+      const windows = (desktop && desktop.windows) || [];
+      if (!windows.length) {
+        return `
+          <section class="panel">
+            <div class="panel-title">Open Apps</div>
+            <div class="task-list">
+              <div class="task-chip">
+                <div class="chip-title">No open apps</div>
+                <div class="chip-copy">Open Zero Files or another app to manage windows here.</div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+      return `
+        <section class="panel">
+          <div class="panel-title">Open Apps</div>
+          <div class="task-list">
+            ${windows.map((item) => `
+              <div class="task-chip">
+                <div class="chip-title">${item.app}</div>
+                <div class="chip-copy">State: ${item.state || "open"} · Layer: ${item.layer || "normal"} · Z: ${item.z || 0}</div>
+                <div class="task-actions">
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=maximize" data-task-label="Maximize ${item.app}">Bring Forward</button>
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=minimize" data-task-label="Minimize ${item.app}">Minimize</button>
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=close" data-task-label="Close ${item.app}">Close</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderNotifications(sec, backup, triad, desktop) {
+      const notices = [];
+      if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
+      if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
+      if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
+      if (desktop && desktop.windows && desktop.windows.some((w) => w.state === "closed")) notices.push({ title: "Closed windows detected", copy: "Some desktop windows were closed and can be reopened from Start." });
+      if (!notices.length) notices.push({ title: "No urgent alerts", copy: "System alerts are currently quiet." });
+      return notices;
+    }
+
+    function renderDrawer(notices, recents) {
+      $("drawerList").innerHTML = [
+        ...notices.map((item) => `
+          <div class="drawer-chip">
+            <div class="chip-title">${item.title}</div>
+            <div class="chip-copy">${item.copy}</div>
+          </div>
+        `),
+        ...recents.slice(0, 3).map((item) => `
+          <div class="drawer-chip">
+            <div class="chip-title">Recent: ${item.label}</div>
+            <div class="chip-copy">${item.detail} · ${item.at}</div>
+          </div>
+        `)
+      ].join("");
     }
 
     async function refreshLayers() {
@@ -362,35 +888,84 @@
         loadJson(".zero_os/runtime/independent_runtime_validation.json"),
         loadJson(".zero_os/runtime/zero_ai_recovery_report.json"),
         loadJson(".zero_os/runtime/zero_ai_security_status.json"),
-        loadJson(".zero_os/resilience/kernel_driver_status.json"),
+        loadJson(".zero_os/resilience/kernel_driver_status.json")
       ]);
       const [platform, desktop, kernel] = await Promise.all([
         loadJson(".zero_os/native_platform/maximize_report.json"),
         loadJson(".zero_os/desktop/session.json"),
-        loadJson(".zero_os/runtime/kernel_stack_state.json"),
+        loadJson(".zero_os/runtime/kernel_stack_state.json")
+      ]);
+      const [storeState, storeRegistry] = await Promise.all([
+        loadJson(".zero_os/native_store/state.json"),
+        loadJson(".zero_os/store/registry.json")
       ]);
 
-      $("v-core").textContent = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
-      $("v-triad").textContent = triad && triad.balanced ? "Balanced" : "Degraded";
-      $("v-sec").textContent = sec && sec.hardened ? "Hardened" : "Baseline";
-      $("v-rec").textContent = backup && backup.ok ? "Recoverable" : "No report";
+      const coreValue = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
+      const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
+      const secValue = sec && sec.hardened ? "Hardened" : "Baseline";
+      const recValue = backup && backup.ok ? "Recoverable" : "No report";
+      const onboarding = onboardingDecision(platform, sec, backup, triad);
+      const notices = renderNotifications(sec, backup, triad, desktop);
+      window.__zeroDesktopState = desktop || {};
+
+      $("v-core").textContent = coreValue;
+      $("v-triad").textContent = triadValue;
+      $("v-sec").textContent = secValue;
+      $("v-rec").textContent = recValue;
       $("v-hint").textContent = (triad || runtime || backup || sec || resilience)
         ? "Live runtime JSON loaded"
         : "No runtime JSON yet. Run first-run, then open-dashboard.";
 
-      $("startLayer").textContent = JSON.stringify({
-        platform: platform && platform.status ? platform.status.categories : {},
-        desktop: desktop || {},
-        shell_mode: "windows-like",
-      }, null, 2);
+      $("startLayer").innerHTML = [
+        renderOnboarding(onboarding),
+        renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry),
+        renderTaskSwitcher(desktop),
+        renderSummaryCards([
+          { label: "Platform", value: coreValue },
+          { label: "Desktop", value: `${(desktop && desktop.windows || []).length} windows` },
+          { label: "Start Menu", value: desktop && desktop.start_menu && desktop.start_menu.style ? desktop.start_menu.style : "layered" },
+          { label: "Mode", value: "Windows-like shell" }
+        ]),
+        renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
+      ].join("");
+      $("startLayer").querySelectorAll("[data-onboard-command], [data-home-command], [data-task-command]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const label = button.dataset.onboardLabel || button.dataset.homeLabel || button.dataset.taskLabel || "Run Action";
+          const command = button.dataset.onboardCommand || button.dataset.homeCommand || button.dataset.taskCommand || "";
+          await runShellAction(label, command);
+        });
+      });
+      $("startLayer").querySelectorAll("[data-pin-label]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const label = button.dataset.pinLabel || "";
+          if (!label) return;
+          togglePinned(label);
+          setActionFeedback(isPinned({ label }) ? `Pinned ${label}` : `Unpinned ${label}`, "Launcher favorites updated");
+          pushRecentAction(isPinned({ label }) ? `Pinned ${label}` : `Unpinned ${label}`, "Launcher favorites updated");
+          await refreshLayers();
+        });
+      });
+      renderDrawer(notices, readRecentActions());
 
-      $("securityLayer").textContent = JSON.stringify(sec || { hint: "run: .\\zero_os_launcher.ps1 first-run" }, null, 2);
-      $("runtimeLayer").textContent = JSON.stringify({
-        kernel: kernel || {},
-        triad: triad || {},
-        runtime: runtime || {},
-        recovery: backup || {},
-      }, null, 2);
+      $("securityLayer").innerHTML = [
+        renderSummaryCards([
+          { label: "Security State", value: secValue },
+          { label: "Recovery", value: recValue },
+          { label: "Status Badge", value: sec && (sec.mark_strict || sec.hardened) ? "Protected" : "Needs review" },
+          { label: "Next Step", value: sec && sec.hardened ? "Monitor" : "Run hardening" }
+        ]),
+        renderDetails("Show security details", sec || { hint: "run: ./zero_os_launcher.ps1 first-run" })
+      ].join("");
+
+      $("runtimeLayer").innerHTML = [
+        renderSummaryCards([
+          { label: "Triad", value: triadValue },
+          { label: "Kernel", value: kernel && kernel.processes ? `${kernel.processes.length} processes` : "Idle" },
+          { label: "Isolation", value: kernel && kernel.isolation ? String(kernel.isolation.mode || "shared") : "unknown" },
+          { label: "Validation", value: runtime && runtime.ok ? "Passing" : "Needs check" }
+        ]),
+        renderDetails("Show runtime details", { kernel: kernel || {}, triad: triad || {}, runtime: runtime || {}, recovery: backup || {} })
+      ].join("");
 
       const b = pickSecurityBadge(sec);
       const el = $("secBadge");
@@ -398,38 +973,82 @@
       el.textContent = b.txt;
     }
 
+    function createTile(item, runMenuAction) {
+      const tile = document.createElement("button");
+      tile.className = "tile tile-action";
+      tile.innerHTML = `<strong>${item.label}</strong><br/>${item.desc}`;
+      tile.addEventListener("click", async () => runMenuAction(item));
+      return tile;
+    }
+
     function setupStartMenu() {
       const startBtn = $("startBtn");
       const menu = $("startMenu");
       const search = menu.querySelector(".search");
       const grid = $("menuGrid");
+      const drawer = $("notifyDrawer");
+
       startBtn.addEventListener("click", () => menu.classList.toggle("show"));
+      $("notifyBtn").addEventListener("click", () => drawer.classList.toggle("show"));
       document.addEventListener("click", (e) => {
         if (!menu.contains(e.target) && e.target !== startBtn) menu.classList.remove("show");
+        if (!drawer.contains(e.target) && e.target !== $("notifyBtn")) drawer.classList.remove("show");
       });
-      const originalTiles = Array.from(grid.children).map((node) => node.cloneNode(true));
-      async function runMenuAction(command) {
-        await bridgeCommand(command);
+
+      async function runMenuAction(item) {
+        setActionFeedback(item.label, "Running...");
+        const result = await bridgeCommand(item.command);
+        if (result && result.ok) {
+          setActionFeedback(item.label, result.summary || "Action completed");
+          pushRecentAction(item.label, result.summary || "Action completed");
+        } else {
+          setActionFeedback(item.label, "Action failed or shell bridge is offline");
+          pushRecentAction(item.label, "Action failed or shell bridge is offline");
+        }
         await refreshLayers();
+        menu.classList.remove("show");
       }
+
+      function renderSections() {
+        grid.innerHTML = "";
+        menuSections.forEach((section) => {
+          const wrap = document.createElement("section");
+          wrap.className = "menu-section";
+          const title = document.createElement("div");
+          title.className = "menu-title";
+          title.textContent = section.title;
+          const group = document.createElement("div");
+          group.className = "menu-grid";
+          section.items.forEach((item) => group.appendChild(createTile(item, runMenuAction)));
+          wrap.appendChild(title);
+          wrap.appendChild(group);
+          grid.appendChild(wrap);
+        });
+      }
+
       function renderSearch(query) {
         const q = (query || "").trim().toLowerCase();
         grid.innerHTML = "";
         if (!q) {
-          originalTiles.forEach((node) => grid.appendChild(node.cloneNode(true)));
+          renderSections();
           return;
         }
         const matches = menuActions.filter((item) => item.label.toLowerCase().includes(q) || item.command.toLowerCase().includes(q));
-        matches.forEach((item) => {
-          const tile = document.createElement("button");
-          tile.className = "tile";
-          tile.innerHTML = `<strong>${item.label}</strong><br/>Run \`${item.command}\``;
-          tile.addEventListener("click", async () => runMenuAction(item.command));
-          grid.appendChild(tile);
-        });
+        if (!matches.length) {
+          const empty = document.createElement("div");
+          empty.className = "status-item";
+          empty.textContent = "No matching app or action.";
+          grid.appendChild(empty);
+          return;
+        }
+        const group = document.createElement("div");
+        group.className = "menu-grid";
+        matches.forEach((item) => group.appendChild(createTile(item, runMenuAction)));
+        grid.appendChild(group);
       }
+
       search.addEventListener("input", (e) => renderSearch(e.target.value));
-      renderSearch("");
+      renderSections();
     }
 
     function setupWindows() {
@@ -440,9 +1059,11 @@
         bar.addEventListener("mousedown", (e) => {
           if (window.innerWidth <= 980) return;
           dragging = true;
-          sx = e.clientX; sy = e.clientY;
+          sx = e.clientX;
+          sy = e.clientY;
           const rect = win.getBoundingClientRect();
-          lx = rect.left; ly = rect.top;
+          lx = rect.left;
+          ly = rect.top;
           win.style.zIndex = String(Date.now() % 100000);
         });
         window.addEventListener("mousemove", (e) => {
@@ -458,36 +1079,24 @@
       });
     }
 
+    async function runShellAction(title, command) {
+      setActionFeedback(title, "Running...");
+      const result = await bridgeCommand(command);
+      const detail = result && result.ok ? (result.summary || "Action completed") : "Action failed or shell bridge is offline";
+      setActionFeedback(title, detail);
+      pushRecentAction(title, detail);
+      await refreshLayers();
+    }
+
     $("refreshBtn").addEventListener("click", refreshLayers);
     $("layersBtn").addEventListener("click", refreshLayers);
-    $("bridgeBtn").addEventListener("click", async () => {
-      await bridgeCommand("native platform status");
-      refreshLayers();
-    });
-    $("platformMaxBtn").addEventListener("click", async () => {
-      await bridgeCommand("native platform maximize");
-      refreshLayers();
-    });
-    $("openFilesBtn").addEventListener("click", async () => {
-      await bridgeCommand("native desktop window open app=Zero Files layer=top");
-      refreshLayers();
-    });
-    $("maxFilesBtn").addEventListener("click", async () => {
-      await bridgeCommand("native desktop window action app=Zero Files action=maximize");
-      refreshLayers();
-    });
-    $("closeFilesBtn").addEventListener("click", async () => {
-      await bridgeCommand("native desktop window action app=Zero Files action=close");
-      refreshLayers();
-    });
-    $("btnSecurity").addEventListener("click", async () => {
-      await bridgeCommand("zero ai security status");
-      refreshLayers();
-    });
-    $("btnRuntime").addEventListener("click", async () => {
-      await bridgeCommand("kernel stack status");
-      refreshLayers();
-    });
+    $("bridgeBtn").addEventListener("click", async () => runShellAction("Check System", "native platform status"));
+    $("platformMaxBtn").addEventListener("click", async () => runShellAction("Maximize Platform", "native platform maximize"));
+    $("openFilesBtn").addEventListener("click", async () => runShellAction("Open Zero Files", "native desktop window open app=Zero Files layer=top"));
+    $("maxFilesBtn").addEventListener("click", async () => runShellAction("Maximize Zero Files", "native desktop window action app=Zero Files action=maximize"));
+    $("closeFilesBtn").addEventListener("click", async () => runShellAction("Close Zero Files", "native desktop window action app=Zero Files action=close"));
+    $("btnSecurity").addEventListener("click", async () => runShellAction("Open Security", "zero ai security status"));
+    $("btnRuntime").addEventListener("click", async () => runShellAction("Check Runtime", "kernel stack status"));
 
     tickClock();
     setInterval(tickClock, 1000);

@@ -6,7 +6,7 @@
       "name": "Zero-OS",
       "type": "application"
     },
-    "timestamp_utc": "2026-03-08T03:58:00.109956+00:00"
+    "timestamp_utc": "2026-03-08T06:20:27.597943+00:00"
   },
   "components": [
     {
@@ -36,8 +36,8 @@
     },
     {
       "path": "README.md",
-      "size": 11489,
-      "sha256": "c1baf48a61b731a1534356daf0e1c6282c47cc2098aa5dbd089b5e68526e1a9c"
+      "size": 12801,
+      "sha256": "669182a66ae6bf96c3815798553ac486747b691b438c853fad59d9030d26dace"
     },
     {
       "path": "ROADMAP.md",
@@ -66,18 +66,18 @@
     },
     {
       "path": "zero_os_dashboard.html",
-      "size": 58823,
-      "sha256": "0db8e29c83f7fae8829acb2830a1393a0f0238fe86c8304a25598790997b4c30"
+      "size": 66002,
+      "sha256": "cceb366d7d9b669a4bf27504bd2baa163eb4c43fe36ee1080d19f82780926947"
     },
     {
       "path": "zero_os_launcher.ps1",
-      "size": 17186,
-      "sha256": "8b02975102f3943a73dfae6daafedaa71afd262796c3fb8f23e33f62b7aa3ca0"
+      "size": 21396,
+      "sha256": "ec83cf744b2fcaf4ed6e09f1fe0b2f2e5545f83169a7568f79c054130146276c"
     },
     {
       "path": "zero_os_shell.html",
-      "size": 14794,
-      "sha256": "529cf21172ede51da98d38b33f181f4b0add32776ba0d4c28feb3a4b8f06f7f5"
+      "size": 41820,
+      "sha256": "5d8b86da3f7cfb08b8d8a57ce4a61ff37dab082a86ae26bd7c768a4896064de7"
     },
     {
       "path": ".pytest_cache/.gitignore",
@@ -113,6 +113,11 @@
       "path": ".zero_os/state.json",
       "size": 112,
       "sha256": "c7c7d1787e3cea4511b3d9641b8b5b68e0e49ddbeb5af36d1a346bab14950af9"
+    },
+    {
+      "path": ".zero_os/ui_shell_dom_test.html",
+      "size": 56393,
+      "sha256": "f5a45b5f7372b757e809a73af9af2d8e39fc890ae60b32de40cf1729a69c3191"
     },
     {
       "path": "ai_from_scratch/adaptation_rate_controller.py",
@@ -715,6 +720,16 @@
       "sha256": "bd84ac9e859c84c4d7ad404032544e134a425866e4c397c3263f81bc59f6e998"
     },
     {
+      "path": "tests/test_autonomous_fix_gate.py",
+      "size": 4561,
+      "sha256": "86d9db2f8ce0834ee8ab80cc549d4a391e4af8aedb739fb4dab55413a68fa33b"
+    },
+    {
+      "path": "tests/test_autonomous_fix_gate_system.py",
+      "size": 2269,
+      "sha256": "5e87adb28aa5ddd16a06715dd1a84a701b74ee9354c8e06e63ef0317028159ed"
+    },
+    {
       "path": "tests/test_autonomous_runtime_ecosystem.py",
       "size": 2849,
       "sha256": "9481ce8a4f033542c0339b1cacae7ec7ea1046b6d1f34ea3c303dce0daa02099"
@@ -811,8 +826,8 @@
     },
     {
       "path": "tests/test_enterprise_security.py",
-      "size": 3316,
-      "sha256": "6a880c5e9634045195dc953a6d083e1f001685769a3135fd8f8f2caffc3715e6"
+      "size": 3360,
+      "sha256": "6c2310a81fa72da96b7d2cc28a4557765ac4c9404c16cd7ac60a3df121f5e9e3"
     },
     {
       "path": "tests/test_entropy_control_layer.py",
@@ -851,8 +866,8 @@
     },
     {
       "path": "tests/test_kernel_stack.py",
-      "size": 4719,
-      "sha256": "de692d31bad6f8593826ff0d2dc0220e435770fe7b59b37f699eb576a3768031"
+      "size": 6548,
+      "sha256": "94c157eef616cc4e34cff2321cbde10537f123a5d4beff598fee5302308ef09a"
     },
     {
       "path": "tests/test_knowledge_integration.py",
@@ -891,8 +906,8 @@
     },
     {
       "path": "tests/test_native_app_store.py",
-      "size": 13926,
-      "sha256": "6095e752b1361fbe9f9f97566246cedb7919bb1e61b8721af6f2d3bf46f34c60"
+      "size": 16070,
+      "sha256": "67f8f278afd200c93bb4d22c329b714176bf452e9a580a2ddf2094505c8e2ff9"
     },
     {
       "path": "tests/test_native_boot_ops.py",
@@ -903,6 +918,21 @@
       "path": "tests/test_native_dev_ecosystem.py",
       "size": 1023,
       "sha256": "43fb3264193ccae69f83c3f778b9c3134efe84699dbfad39984f5bbc8a632a8a"
+    },
+    {
+      "path": "tests/test_native_platform.py",
+      "size": 4347,
+      "sha256": "4a6fb52135826b38b5f7a112ecc12c1156b0d4bdcfcff55febfb812244fbc9b2"
+    },
+    {
+      "path": "tests/test_native_shell_bridge.py",
+      "size": 3142,
+      "sha256": "6d5563cb8aec16c6d7d3de5b3d95303f790cd11fb01b49fb691b1d9b4d2b869b"
+    },
+    {
+      "path": "tests/test_native_store_smart_logic.py",
+      "size": 1786,
+      "sha256": "8d82d586c8ce75d03c7767bd7a02d43b6f26afcd99b3a5ad7702b5ba7655641b"
     },
     {
       "path": "tests/test_novelty_detection.py",
@@ -940,6 +970,11 @@
       "sha256": "4035fa5f76387dac0a2b5f0d9a932be0c95fc19feb2bba3c7a045f46c3c9b932"
     },
     {
+      "path": "tests/test_production_platform_ops.py",
+      "size": 2367,
+      "sha256": "c2f369c10d8489c5df4523cdec0f98b78be64be7a1037b15820da268b1a6be86"
+    },
+    {
       "path": "tests/test_quantum_virus_curefirewall.py",
       "size": 2813,
       "sha256": "ca7a944b4db42f308ff655d9c0610f9a171a9d07b73e87995963de296c2f4eb1"
@@ -960,6 +995,11 @@
       "sha256": "1b837d968aa9ae2860ecc02dcf37996b2f1596d65b8ce06ce23144ac1d6e75c1"
     },
     {
+      "path": "tests/test_recovery_merge.py",
+      "size": 1462,
+      "sha256": "0d3de12f5a2622a24d2dfd595da6a10dfe53e8a1ebfdc969492305581f231f1f"
+    },
+    {
       "path": "tests/test_redundancy_layer.py",
       "size": 1324,
       "sha256": "f960f66c5e57e1bfa08d58ebea03d98f817b0216c7ffb680546189316d9f6036"
@@ -971,8 +1011,8 @@
     },
     {
       "path": "tests/test_resilience.py",
-      "size": 2831,
-      "sha256": "09d2f3b2a8f9c7d68e10f3a85f5741d7a1def5f68dd18cc0dfeed899a9b47e06"
+      "size": 2914,
+      "sha256": "c316c519b85bab910ef5f26afe74d3299ecc2883a762ff8952ea98973bc0f490"
     },
     {
       "path": "tests/test_resource_constraint_layer.py",
@@ -993,6 +1033,11 @@
       "path": "tests/test_runtime_protocol_v1.py",
       "size": 5051,
       "sha256": "98e2b2bd7c0ebaaa6f923c1c8bc9e3c17feb6f3b96eff813dbf7027c352735ef"
+    },
+    {
+      "path": "tests/test_runtime_smart_logic.py",
+      "size": 1954,
+      "sha256": "e256959874d0d8c110b7feb84bd77432cd446320a8802a46c596b2b51be5617e"
     },
     {
       "path": "tests/test_runtime_state.py",
@@ -1060,6 +1105,11 @@
       "sha256": "5d8620355c94d91889e670be65c6abf624aac8c9d77ff739a73c657478150871"
     },
     {
+      "path": "tests/test_smart_file_merge.py",
+      "size": 6149,
+      "sha256": "e392b4c1b5d41962aa357df138248ed7115bb2f90ce0d16f92ede3f156bd6d88"
+    },
+    {
       "path": "tests/test_smart_logic_governance.py",
       "size": 1261,
       "sha256": "f30a17cfadb28631b6d32b098b181767bc60162db63cb10f4307e98c653f7dcc"
@@ -1110,9 +1160,19 @@
       "sha256": "373d5662c34719a174bf9c8f7f6cbe63c6f4015cca699148901d2ce5e5ef769c"
     },
     {
+      "path": "tests/test_zero_ai_assistant_stack.py",
+      "size": 6109,
+      "sha256": "9f4e64e2da0c30c40a22c7faf2c52a62f4a7a19f71aeddb2502304cdfb98da37"
+    },
+    {
       "path": "tests/test_zero_ai_gate.py",
       "size": 1871,
       "sha256": "d6542e0a6962fb8f67bb97f3dcce4d52644c73cff847acca22cce9c774d7181f"
+    },
+    {
+      "path": "tests/test_zero_os_shell_browser.py",
+      "size": 2231,
+      "sha256": "771c673c76589b6100fc2fee7661f210db1913c33d078c5cd04993c7cffa45a2"
     },
     {
       "path": "tools/benchmark_security_stack.py",
@@ -1340,6 +1400,26 @@
       "sha256": "5f06689091e8a38dc67deb6ec588aa4928b0a9df74ed4cde4a84406688e3f2ff"
     },
     {
+      "path": "tests/__pycache__/test_autonomous_fix_gate.cpython-314-pytest-9.0.2.pyc",
+      "size": 9249,
+      "sha256": "1719155b654ca617831a5c369b69ead8d8370fc3b51b36cec9b7a9d65be8f412"
+    },
+    {
+      "path": "tests/__pycache__/test_autonomous_fix_gate.cpython-314.pyc",
+      "size": 9136,
+      "sha256": "c1089b9b08e6085ee5b5ef2069adf31fac9205a5fb301fbaffd90d0f1aef645f"
+    },
+    {
+      "path": "tests/__pycache__/test_autonomous_fix_gate_system.cpython-314-pytest-9.0.2.pyc",
+      "size": 6410,
+      "sha256": "17edbbe9d92131d023b2a6eca66201a93546775d70b52e8c25d2c8552a369c7b"
+    },
+    {
+      "path": "tests/__pycache__/test_autonomous_fix_gate_system.cpython-314.pyc",
+      "size": 6297,
+      "sha256": "945aba73c72a92072ceab2f891a89f48390d89451715b8f79967b9848a423750"
+    },
+    {
       "path": "tests/__pycache__/test_autonomous_runtime_ecosystem.cpython-314-pytest-9.0.2.pyc",
       "size": 6843,
       "sha256": "220565bf78be2622a3e158c52b83ebae26d9d5ebd44e4db9a071d1200c043b1b"
@@ -1531,13 +1611,13 @@
     },
     {
       "path": "tests/__pycache__/test_enterprise_security.cpython-314-pytest-9.0.2.pyc",
-      "size": 8652,
-      "sha256": "f3f1bc309cc1bbdf099cc3ba08850996664316991a8277c25cf358a99abb3a12"
+      "size": 8762,
+      "sha256": "2f45435589efc3b975553664b23a443358471e7e8cbfffaa0815c6f36937f328"
     },
     {
       "path": "tests/__pycache__/test_enterprise_security.cpython-314.pyc",
-      "size": 8539,
-      "sha256": "c3dbeb12cd09bf79aaf20f1945255d2e6f8faf44622ad484b1f33304a18941fc"
+      "size": 8649,
+      "sha256": "24037d06f3657ea83043279edaee1f443a229eeec76c2603d8b1f7bfbfbc1ef1"
     },
     {
       "path": "tests/__pycache__/test_entropy_control_layer.cpython-314-pytest-9.0.2.pyc",
@@ -1611,13 +1691,13 @@
     },
     {
       "path": "tests/__pycache__/test_kernel_stack.cpython-314-pytest-9.0.2.pyc",
-      "size": 11300,
-      "sha256": "521c9005a71945a757a1acd01a3f126fe4156e7b0015cddcc2e5ed6c35c5476f"
+      "size": 14872,
+      "sha256": "3eb9e23e1cafa27969b4db625b712b11af608f4928b36a3b837e6a85f93ff0aa"
     },
     {
       "path": "tests/__pycache__/test_kernel_stack.cpython-314.pyc",
-      "size": 11151,
-      "sha256": "e95408c1b6178b04e2f4b16b4da029173858460eda8b74d28df52a6e4fce9792"
+      "size": 14759,
+      "sha256": "63191ceb334927b8bc380c2a89d86ea2cfb4744694d25acf908ff8d59dd6ffcd"
     },
     {
       "path": "tests/__pycache__/test_knowledge_integration.cpython-314-pytest-9.0.2.pyc",
@@ -1691,13 +1771,13 @@
     },
     {
       "path": "tests/__pycache__/test_native_app_store.cpython-314-pytest-9.0.2.pyc",
-      "size": 25441,
-      "sha256": "e38b54776f01b8586a25ef55f6b7aa8afd86faa1420f80208ae28f53172b3ef3"
+      "size": 28968,
+      "sha256": "bd0defbfbf5b91d485ea6b630a5944d7d5ffc0a5bd59c29e630f5d6caec66f4d"
     },
     {
       "path": "tests/__pycache__/test_native_app_store.cpython-314.pyc",
-      "size": 25328,
-      "sha256": "013b97297f5b14d023edce1db65c48b44c0c2fe4fb68d766aa2b34248eca4b9c"
+      "size": 28855,
+      "sha256": "0bcdff661db51eea11a0af62cd6e6fb36ac4c0d47665c3b5e81a58d98c9f209b"
     },
     {
       "path": "tests/__pycache__/test_native_boot_ops.cpython-314-pytest-9.0.2.pyc",
@@ -1718,6 +1798,36 @@
       "path": "tests/__pycache__/test_native_dev_ecosystem.cpython-314.pyc",
       "size": 2982,
       "sha256": "0754d04561f249a2b4a8f5c24cede331228f61667f5424a74f396380eaddbe8d"
+    },
+    {
+      "path": "tests/__pycache__/test_native_platform.cpython-314-pytest-9.0.2.pyc",
+      "size": 9031,
+      "sha256": "5bc4c56a98533c9748c3767062d06f28c4e4294097fde81e72e387e95ab55fc8"
+    },
+    {
+      "path": "tests/__pycache__/test_native_platform.cpython-314.pyc",
+      "size": 8918,
+      "sha256": "805b33a0ff90094fe0760acd1b5b25e34c35a2156b6145ad2cf047a5d141c179"
+    },
+    {
+      "path": "tests/__pycache__/test_native_shell_bridge.cpython-314-pytest-9.0.2.pyc",
+      "size": 7109,
+      "sha256": "71cc967fad6656934cd1e8c27db248a9130420a4d0f4615e382333a8ce6ee6b6"
+    },
+    {
+      "path": "tests/__pycache__/test_native_shell_bridge.cpython-314.pyc",
+      "size": 6996,
+      "sha256": "69c383b4cba7edc6881dd0af6a0ba313df781819b2f717bc9f16ee423c38489d"
+    },
+    {
+      "path": "tests/__pycache__/test_native_store_smart_logic.cpython-314-pytest-9.0.2.pyc",
+      "size": 5307,
+      "sha256": "1762b1aa61fa979f3d8f065c07580f9bc23b67458e3ba286b206694ff8b2c1f9"
+    },
+    {
+      "path": "tests/__pycache__/test_native_store_smart_logic.cpython-314.pyc",
+      "size": 5194,
+      "sha256": "9317f2c57a4a08212e76aa5c88de1f7f9e2eed63743c21a2d76712760e7db036"
     },
     {
       "path": "tests/__pycache__/test_novelty_detection.cpython-314-pytest-9.0.2.pyc",
@@ -1790,6 +1900,16 @@
       "sha256": "f615ad811732041f9772e95443dfa133331efff6670189d447ee697c13211839"
     },
     {
+      "path": "tests/__pycache__/test_production_platform_ops.cpython-314-pytest-9.0.2.pyc",
+      "size": 5787,
+      "sha256": "0c05e43b3d73b2e8c1e129dfa86d3267a36dfef59354d5433a55b400b400bdd2"
+    },
+    {
+      "path": "tests/__pycache__/test_production_platform_ops.cpython-314.pyc",
+      "size": 5674,
+      "sha256": "12efd0e07287fd29369c4568c611a8e9559f9b3e24d74eab9b3bd7d540468a19"
+    },
+    {
       "path": "tests/__pycache__/test_quantum_virus_curefirewall.cpython-314-pytest-9.0.2.pyc",
       "size": 5900,
       "sha256": "ba21026775d4ff6ee4c86944933f03f0ef58200f257eb2acfda90c259d64cef8"
@@ -1830,6 +1950,16 @@
       "sha256": "e350b61a7ffee4fab6a11c31219455c57c2dad00fb258bc5e4f431a7be12b935"
     },
     {
+      "path": "tests/__pycache__/test_recovery_merge.cpython-314-pytest-9.0.2.pyc",
+      "size": 3925,
+      "sha256": "c70531d80761957babb3c75f46b84fcc11f1be5d5f674a6c1613eb118d2ec05f"
+    },
+    {
+      "path": "tests/__pycache__/test_recovery_merge.cpython-314.pyc",
+      "size": 3812,
+      "sha256": "9c28e362be90305bcfb5efe27d9187a52ed1b9c4007a1164e1b4fe9b159b35ca"
+    },
+    {
       "path": "tests/__pycache__/test_redundancy_layer.cpython-314-pytest-9.0.2.pyc",
       "size": 3832,
       "sha256": "de8ff7d869f9a64a509f8df6f9426db743e2d8d108a04252b9de7c6767544fa9"
@@ -1851,13 +1981,13 @@
     },
     {
       "path": "tests/__pycache__/test_resilience.cpython-314-pytest-9.0.2.pyc",
-      "size": 6771,
-      "sha256": "fb3e9b5ffb438132b9e57b4fa109639773e5792130a2c6981d4b7b575b2e4593"
+      "size": 6889,
+      "sha256": "15b3edda714583f89b581722b314cb965a95508d3e3ad40e119eddc770957cf7"
     },
     {
       "path": "tests/__pycache__/test_resilience.cpython-314.pyc",
-      "size": 6658,
-      "sha256": "810341cc638a47922ce7dbffca833fb57b23ff6c7be8c051022894014e617f1c"
+      "size": 6776,
+      "sha256": "91d2fb6e0cc8e18b191ef0935bdd0424d90bfe16b923e31112d226fce3e85d07"
     },
     {
       "path": "tests/__pycache__/test_resource_constraint_layer.cpython-314-pytest-9.0.2.pyc",
@@ -1898,6 +2028,16 @@
       "path": "tests/__pycache__/test_runtime_protocol_v1.cpython-314.pyc",
       "size": 11044,
       "sha256": "6b30ce47c5d3fd65a35703856707932c03c4f07e6d3d2c0357ac78c0f562c048"
+    },
+    {
+      "path": "tests/__pycache__/test_runtime_smart_logic.cpython-314-pytest-9.0.2.pyc",
+      "size": 5457,
+      "sha256": "fb9fabda741d29f5847c87a587fc69d2567f2a639090b32d2636a1a75186a8c5"
+    },
+    {
+      "path": "tests/__pycache__/test_runtime_smart_logic.cpython-314.pyc",
+      "size": 5344,
+      "sha256": "7e9be2a5c655f85ef0ed463694590794f6f810e5b62d12dfffa1b37246e4f795"
     },
     {
       "path": "tests/__pycache__/test_runtime_state.cpython-314-pytest-9.0.2.pyc",
@@ -2030,6 +2170,16 @@
       "sha256": "0f46c71639cd55648b56ab3e7782bf273a18887a2d204f893fe7c75f9fee1262"
     },
     {
+      "path": "tests/__pycache__/test_smart_file_merge.cpython-314-pytest-9.0.2.pyc",
+      "size": 12709,
+      "sha256": "c87109eb8808f4e26b0d5b46ee47217b70254027ddb245f19cbdbaa6d490cd17"
+    },
+    {
+      "path": "tests/__pycache__/test_smart_file_merge.cpython-314.pyc",
+      "size": 12596,
+      "sha256": "25ea23d8fe1fe3b850a08a52915d5db08a3c8cfafcb128dd95a9d5b7b93ac59c"
+    },
+    {
       "path": "tests/__pycache__/test_smart_logic_governance.cpython-314-pytest-9.0.2.pyc",
       "size": 3298,
       "sha256": "d1591e5e8a5ae74acb6c48cd3ba5addb272fa261164d8d80e1c6716a5c2c41fd"
@@ -2130,6 +2280,16 @@
       "sha256": "e9f513162c3287d8fa14d15af8a7ec989ba15af82cb564a70ecf2646b50a6aaa"
     },
     {
+      "path": "tests/__pycache__/test_zero_ai_assistant_stack.cpython-314-pytest-9.0.2.pyc",
+      "size": 21925,
+      "sha256": "b0428432384b29dc43101bf822765410ae59aa547e986aa7fe9629d79bb40fdc"
+    },
+    {
+      "path": "tests/__pycache__/test_zero_ai_assistant_stack.cpython-314.pyc",
+      "size": 21812,
+      "sha256": "b94f1a85087ca4cc1ef3b6ff153343fe870c6148b5cdeeab244ffe383b406a52"
+    },
+    {
       "path": "tests/__pycache__/test_zero_ai_gate.cpython-314-pytest-9.0.2.pyc",
       "size": 4682,
       "sha256": "1b8e1c581743bd90e61995ed7747885de52fc6c77e33d2ba3d233070d6213cd4"
@@ -2140,6 +2300,26 @@
       "sha256": "3599d7d4a83caf83db474f23320a8d3e493a2bf16593d240526009206d13e0be"
     },
     {
+      "path": "tests/__pycache__/test_zero_os_shell_browser.cpython-314-pytest-9.0.2.pyc",
+      "size": 10299,
+      "sha256": "c0473ef0bae668f1ab7b38afd1c3ed69f9796f5fd4e2a057ce1f253a017aecea"
+    },
+    {
+      "path": "tests/__pycache__/test_zero_os_shell_browser.cpython-314.pyc",
+      "size": 4379,
+      "sha256": "19b699437d75a4aa959240b7a7fec0430375ea600c7923c3b3d26e41b9ed6559"
+    },
+    {
+      "path": "src/zero_os/action_simulator.py",
+      "size": 468,
+      "sha256": "56a779814772619be930d1c87daf07394db453a2603d06e79f5e89c0732728eb"
+    },
+    {
+      "path": "src/zero_os/agent_permission_policy.py",
+      "size": 1988,
+      "sha256": "be720c3e5fea8272c8e6a87ab9ad6c8e3f523a46352fd5461b4ac4d74b15f3da"
+    },
+    {
       "path": "src/zero_os/antivirus.py",
       "size": 24190,
       "sha256": "daa33b20c115e972a7537de9321ec74f5a328719b828df23fb6aceb1b315603c"
@@ -2148,6 +2328,16 @@
       "path": "src/zero_os/antivirus_agent.py",
       "size": 2419,
       "sha256": "5f08b99c9295af4fe4b87b32bc3af3fa73707e1e4fa38b1b18f785e8b7836329"
+    },
+    {
+      "path": "src/zero_os/api_connector_profiles.py",
+      "size": 1873,
+      "sha256": "53d2bf928b3c02dd3a6c50d37cc3248e33907f1c816024395fee5c7228d5ed86"
+    },
+    {
+      "path": "src/zero_os/approval_workflow.py",
+      "size": 2121,
+      "sha256": "40c042538568c157ac19f4a01ccc7b73ac000ec295e6deb1adb378d0dfed2280"
     },
     {
       "path": "src/zero_os/app_store_production_ops.py",
@@ -2165,6 +2355,16 @@
       "sha256": "16b51d37cc966626bfafe8f1cd3b3591aa3495280e20db1ba2f9907a343d5884"
     },
     {
+      "path": "src/zero_os/assistant_job_runner.py",
+      "size": 2310,
+      "sha256": "0aa87f5fb6cc3eb273afa5d5387b7a41fd66a6851d8466f4f1634c6585c6b29c"
+    },
+    {
+      "path": "src/zero_os/autonomous_fix_gate.py",
+      "size": 7440,
+      "sha256": "49490807d6b3cef539b214a42a17825e3148620b3372bd791dc6166ca90cc42c"
+    },
+    {
       "path": "src/zero_os/autonomous_runtime_ecosystem.py",
       "size": 6926,
       "sha256": "838c21b53234e65b5586ac25af3a916e70c64ea3d51c3a55d9db66d0cc2452b5"
@@ -2175,9 +2375,34 @@
       "sha256": "2fba4e7ebf306884b5f9244db0a08eb9910f9b753fe4357cfc7fde751e45ec58"
     },
     {
+      "path": "src/zero_os/browser_dom_automation.py",
+      "size": 1382,
+      "sha256": "9a910202bfece73971cf6336afdcc2e4706406cd9283dd12c249c52ec20c4069"
+    },
+    {
+      "path": "src/zero_os/browser_session_connector.py",
+      "size": 1535,
+      "sha256": "f92d4e1004f469eec1e78fd265a1e5a2922ebc32c9fa034b68da7a5961afbb99"
+    },
+    {
+      "path": "src/zero_os/cloud_deploy_integration.py",
+      "size": 1121,
+      "sha256": "80845c2560e106727f22542b064e303b4cbe4ff2838ac372a6c78db9f9f4cd28"
+    },
+    {
       "path": "src/zero_os/compute_runtime.py",
       "size": 2323,
       "sha256": "464a0119d62398a75cd3315357aad4cb0a05e62ddc5305b62560f53fdc8e6c7a"
+    },
+    {
+      "path": "src/zero_os/confidence_engine.py",
+      "size": 1312,
+      "sha256": "2b846be7ff766775b7f6e812e9317b18d1ad323941294fb22084695c1f1f8dae"
+    },
+    {
+      "path": "src/zero_os/connector_layer.py",
+      "size": 705,
+      "sha256": "4b32eda75be91080012068c69316e60020be4fa3a469137fc193535561039fb5"
     },
     {
       "path": "src/zero_os/consciousness_core.py",
@@ -2206,13 +2431,18 @@
     },
     {
       "path": "src/zero_os/enterprise_security.py",
-      "size": 11980,
-      "sha256": "81697625a6b7305bccc495523e50a1404cf7cf00d3fbff87ee595123843f1a6a"
+      "size": 14081,
+      "sha256": "5f0411fb1ad38d4abe15864b888f98a059f0cca16a05321fc71a82cef17c90c4"
     },
     {
       "path": "src/zero_os/gap_coverage.py",
       "size": 6048,
       "sha256": "b12d192d7d82921ff17e79e54b433f70ec5c9101aa99d68e88ad4c6f804c7a7b"
+    },
+    {
+      "path": "src/zero_os/github_integration_pack.py",
+      "size": 932,
+      "sha256": "ed98f0e4196a4ab5dc0c32ec3001b1742643433e5a3bf2dac9b49581f34c2468"
     },
     {
       "path": "src/zero_os/global_runtime_network.py",
@@ -2256,18 +2486,28 @@
     },
     {
       "path": "src/zero_os/native_app_store.py",
-      "size": 32776,
-      "sha256": "1ddabfe954a14aa43a02449856f5f525aea5dee89aa862ede9870b11d41b501f"
+      "size": 42679,
+      "sha256": "710cf3ff9504e24b9a12c32fb64355219e89ea263daef6db4ccf9b7ef995ce50"
+    },
+    {
+      "path": "src/zero_os/native_platform.py",
+      "size": 10494,
+      "sha256": "6484387e03d819b30fe82b47eb3aaddf7d4f1f98c8cf80acc4f718334745905d"
+    },
+    {
+      "path": "src/zero_os/native_shell_bridge.py",
+      "size": 3839,
+      "sha256": "82ce988c67421637eea7314e36d5afddab912ba08f36220ff5ab7e6fb4c156b3"
     },
     {
       "path": "src/zero_os/native_store_backend.py",
-      "size": 9998,
-      "sha256": "104606f166a2cc1acdd565377e288c1d9f0bc07cc65e2b592447a65af22de795"
+      "size": 10422,
+      "sha256": "5da189d8fa84ebb310856cfe0e48f281fb12f4ac0f8a62483eecfbcd4b0b2d46"
     },
     {
       "path": "src/zero_os/native_store_desktop.py",
-      "size": 4186,
-      "sha256": "8dce1ea37bf6b40ddbdd8799bc4204a665eca438050f4069d9bc50d7b039b9ee"
+      "size": 8783,
+      "sha256": "0f86715431bc56480a7558e60860c7456b85be2114cd5ced88ad94d6f6b9147e"
     },
     {
       "path": "src/zero_os/native_store_enterprise_ops.py",
@@ -2275,9 +2515,19 @@
       "sha256": "ea8f739de3df4ee4952110adb4600e8a04b1a625e7505426f47fea37df492bb9"
     },
     {
+      "path": "src/zero_os/native_store_smart_logic.py",
+      "size": 6302,
+      "sha256": "f0dae524ceb728c2bcddc0b3348b875c8cb414ae887cf177e9444a566b942cb3"
+    },
+    {
       "path": "src/zero_os/net_client.py",
       "size": 2308,
       "sha256": "aefa2bef44188057e2ea55c6ac16f7f8557ea54fd7c28927c71c77932a6f75f8"
+    },
+    {
+      "path": "src/zero_os/observation_layer.py",
+      "size": 596,
+      "sha256": "005435db1d4de43809130add0da65b66f2388cb1f659ccb251c24de596c59546"
     },
     {
       "path": "src/zero_os/ops_maturity.py",
@@ -2300,19 +2550,29 @@
       "sha256": "cdf77aed317e6e0669313ad27b9c2fe7a8929a418ab0ce1e252f383abbc68bca"
     },
     {
+      "path": "src/zero_os/playbook_memory.py",
+      "size": 1192,
+      "sha256": "25ef08d1cc2165d433c6038688375b0454b136db460350249b8542e0537be3ad"
+    },
+    {
       "path": "src/zero_os/plugins.py",
       "size": 1203,
       "sha256": "75b969b92b7be9cb2cf1d3eec63fc223f21092b1c6b9fff48ee6212b22c7f7be"
     },
     {
       "path": "src/zero_os/production_core.py",
-      "size": 53527,
-      "sha256": "62838f929c683996b79bfa9b44b3356fa19c428c6c1550e22c5dfa55590985ee"
+      "size": 69568,
+      "sha256": "149e1c76795d514ff1635e402061f9ede0144a4686c1c0e53c1df5164339d40d"
+    },
+    {
+      "path": "src/zero_os/production_platform_ops.py",
+      "size": 6516,
+      "sha256": "5ee7a957a1ea1bc5508523adb7abd875c26c3b7c514d8f81ccc2a175df8c29b9"
     },
     {
       "path": "src/zero_os/rate_limit.py",
-      "size": 1745,
-      "sha256": "97fe848b978614217d9ceccd0efe82113147a951b4c81e9692c86696fd923762"
+      "size": 1992,
+      "sha256": "b80428c1d0cfe2466ea57c40cafbcdcb9408198bee92cef9f00c760ffea3ccfa"
     },
     {
       "path": "src/zero_os/rcrp.py",
@@ -2331,18 +2591,28 @@
     },
     {
       "path": "src/zero_os/recovery.py",
-      "size": 3635,
-      "sha256": "f306ccc9a890ea6f2ae5293a55a9b003707251992ce9187e3949e3adbea7c910"
+      "size": 4835,
+      "sha256": "e59164073de75e798dca42c5591adfce179b93aa1b5f3ff766995141bf3889c4"
     },
     {
       "path": "src/zero_os/resilience.py",
-      "size": 7789,
-      "sha256": "7debb7d425069b3386bbedbc1c49585775c353035ef402767186791515ccb6c6"
+      "size": 8134,
+      "sha256": "c58a2679eb43dd5cedbd0af5aadd77ac2c4dfef50db7cc96ee3f3e972bb47dbb"
+    },
+    {
+      "path": "src/zero_os/result_synthesizer.py",
+      "size": 2506,
+      "sha256": "9697deb0762c2d8c53f790c340d9b1ecc7ecd9968d7ae33e69a0c9aff180802d"
     },
     {
       "path": "src/zero_os/ria.py",
       "size": 3759,
       "sha256": "21b692cef88237c7a302179c433fdd583e70850bd90c7496cb712ab91f149a55"
+    },
+    {
+      "path": "src/zero_os/risk_engine.py",
+      "size": 1764,
+      "sha256": "71c0137f871ca8ac725fabed66b337ae1dff6094d9022b1ca8d22f13ba130778"
     },
     {
       "path": "src/zero_os/runtime_coupling.py",
@@ -2365,6 +2635,11 @@
       "sha256": "368f1e65c5455bf626eb255f68d9050a8a73b24550cbd3ea6154d348b0881797"
     },
     {
+      "path": "src/zero_os/runtime_smart_logic.py",
+      "size": 6091,
+      "sha256": "e437f03f28a112ea4d16b183777683ad96421bdded79d2c2aebbac46a7a14ea2"
+    },
+    {
       "path": "src/zero_os/scheduler.py",
       "size": 1330,
       "sha256": "e30958f8577de9df4de827cb99870bdb8511b2870ed3686e102dcf2b2ce12193"
@@ -2376,13 +2651,13 @@
     },
     {
       "path": "src/zero_os/security_hardening.py",
-      "size": 6255,
-      "sha256": "532e721be436b3f84fae57ee0e6fc9b7176e3bf8873001ac9b7b85646de62cd1"
+      "size": 6500,
+      "sha256": "975fe5ebbf268df837f8cc34c7b45046382be17a89267335abb1b83d1909f7fd"
     },
     {
       "path": "src/zero_os/self_repair.py",
-      "size": 3421,
-      "sha256": "993523aef75d1e6c5029e62a771f1e448d8454e78d60e15fa98446143b137783"
+      "size": 4107,
+      "sha256": "f97b8a724d95c7aeaab19a82082602d10268b8c3167d7edccc1820bd419b0ae2"
     },
     {
       "path": "src/zero_os/serp.py",
@@ -2391,13 +2666,38 @@
     },
     {
       "path": "src/zero_os/smart_logic_governance.py",
-      "size": 4766,
-      "sha256": "f37ddf64b771679da4ee502b331c9edf20835311774e70b49a1ea7ac1dcd6ee9"
+      "size": 7135,
+      "sha256": "039a176d6a3b643514e8e06c6f1f5768707bafef318fbd5c796bbcaff8bff935"
     },
     {
       "path": "src/zero_os/state.py",
       "size": 4834,
       "sha256": "c5fe5ea61062ffee5e03a3f9bcb0bad1728526bc82ab5a1fd8dacb013e5316c3"
+    },
+    {
+      "path": "src/zero_os/structured_intent.py",
+      "size": 1585,
+      "sha256": "a885703e9d8a1e0a141246e3d4983dfe49435c2d6eb19caab63248502378874a"
+    },
+    {
+      "path": "src/zero_os/task_executor.py",
+      "size": 1867,
+      "sha256": "1048d1ed8649667d836f58f2d49e0e9128345dc712d6a52f7b464a66d91736ec"
+    },
+    {
+      "path": "src/zero_os/task_memory.py",
+      "size": 2032,
+      "sha256": "799fefe4f9c7708ddb86a8b24ac9d152ac145b8dc777261a096748f313aa6ee8"
+    },
+    {
+      "path": "src/zero_os/task_planner.py",
+      "size": 4407,
+      "sha256": "3a57a295e56dc7242b98f39bea41904567098e9fd6d6196478b0260589aa976c"
+    },
+    {
+      "path": "src/zero_os/tool_capability_registry.py",
+      "size": 1239,
+      "sha256": "4faf55b12590985ea524397911939a5fdb2149fc36bec6a7b0973b783190ee2a"
     },
     {
       "path": "src/zero_os/triad_balance.py",
@@ -2410,6 +2710,11 @@
       "sha256": "1695b00aeccd4cb2452f775fed4ca26331cf6200a99c6e3f05001ddc0c42cd24"
     },
     {
+      "path": "src/zero_os/unified_action_engine.py",
+      "size": 9578,
+      "sha256": "a7f29ff2514e24836933511c0dd7f4ac4840509cc37803581d2c121cdf987ec5"
+    },
+    {
       "path": "src/zero_os/universal_code_intake.py",
       "size": 4000,
       "sha256": "18d62f60cc67ef178e9a7d13f5d2d0870df7d0504a86762a6412872c3932ad8f"
@@ -2418,6 +2723,11 @@
       "path": "src/zero_os/universal_runtime_ecosystem.py",
       "size": 4634,
       "sha256": "636ba0394b1a6a1cfb7e5215af6c804fcf8238829fedee4d73c9c93f5a8f7ab8"
+    },
+    {
+      "path": "src/zero_os/verification_web_flow.py",
+      "size": 862,
+      "sha256": "b975fc47d688c606a2eb8cab79c9e4be52cb47dd6079dac82dedbd688b8e73f1"
     },
     {
       "path": "src/zero_os/zero_ai_identity.py",
@@ -2476,8 +2786,8 @@
     },
     {
       "path": "src/zero_os/capabilities/system.py",
-      "size": 144481,
-      "sha256": "f13cd9c345c80223e11ff1c7aea27a5c7808cc37cbd21b4c36d008f868688b5f"
+      "size": 160099,
+      "sha256": "9caba4868e07efe50da84c6084a37b000f25957e9e92cf6f34bf4c99476eb786"
     },
     {
       "path": "src/zero_os/capabilities/web.py",
@@ -2531,8 +2841,8 @@
     },
     {
       "path": "src/zero_os/kernel_rnd/runtime_stack.py",
-      "size": 10187,
-      "sha256": "23b703bf2f618c8fe919ee744d1d4e912f77e08739dfe5dc984bd4b07264ff34"
+      "size": 13448,
+      "sha256": "6ce50c6c71f5d0932bfdb013ab813a60146b2d11b359ed62e2a61534e484a4da"
     },
     {
       "path": "src/zero_os/kernel_rnd/scheduler.py",
@@ -2550,6 +2860,16 @@
       "sha256": "9153ab575c1073af4b9abd1653721e03c1e69a00d49271f688db70bd354ebb6c"
     },
     {
+      "path": "src/zero_os/__pycache__/action_simulator.cpython-314.pyc",
+      "size": 1170,
+      "sha256": "f3ce956cd5ba4f0af1df2542e53097d44de36e512155b4b2a7fc33d18006967b"
+    },
+    {
+      "path": "src/zero_os/__pycache__/agent_permission_policy.cpython-314.pyc",
+      "size": 4393,
+      "sha256": "d88a914a031487e2a326bcf55438f1d041904e24faa9f0476a397d86cc462960"
+    },
+    {
       "path": "src/zero_os/__pycache__/antivirus.cpython-314.pyc",
       "size": 45866,
       "sha256": "064a0a841294f1f211a5a29ec8f47f56f2bc5aa71b31f814626b49c4014062d2"
@@ -2558,6 +2878,16 @@
       "path": "src/zero_os/__pycache__/antivirus_agent.cpython-314.pyc",
       "size": 4285,
       "sha256": "af45f72178c18d4f666d30bb6cdb4e6591331e08bf4708b169a4936c085fc993"
+    },
+    {
+      "path": "src/zero_os/__pycache__/api_connector_profiles.cpython-314.pyc",
+      "size": 4695,
+      "sha256": "5a4f0a4c0da165ae4d340b0ed8243c5526de5599a15528e33daceecb843f545c"
+    },
+    {
+      "path": "src/zero_os/__pycache__/approval_workflow.cpython-314.pyc",
+      "size": 5460,
+      "sha256": "a196d7ef942670a7476c9c2c7c4e8868b544071af56d49295cd8faa48adad6e4"
     },
     {
       "path": "src/zero_os/__pycache__/app_store_production_ops.cpython-314.pyc",
@@ -2575,6 +2905,16 @@
       "sha256": "919748262f80a3989e902d331248371e02ab00fc1f1997b77af53f5b0b439081"
     },
     {
+      "path": "src/zero_os/__pycache__/assistant_job_runner.cpython-314.pyc",
+      "size": 5462,
+      "sha256": "ccd5e73dd1327fbfc90bafb601b798f7fe6d68eac2eca69ef9682d9452391217"
+    },
+    {
+      "path": "src/zero_os/__pycache__/autonomous_fix_gate.cpython-314.pyc",
+      "size": 12490,
+      "sha256": "56032275954335776f2fe772fc7d649c2d43384f67f08018f227ba91a51b2921"
+    },
+    {
       "path": "src/zero_os/__pycache__/autonomous_runtime_ecosystem.cpython-314.pyc",
       "size": 13098,
       "sha256": "26c5508b65eb496cbeb542e71dbb7ab997bfdcdb13c0b713a40e3978e518358e"
@@ -2585,9 +2925,34 @@
       "sha256": "dc986d9f3537daf191d9b4ec3db13c72eaa2590e167b1c862ddab58d0882d1d2"
     },
     {
+      "path": "src/zero_os/__pycache__/browser_dom_automation.cpython-314.pyc",
+      "size": 3325,
+      "sha256": "0de792e34f22e9409831a7bb8fc64b43d2a05dd5ace099ab99bfb51f352f93bb"
+    },
+    {
+      "path": "src/zero_os/__pycache__/browser_session_connector.cpython-314.pyc",
+      "size": 3578,
+      "sha256": "6011cc0334f447e0a712a41892f7e0db4f8ba0f44457767cf2a1804d32a9297b"
+    },
+    {
+      "path": "src/zero_os/__pycache__/cloud_deploy_integration.cpython-314.pyc",
+      "size": 3076,
+      "sha256": "91aba30d32565560d416d51c306fbaceacbc3d05f2c552ca5bb7d791fd74efbc"
+    },
+    {
       "path": "src/zero_os/__pycache__/compute_runtime.cpython-314.pyc",
       "size": 3919,
       "sha256": "ba36a4dee8ef270efde0659af717780054e908086a005f0b5d2f0152fb75cbc8"
+    },
+    {
+      "path": "src/zero_os/__pycache__/confidence_engine.cpython-314.pyc",
+      "size": 2061,
+      "sha256": "bcf96832fcfaf3ce799102d5e29d9cde6509fd8d6f62377057c19163bb047758"
+    },
+    {
+      "path": "src/zero_os/__pycache__/connector_layer.cpython-314.pyc",
+      "size": 2079,
+      "sha256": "8f43769447905ea91adae6c4539ad20e3a898116111f82f98462409abeddef5d"
     },
     {
       "path": "src/zero_os/__pycache__/consciousness_core.cpython-314.pyc",
@@ -2616,13 +2981,18 @@
     },
     {
       "path": "src/zero_os/__pycache__/enterprise_security.cpython-314.pyc",
-      "size": 23759,
-      "sha256": "2ef39664d0181bbbe5a41100879b018e7f42df5c1a4b11609539c3a9ced176a7"
+      "size": 26068,
+      "sha256": "3c44eb57ad7ce730956da5899761126c763a7caf45e29121d30d785430981ef1"
     },
     {
       "path": "src/zero_os/__pycache__/gap_coverage.cpython-314.pyc",
       "size": 9953,
       "sha256": "8287b15bd91270d459873916778efed295d0a25cd274377d11eb3d210ae7b796"
+    },
+    {
+      "path": "src/zero_os/__pycache__/github_integration_pack.cpython-314.pyc",
+      "size": 2754,
+      "sha256": "fafbad7175068e2bc4d5cebbce79e46babf2c898fc83476025febd4a19429535"
     },
     {
       "path": "src/zero_os/__pycache__/global_runtime_network.cpython-314.pyc",
@@ -2666,18 +3036,28 @@
     },
     {
       "path": "src/zero_os/__pycache__/native_app_store.cpython-314.pyc",
-      "size": 51093,
-      "sha256": "52bfffe5ba58dc6c68acb715a3a997e99ec331a6b5513de083d09404b8dbf886"
+      "size": 63115,
+      "sha256": "31306a679a1a8d44a0fc8f7a9589685980992463ecd419f8a3d48b0653b0ec03"
+    },
+    {
+      "path": "src/zero_os/__pycache__/native_platform.cpython-314.pyc",
+      "size": 17556,
+      "sha256": "f85373c0f8e1b7188628ee2c5b189beca0a3a116c5b496670935b6ecab5960c9"
+    },
+    {
+      "path": "src/zero_os/__pycache__/native_shell_bridge.cpython-314.pyc",
+      "size": 9042,
+      "sha256": "f2ebc4c087d348436012cac6c2cf7eb320b06b04eb60d9d8a431801e0ab4da41"
     },
     {
       "path": "src/zero_os/__pycache__/native_store_backend.cpython-314.pyc",
-      "size": 19730,
-      "sha256": "24c1444cffab4937aa0ea66fc6d6e57bf2466821053a946a8deefb1bb2b063a7"
+      "size": 20417,
+      "sha256": "527e9282a089fdc6e93c6fbcb5e12caa43f067eb87b8f5d3a5ab710a2d9ad173"
     },
     {
       "path": "src/zero_os/__pycache__/native_store_desktop.cpython-314.pyc",
-      "size": 6789,
-      "sha256": "95a14504ee6ebd62a45a01aa9bd8e0a1763f170d8d26a0d7a9c496e559456260"
+      "size": 15928,
+      "sha256": "a861b71b276900945efb4108e64e146554cd9023f7274a3c89a70feb50672cbc"
     },
     {
       "path": "src/zero_os/__pycache__/native_store_enterprise_ops.cpython-314.pyc",
@@ -2685,9 +3065,19 @@
       "sha256": "8ac9d20e7f867930d4d89897244265ce032db1e53c8a434913525c1ede47cdbc"
     },
     {
+      "path": "src/zero_os/__pycache__/native_store_smart_logic.cpython-314.pyc",
+      "size": 8344,
+      "sha256": "7444be8ef0d5cc9f61e8d534f5013309f4d6f47a94363d40b9b45560529339f4"
+    },
+    {
       "path": "src/zero_os/__pycache__/net_client.cpython-314.pyc",
       "size": 3718,
       "sha256": "1bfcaa9c05e48529077397ac35423a2062fb92f4d03c11be8cda20c1fd8c29cc"
+    },
+    {
+      "path": "src/zero_os/__pycache__/observation_layer.cpython-314.pyc",
+      "size": 1186,
+      "sha256": "3edd4a3c94e77ff490a6172abb8d5683bed01b6da01343a6e4a246d8d3cf506d"
     },
     {
       "path": "src/zero_os/__pycache__/ops_maturity.cpython-314.pyc",
@@ -2710,19 +3100,29 @@
       "sha256": "baf23c5565372a2aee69e642dc49586ef407fcd6cdfea93138e092f993afee95"
     },
     {
+      "path": "src/zero_os/__pycache__/playbook_memory.cpython-314.pyc",
+      "size": 3587,
+      "sha256": "4996ad31548059cfe4f6afdad33850d513ba0a38516f4f0c4cfb3a0b93f4b512"
+    },
+    {
       "path": "src/zero_os/__pycache__/plugins.cpython-314.pyc",
       "size": 2425,
       "sha256": "42c031df24a1d3925c4e04dbc6066b5d17fbddba5b7f2d77addfe7f708b2cb04"
     },
     {
       "path": "src/zero_os/__pycache__/production_core.cpython-314.pyc",
-      "size": 91455,
-      "sha256": "2fa1e54eb628e9fb1e9ed6411883874f9962c590151f9fd6380a9dfb59693663"
+      "size": 116566,
+      "sha256": "d876e014eebe147c4b171ab6460250cf9f205e2b09afc30928232f28ec19e8b1"
+    },
+    {
+      "path": "src/zero_os/__pycache__/production_platform_ops.cpython-314.pyc",
+      "size": 9750,
+      "sha256": "49669b0e4978d6bf769ba9cc602ad98ccda7b2bae2575a59c459a7e08a4e07f3"
     },
     {
       "path": "src/zero_os/__pycache__/rate_limit.cpython-314.pyc",
-      "size": 4076,
-      "sha256": "04eae88520479932f139374d41b6b2450bc53a895f24453294ccd1b677ea886c"
+      "size": 4316,
+      "sha256": "84fa52ee0a89bcedaa322e1351c9b38f15f0bb2dc4a77905d666d0087f17ff08"
     },
     {
       "path": "src/zero_os/__pycache__/rcrp.cpython-314.pyc",
@@ -2741,18 +3141,28 @@
     },
     {
       "path": "src/zero_os/__pycache__/recovery.cpython-314.pyc",
-      "size": 6862,
-      "sha256": "9892a013fa1358dd800c22ed5603de68942c7f6cfbed31e78e403708350eef1b"
+      "size": 8160,
+      "sha256": "59ba85ee8613dafee3d93d1b63d1f8f15e4fefa1b7c50b9316e75e7b570dbadc"
     },
     {
       "path": "src/zero_os/__pycache__/resilience.cpython-314.pyc",
-      "size": 15288,
-      "sha256": "70a97c8f51ea1a6dde71adc03a7e555fec3176ca1ed88b8a237acd14e050855a"
+      "size": 15676,
+      "sha256": "6e2fc459b63eb2b099b5a4bd63bb287328407db6f0bc288202d714da3a5045ae"
+    },
+    {
+      "path": "src/zero_os/__pycache__/result_synthesizer.cpython-314.pyc",
+      "size": 4277,
+      "sha256": "d0ada497b956e1799f7292a89333df73b870bf59fb8981e5356b54ef5a4d1888"
     },
     {
       "path": "src/zero_os/__pycache__/ria.cpython-314.pyc",
       "size": 8054,
       "sha256": "3b3f0f1e38c584c09423df56b609bd0205570ca6a11b7a176c3adbfcfd8806bc"
+    },
+    {
+      "path": "src/zero_os/__pycache__/risk_engine.cpython-314.pyc",
+      "size": 3968,
+      "sha256": "32b72be9070930894143286251fe0be9e4386b8530094aa574fd9b866df6487e"
     },
     {
       "path": "src/zero_os/__pycache__/runtime_coupling.cpython-314.pyc",
@@ -2775,6 +3185,11 @@
       "sha256": "6f4eda77a07924eeb8be21f506368cc1698c9772e890a7ff94144e2d5411622f"
     },
     {
+      "path": "src/zero_os/__pycache__/runtime_smart_logic.cpython-314.pyc",
+      "size": 8349,
+      "sha256": "538845dcf3184bc5a3d70d5550fa8cd8349830972f24211e8f2d1cca80881d07"
+    },
+    {
       "path": "src/zero_os/__pycache__/scheduler.cpython-314.pyc",
       "size": 2560,
       "sha256": "42f7a7dbeee59a6a1e6b05ed977a3b10ee006b5f414c82612007591519258c46"
@@ -2786,13 +3201,13 @@
     },
     {
       "path": "src/zero_os/__pycache__/security_hardening.cpython-314.pyc",
-      "size": 10926,
-      "sha256": "95e11f0fc912c23c588657b0c43f0bdcbbce6284ef5d7a9be95ace49df5dcbb0"
+      "size": 11152,
+      "sha256": "60fd857428b0bf420f3c5893dca5ba3b86d78e0f8050318cd78365fb69b154ac"
     },
     {
       "path": "src/zero_os/__pycache__/self_repair.cpython-314.pyc",
-      "size": 6590,
-      "sha256": "9ea43ef137f8ee4e6abc392f6119b08c57ab46e286cab4a9ea37b644f4a9695c"
+      "size": 7351,
+      "sha256": "2d94441e4b932b0014356a717b7ed57cee8c53af81c613e6fe13217deb40f75c"
     },
     {
       "path": "src/zero_os/__pycache__/serp.cpython-314.pyc",
@@ -2801,13 +3216,38 @@
     },
     {
       "path": "src/zero_os/__pycache__/smart_logic_governance.cpython-314.pyc",
-      "size": 9200,
-      "sha256": "847b6696f3f1207fd2b29ab1a704765ccf17b2b2c13550c7bd7071496ca5d2ba"
+      "size": 13431,
+      "sha256": "18f21d10bfa63afa6321cee2aced079f3812cff8a8d578bb5c3a5be87e283c6c"
     },
     {
       "path": "src/zero_os/__pycache__/state.cpython-314.pyc",
       "size": 9240,
       "sha256": "46c5c96fa4cb2fa80855739e77f605b489fa4f248f94e5f698cda8a87d2f5517"
+    },
+    {
+      "path": "src/zero_os/__pycache__/structured_intent.cpython-314.pyc",
+      "size": 3132,
+      "sha256": "bd3bc078fef4588510782b38a3235ea7adbde8a9274c7d47f4defb0fe38e98c0"
+    },
+    {
+      "path": "src/zero_os/__pycache__/task_executor.cpython-314.pyc",
+      "size": 3969,
+      "sha256": "a058dd532f4562ba23397bd72c4b1f6f104e65a3896b135ba16ea729244012ba"
+    },
+    {
+      "path": "src/zero_os/__pycache__/task_memory.cpython-314.pyc",
+      "size": 4743,
+      "sha256": "9be66f03c54ab87668b9c26d39570316fd87b9223bcb4441668d6bdb7de27ae7"
+    },
+    {
+      "path": "src/zero_os/__pycache__/task_planner.cpython-314.pyc",
+      "size": 8875,
+      "sha256": "9cc94a6eebe8392c250bf26ede7930220e9ba24dd5a61d35f7f76a57c26e169e"
+    },
+    {
+      "path": "src/zero_os/__pycache__/tool_capability_registry.cpython-314.pyc",
+      "size": 1757,
+      "sha256": "98a9220063e35af9d8ab8197bdcd9140650126603e4d2032d8a65c769591e113"
     },
     {
       "path": "src/zero_os/__pycache__/triad_balance.cpython-314.pyc",
@@ -2820,6 +3260,11 @@
       "sha256": "ac21d22fbf9c18b4a3602f2dc68810102edd885d2cf1eef4072046cc7d2e78bf"
     },
     {
+      "path": "src/zero_os/__pycache__/unified_action_engine.cpython-314.pyc",
+      "size": 9521,
+      "sha256": "6b09f718cb3c15bbbc65f219711ebcf6fd2ca448fc52e7874f9a7e8851651b5e"
+    },
+    {
       "path": "src/zero_os/__pycache__/universal_code_intake.cpython-314.pyc",
       "size": 6787,
       "sha256": "039002774aed94db71f21de85a1cbcbc11b3da4cc8948799215a3478e7f1a6b4"
@@ -2828,6 +3273,11 @@
       "path": "src/zero_os/__pycache__/universal_runtime_ecosystem.cpython-314.pyc",
       "size": 8621,
       "sha256": "c4c4831f9c9e63f2a9fd9ddeb4ad0366c5149e1b0c4c9dece313665df613ba58"
+    },
+    {
+      "path": "src/zero_os/__pycache__/verification_web_flow.cpython-314.pyc",
+      "size": 1918,
+      "sha256": "09d69131c42452cbd9b3072d2d2a179308d5023a6968a066af010889b44d383d"
     },
     {
       "path": "src/zero_os/__pycache__/zero_ai_identity.cpython-314.pyc",
@@ -2876,8 +3326,8 @@
     },
     {
       "path": "src/zero_os/kernel_rnd/__pycache__/runtime_stack.cpython-314.pyc",
-      "size": 21264,
-      "sha256": "70c92bfb6b48abb69b90e6b1e4879af96ff8a73f95b2b5d371cb21264d32c577"
+      "size": 27120,
+      "sha256": "6ce3fbed43d3421c6574bb141ad1b7989550e01206d967bcb5118c47f1bbbe8c"
     },
     {
       "path": "src/zero_os/kernel_rnd/__pycache__/scheduler.cpython-314.pyc",
@@ -2996,8 +3446,8 @@
     },
     {
       "path": "src/zero_os/capabilities/__pycache__/system.cpython-314.pyc",
-      "size": 211728,
-      "sha256": "0b2bca2ba1842b14d8d0502157eed12ff665125c536d23979ca1793e4f367441"
+      "size": 233668,
+      "sha256": "8757535b85b4dd9df9241926eac9fb8d2392a3e83d220b70b5f815dbf2495b0f"
     },
     {
       "path": "src/zero_os/capabilities/__pycache__/web.cpython-314.pyc",
@@ -3007,22 +3457,22 @@
     {
       "path": "security/artifacts/artifact_signatures.json",
       "size": 1216,
-      "sha256": "cdabedd35428b5f6fa887d6e518682b60fb01ab9143572d4ed92c8c13e12196d"
+      "sha256": "c8e4f2d9716464d941637115b676fac7e61043b9f92207841fe954e250f9ae28"
     },
     {
       "path": "security/artifacts/compliance_evidence.json",
       "size": 511,
-      "sha256": "de629ad3c635ca9833d5494bf632044c8f024fe2b7a864becda7d8f7e92e627f"
+      "sha256": "2e2b3a2cba42a8423ae195c98143fe8b3fbd26a255b5c2796acbb2c9cba37daf"
     },
     {
       "path": "security/artifacts/compliance_evidence.md",
       "size": 237,
-      "sha256": "8b90afa905a1d4eec1f807736b5c71cc14c485b49cc6a321a4be1accb9290469"
+      "sha256": "fbd0b075f85ecb15caa47d925450f3a3ddbab737c3b32a26b6521f6654838df6"
     },
     {
       "path": "security/artifacts/sbom.json",
-      "size": 199055,
-      "sha256": "3599ff3de63a9c36ba6c3d5687dbb0af04196e03e812e3d8853a61fcfc15a961"
+      "size": 313681,
+      "sha256": "818bc5840abc8c08176fca113304186c46188d1517999d836c0095e9b86c91cb"
     },
     {
       "path": "security/artifacts/security_benchmark.json",
@@ -3037,7 +3487,7 @@
     {
       "path": "security/artifacts/vuln_scan.json",
       "size": 113,
-      "sha256": "c13c24f6093ab6d9ca40d60db05404fd8bd26e04407e8ee9abfe1673f0763b03"
+      "sha256": "25242c4843993b44c590dfd8953cb3589a6316323338fdee3bb1dc7830169b25"
     },
     {
       "path": "security/benchmarks/compare_latest.md",
@@ -3660,6 +4110,11 @@
       "sha256": "8f6cfc4cbd2f6a0c9802a7562d14547ae7290757915a0e11329eb12309aab6ed"
     },
     {
+      "path": ".zero_os/assistant/playbooks.json",
+      "size": 25,
+      "sha256": "b8d6773e0a386d5c7c0d5c9a0cb63af20cf7343ede1703307db0f8e923da2bda"
+    },
+    {
       "path": ".zero_os/beacons/adaptation_rate_controller.beacon.json",
       "size": 893,
       "sha256": "d3186d24b6aa50b7eed688eb0cf7f682e697592104c818453d1b304439767896"
@@ -3881,8 +4336,8 @@
     },
     {
       "path": ".zero_os/native_store/state.json",
-      "size": 3667,
-      "sha256": "376b7b79b75b93ea17d152ba8dbc5b78194d01d81b3ed0e5eb5153992579a964"
+      "size": 4675,
+      "sha256": "9a6e7fa91eaabcdc5fd4ae58d29e6cb6d582105809a959d462cf470462a20b2a"
     },
     {
       "path": ".zero_os/production/auto_merge.json",
@@ -4161,8 +4616,8 @@
     },
     {
       "path": ".zero_os/runtime/false_positive_review.jsonl",
-      "size": 105380,
-      "sha256": "bab8fbe8e9da30ded8c881983d131c72054befd9888381308aef11b76db2fc45"
+      "size": 105820,
+      "sha256": "fc87d1f9f08f56999cb3493d09cddf4c0249bdbcfb9a0c539c83ee3ae4580fbd"
     },
     {
       "path": ".zero_os/runtime/first_run_report.json",
@@ -4483,6 +4938,11 @@
       "path": ".zero_os/runtime/zero_supervisor_heartbeat.json",
       "size": 236,
       "sha256": "af94b89e80ef3df00883d974c00b1d9315926f2768a7a2dafa2d642d91eb775a"
+    },
+    {
+      "path": ".zero_os/store/registry.json",
+      "size": 2290,
+      "sha256": "3c5d163c810dac6403e56f4570efbabefc69268ec24a0aaf56de90a8a661abb2"
     },
     {
       "path": ".zero_os/runtime/trusted_files/ai_from_scratch/daemon.py",
@@ -7566,13 +8026,13 @@
     },
     {
       "path": ".pytest_cache/v/cache/nodeids",
-      "size": 21938,
-      "sha256": "c2edb1f9a5d4a500dfd4b6afa43220e066ee59a0113ce3605b80bdd61700a1db"
+      "size": 28187,
+      "sha256": "2c46644e4576a93f0d28bcab397f8ccdc73ca32059ac7eaba78f454a35ba516f"
     },
     {
       "path": ".github/workflows/ci.yml",
-      "size": 6333,
-      "sha256": "aa035b405ce59709e1ccce8a798c49c7f1304823991ea88d55ed4413b82001a7"
+      "size": 7539,
+      "sha256": "bfcf628c70241d31fe57b8fb9a40c519821e7ee20c653414b0056a338a0eb33e"
     },
     {
       "path": ".github/workflows/pages.yml",
@@ -7581,9 +8041,9 @@
     },
     {
       "path": ".github/workflows/security-maturity.yml",
-      "size": 1173,
-      "sha256": "decc995509a380aa53c936e25212e24d3935589751bc57b0c7208a790bd3f2ef"
+      "size": 1619,
+      "sha256": "3a524c59e67143e2fbb79bf9aa2c6c4f0b4ae70f82236de53961687449a20247"
     }
   ],
-  "component_count": 1515
+  "component_count": 1607
 }

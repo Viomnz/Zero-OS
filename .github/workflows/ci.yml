@@ -1,4 +1,4 @@
-﻿name: ci
+name: ci
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Install test dependencies
         run: |
@@ -40,7 +40,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Install test dependencies
         run: |
@@ -70,12 +70,23 @@ jobs:
         shell: powershell
         run: |
           $kitsRoot = "C:\Program Files (x86)\Windows Kits\10\bin"
-          if (-not (Test-Path $kitsRoot)) {
-            Write-Error "Windows SDK bin root not found at $kitsRoot"
+          $makeappx = $null
+          if (Test-Path $kitsRoot) {
+            $makeappx = Get-ChildItem -Path $kitsRoot -Recurse -Filter makeappx.exe -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
           }
-          $makeappx = Get-ChildItem -Path $kitsRoot -Recurse -Filter makeappx.exe -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
+          if (-not $makeappx) {
+            choco install windows-sdk-10-version-2004-all -y --no-progress
+            if ($LASTEXITCODE -notin @(0, 1605, 1614, 1641, 3010)) {
+              Write-Error "Failed to install Windows SDK for makeappx"
+            }
+            if (Test-Path $kitsRoot) {
+              $makeappx = Get-ChildItem -Path $kitsRoot -Recurse -Filter makeappx.exe -ErrorAction SilentlyContinue |
+                Sort-Object FullName -Descending |
+                Select-Object -First 1
+            }
+          }
           if (-not $makeappx) {
             Write-Error "makeappx.exe not found under $kitsRoot"
           }

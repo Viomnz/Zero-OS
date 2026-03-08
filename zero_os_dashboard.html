@@ -192,14 +192,78 @@
     .accent { color: var(--accent); }
     .cliOnly { display: none; }
     .guiOnly { display: block; }
+    .operatorOnly { display: none; }
+    .userOnly { display: block; }
     body.mode-cli .cliOnly { display: block; }
     body.mode-cli .guiOnly { display: none; }
     body.mode-cli .card { border-style: dashed; }
+    body.audience-operator .operatorOnly { display: block; }
+    body.audience-operator .userOnly { display: none; }
+    .audienceBar {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 12px;
+      flex-wrap: wrap;
+    }
+    .audienceBtn {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 80%, #fff 20%);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: auto;
+    }
+    .audienceBtn.active {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+      color: #e8f8ff;
+    }
+    .summaryGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .summaryBox {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0,0,0,.12);
+      padding: 10px;
+    }
+    .summaryLabel {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .summaryValue {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .rawDetails {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0,0,0,.12);
+      overflow: hidden;
+    }
+    .rawDetails summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
     @media (max-width: 700px) {
       body { padding: 12px; }
       h1 { font-size: 24px; }
       .hero { padding: 14px; }
       .grid { grid-template-columns: 1fr; }
+      .summaryGrid { grid-template-columns: 1fr; }
     }
   </style>
   <style id="userStyle"></style>
@@ -212,6 +276,24 @@
       <span class="chip">User Ready UI/UX</span>
     </div>
     <div class="sub">Professional control center for Zero-AI runtime, Cure Firewall, Antivirus, benchmark insights, and live system operations.</div>
+  </div>
+  <div class="audienceBar">
+    <button class="audienceBtn active" data-audience="user">User Mode</button>
+    <button class="audienceBtn" data-audience="operator">Operator Mode</button>
+  </div>
+  <div class="card userOnly" style="margin-bottom:12px;">
+    <h2>User View</h2>
+    <pre>Default view:
+- health and safety first
+- quick actions and simple status
+- hides advanced operator tooling until needed</pre>
+  </div>
+  <div class="card operatorOnly" style="margin-bottom:12px;">
+    <h2>Operator View</h2>
+    <pre>Advanced view:
+- developer and executor tools
+- deep monitors and model layers
+- theme and control-plane configuration</pre>
   </div>
   <div class="card" style="margin-bottom:12px;">
     <h2>Interface Mode</h2>
@@ -249,7 +331,7 @@ python src/main.py "security overview"
   </details>
 
   <div class="grid">
-    <section class="card">
+    <section class="card userOnly">
       <h2>User Interface</h2>
       <pre>Human-facing layer:
 - Theme and UI controls
@@ -258,7 +340,7 @@ python src/main.py "security overview"
 - Visual runtime panels</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Developer Interface</h2>
       <pre id="devHelp">Queue developer commands directly to Zero-AI.</pre>
       <textarea id="devInput" style="min-height:88px;">codex: suggest route: optimize zeronet security and performance</textarea>
@@ -269,7 +351,7 @@ python src/main.py "security overview"
       <pre id="devStatus" style="margin-top:8px;"></pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Unified Executor</h2>
       <pre>One command path for terminal and powershell.</pre>
       <textarea id="execInput" style="min-height:88px;">python -c "print('zero dashboard executor')"</textarea>
@@ -279,7 +361,7 @@ python src/main.py "security overview"
       <pre id="execStatus" style="margin-top:8px;"></pre>
       <pre id="execOutput" style="margin-top:8px;"></pre>
     </section>
-    <section class="card" data-page="operations">
+    <section class="card operatorOnly" data-page="operations">
       <h2>Smart Logic Finder</h2>
       <pre>Find files anywhere in workspace and suggest next actions using deterministic logic.</pre>
       <textarea id="smartFindQuery" style="min-height:88px;">cure firewall antivirus security</textarea>
@@ -295,7 +377,7 @@ python src/main.py "security overview"
       <pre id="smartFindOutput" style="margin-top:8px;"></pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Theme Studio</h2>
       <div class="controls">
         <label>Preset
@@ -383,7 +465,7 @@ python src/main.py "security overview"
       <pre id="themeStatus" style="margin-top:8px;"></pre>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Zero-AI Chatbox</h2>
       <pre id="chatHelp">Type a prompt and send to daemon queue.</pre>
       <div id="chatLog" class="chatlog"></div>
@@ -421,84 +503,84 @@ python src/main.py "security overview"
       <pre id="chatStatus" style="margin-top:8px;"></pre>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Daemon Heartbeat</h2>
-      <pre id="heartbeat">Loading...</pre>
+      <div id="heartbeat">Loading...</div>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Cure Monitor</h2>
-      <pre id="monitor">Loading...</pre>
+      <div id="monitor">Loading...</div>
     </section>
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Agents Auto Monitor</h2>
       <pre id="agentsMonitor">Loading...</pre>
     </section>
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Agents Auto Remediation</h2>
       <pre id="agentsRemediation">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Latest Output</h2>
-      <pre id="output">Loading...</pre>
+      <div id="output">Loading...</div>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Latest Scan Report</h2>
-      <pre id="scan">Loading...</pre>
+      <div id="scan">Loading...</div>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Adaptation Rate Controller</h2>
       <pre id="adaptation">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Model Evolution Layer</h2>
       <pre id="evolution">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Reliability Config</h2>
       <pre id="reliability">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Memory Quality</h2>
       <pre id="memoryQuality">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Memory Update Layer</h2>
       <pre id="memoryUpdate">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Node Replacement Plan</h2>
       <pre id="replacementPlan">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Long Horizon Strategy</h2>
       <pre id="longHorizon">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>AGI Module Registry</h2>
       <pre id="agiRegistry">Loading...</pre>
     </section>
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>AGI Advanced Layers</h2>
       <pre id="agiAdvancedLayers">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card userOnly">
       <h2>Quick Paths</h2>
       <pre id="paths"></pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Hardware Capability Map</h2>
       <pre>Shows: direct vs indirect access, ready now, drivers/kernel next.</pre>
       <div class="row">
@@ -507,7 +589,7 @@ python src/main.py "security overview"
       <pre id="hardwareMap" style="margin-top:8px;">Loading...</pre>
     </section>
 
-    <section class="card">
+    <section class="card operatorOnly">
       <h2>Zero-OS Architecture Stack</h2>
       <div id="archStack" style="display:grid;gap:6px;"></div>
       <pre id="archStatus" style="margin-top:8px;"></pre>
@@ -548,6 +630,7 @@ python src/main.py "security overview"
     const CHAT_STATE_KEY = "zero_os_chat_human_v1";
     const CHAT_SESSION_KEY = "zero_os_chat_session_v1";
     const INTERFACE_KEY = "zero_os_interface_mode_v1";
+    const AUDIENCE_KEY = "zero_os_audience_mode_v1";
     const defaults = {
       bg: "#0f1418", bg2: "#111a22", panel: "#171f25", ink: "#d6e3ef",
       accent: "#4db5ff", line: "#2b3945", radius: 10, gap: 12,
@@ -644,9 +727,49 @@ python src/main.py "security overview"
       applyPageFilter(saved);
     }
 
+    function applyAudienceMode(mode){
+      const normalized = mode === "operator" ? "operator" : "user";
+      document.body.classList.toggle("audience-operator", normalized === "operator");
+      document.querySelectorAll(".audienceBtn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.audience === normalized);
+      });
+      localStorage.setItem(AUDIENCE_KEY, normalized);
+    }
+
+    function setupAudienceMode(){
+      const buttons = Array.from(document.querySelectorAll(".audienceBtn"));
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => applyAudienceMode(btn.dataset.audience || "user"));
+      });
+      applyAudienceMode(localStorage.getItem(AUDIENCE_KEY) || "user");
+    }
+
     function pick(id){ return document.getElementById(id); }
     function readTheme(){ try { return JSON.parse(localStorage.getItem(THEME_KEY)) || {...defaults}; } catch { return {...defaults}; } }
     function saveTheme(t){ localStorage.setItem(THEME_KEY, JSON.stringify(t)); }
+
+    function escapeHtml(value){
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function renderSummaryPanel(items, rawTitle, rawValue){
+      const boxes = items.map((item) => `
+        <div class="summaryBox">
+          <div class="summaryLabel">${escapeHtml(item.label)}</div>
+          <div class="summaryValue">${escapeHtml(item.value)}</div>
+        </div>
+      `).join("");
+      return `
+        <div class="summaryGrid">${boxes}</div>
+        <details class="rawDetails">
+          <summary>${escapeHtml(rawTitle)}</summary>
+          <pre>${escapeHtml(rawValue)}</pre>
+        </details>
+      `;
+    }
 
     function applyTheme(t){
       const root = document.documentElement.style;
@@ -768,12 +891,32 @@ python src/main.py "security overview"
           "GitHub Pages mode: local runtime and daemon API are not available.",
           "Run this dashboard locally for live daemon data."
         ].join("\n");
-        pick("heartbeat").textContent = hostedMsg;
-        pick("monitor").textContent = hostedMsg;
+        pick("heartbeat").innerHTML = renderSummaryPanel([
+          { label: "Status", value: "Hosted mode" },
+          { label: "Runtime Feed", value: "Unavailable" },
+          { label: "Next Step", value: "Run local dashboard" },
+          { label: "Source", value: "GitHub Pages" }
+        ], "Show heartbeat details", hostedMsg);
+        pick("monitor").innerHTML = renderSummaryPanel([
+          { label: "Security Feed", value: "Hosted mode" },
+          { label: "Live Monitor", value: "Unavailable" },
+          { label: "Protection", value: "Unknown" },
+          { label: "Next Step", value: "Run local dashboard" }
+        ], "Show monitor details", hostedMsg);
         pick("agentsMonitor").textContent = hostedMsg;
         pick("agentsRemediation").textContent = hostedMsg;
-        pick("output").textContent = "Hosted static view";
-        pick("scan").textContent = "Hosted static view";
+        pick("output").innerHTML = renderSummaryPanel([
+          { label: "Output Feed", value: "Static only" },
+          { label: "Lines", value: "Unavailable" },
+          { label: "Recent Activity", value: "Unknown" },
+          { label: "Next Step", value: "Run locally" }
+        ], "Show output details", "Hosted static view");
+        pick("scan").innerHTML = renderSummaryPanel([
+          { label: "Scan Feed", value: "Static only" },
+          { label: "Threat Status", value: "Unknown" },
+          { label: "Latest Report", value: "Unavailable" },
+          { label: "Next Step", value: "Run locally" }
+        ], "Show scan details", "Hosted static view");
         pick("adaptation").textContent = "Hosted static view";
         pick("evolution").textContent = "Hosted static view";
         pick("reliability").textContent = "Hosted static view";
@@ -798,14 +941,35 @@ python src/main.py "security overview"
       const monitorTxt = await readText(files.monitor);
       const agentsMonitorTxt = await readText(files.agentsMonitor);
       const agentsRemediationTxt = await readText(files.agentsRemediation);
-      pick("heartbeat").textContent = heartbeatTxt;
-      pick("monitor").textContent = monitorTxt;
+      pick("heartbeat").innerHTML = renderSummaryPanel([
+        { label: "Daemon", value: /ok|healthy|running/i.test(heartbeatTxt) ? "Healthy" : "Check required" },
+        { label: "Feed", value: heartbeatTxt.startsWith("Unavailable") ? "Unavailable" : "Live" },
+        { label: "Signal", value: heartbeatTxt.split(/\\r?\\n/).filter(Boolean).length ? `${heartbeatTxt.split(/\\r?\\n/).filter(Boolean).length} lines` : "No data" },
+        { label: "Mode", value: HOSTED_MODE ? "Hosted" : "Local" }
+      ], "Show heartbeat details", heartbeatTxt);
+      pick("monitor").innerHTML = renderSummaryPanel([
+        { label: "Cure Monitor", value: /strict|hardened|protected|ok/i.test(monitorTxt) ? "Protected" : "Needs review" },
+        { label: "Feed", value: monitorTxt.startsWith("Unavailable") ? "Unavailable" : "Live" },
+        { label: "Agents", value: agentsMonitorTxt.startsWith("Unavailable") ? "Unknown" : "Reporting" },
+        { label: "Remediation", value: agentsRemediationTxt.startsWith("Unavailable") ? "Unknown" : "Available" }
+      ], "Show monitor details", monitorTxt);
       pick("agentsMonitor").textContent = formatAgentsMonitor(agentsMonitorTxt);
       pick("agentsRemediation").textContent = formatAgentsRemediation(agentsRemediationTxt);
       const out = await readText(files.output);
-      pick("output").textContent = out.split(/\r?\n/).slice(-40).join("\n");
+      const outLines = out.split(/\r?\n/).filter(Boolean);
+      pick("output").innerHTML = renderSummaryPanel([
+        { label: "Output Feed", value: out.startsWith("Unavailable") ? "Unavailable" : "Live" },
+        { label: "Recent Lines", value: `${Math.min(40, outLines.length)} shown` },
+        { label: "Entries", value: `${outLines.length}` },
+        { label: "Status", value: outLines.length ? "Recent activity found" : "No recent output" }
+      ], "Show output details", out.split(/\r?\n/).slice(-40).join("\n"));
       const scanTxt = await readText(files.scan);
-      pick("scan").textContent = scanTxt;
+      pick("scan").innerHTML = renderSummaryPanel([
+        { label: "Scan Feed", value: scanTxt.startsWith("Unavailable") ? "Unavailable" : "Live" },
+        { label: "Risk", value: /malware|critical|high|infected/i.test(scanTxt) ? "High" : "No obvious critical hit" },
+        { label: "Report Size", value: `${scanTxt.length} chars` },
+        { label: "Next Step", value: /malware|critical|high|infected/i.test(scanTxt) ? "Review immediately" : "Monitor" }
+      ], "Show scan details", scanTxt);
       const adaptationTxt = await readText(files.adaptation);
       pick("adaptation").textContent = formatAdaptation(adaptationTxt);
       const evolutionTxt = await readText(files.evolution);
@@ -1479,6 +1643,7 @@ python src/main.py "security overview"
     const saved = readTheme();
     syncInputs(saved);
     applyTheme(saved);
+    setupAudienceMode();
     setupPageMenu();
     setInterfaceMode(localStorage.getItem(INTERFACE_KEY) || "gui");
     restoreChatPrefs();

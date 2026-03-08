@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "time_utc": "2026-03-08T03:57:55.052548+00:00",
+  "time_utc": "2026-03-08T06:21:29.913707+00:00",
   "checks": [
     {
       "path": "security/artifacts/sbom.json",
       "exists": true,
-      "size": 199055
+      "size": 315860
     },
     {
       "path": "security/artifacts/vuln_scan.json",

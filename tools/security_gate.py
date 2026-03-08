@@ -5,15 +5,18 @@ import sys
 
 
 def run(cmd: list[str]) -> int:
+    print("running:", " ".join(cmd), flush=True)
     p = subprocess.run(cmd)
+    if p.returncode != 0:
+        print(f"failed: {' '.join(cmd)} (exit {p.returncode})", file=sys.stderr, flush=True)
     return p.returncode
 
 
 def main() -> int:
     suites = [
-        ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-q"],
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-q"],
         [
-            "python",
+            sys.executable,
             "-m",
             "unittest",
             "tests.test_antivirus_system",
