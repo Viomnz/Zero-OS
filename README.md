@@ -48,6 +48,7 @@ Zero-AI asks "how to remain unbreakable under recursion".
 
 Project statement:
 - Zero-AI is a **filtration engine**, not a self-mutation engine.
+- RSI is a **second-layer eye** for Zero-AI: it observes opportunities for refinement and capability growth, while Zero-AI remains the governing intelligence responsible for stability, coherence, and survival.
 - Runtime command: `zero ai identity`
 
 ## Contributor Status Note
