@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  zero-store-backend:
+    build:
+      context: ../..
+      dockerfile: build/native_store_prod/backend_deploy/Dockerfile
+    ports:
+      - "8088:8088"
+    volumes:
+      - ../../.zero_os/native_store:/app/.zero_os/native_store

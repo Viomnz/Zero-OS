@@ -1,0 +1,60 @@
+openapi: 3.0.3
+info:
+  title: Zero AI Chat API
+  version: "1.0.0"
+servers:
+  - url: http://127.0.0.1:8765
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: ok
+  /metrics:
+    get:
+      summary: Runtime metrics
+      responses:
+        "200":
+          description: metrics
+  /v1/chat/completions:
+    post:
+      summary: Request chat completion
+      parameters:
+        - in: header
+          name: Authorization
+          schema: { type: string }
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string }
+        - in: header
+          name: X-Tenant-ID
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                tenant_id: { type: string }
+                session_id: { type: string }
+                message: { type: string }
+      responses:
+        "200":
+          description: completion
+        "400":
+          description: invalid request
+        "401":
+          description: unauthorized
+        "429":
+          description: rate limited
+        "504":
+          description: daemon timeout
+  /v1/chat/stream:
+    post:
+      summary: Stream chat completion via SSE
+      responses:
+        "200":
+          description: text/event-stream

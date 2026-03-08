@@ -1,0 +1,30 @@
+{
+  "tier1": {
+    "description": "Regular PC profile",
+    "max_model_size": "small",
+    "batch_size": 1,
+    "timeout_seconds": 20,
+    "fallback": "cpu-local"
+  },
+  "tier2": {
+    "description": "Workstation/server profile",
+    "max_model_size": "large",
+    "batch_size": 8,
+    "timeout_seconds": 45,
+    "fallback": "gpu-local"
+  },
+  "tier3": {
+    "description": "Cluster/supercomputer profile",
+    "max_model_size": "xlarge",
+    "batch_size": 32,
+    "timeout_seconds": 120,
+    "fallback": "distributed-cluster"
+  },
+  "tier4": {
+    "description": "Hybrid quantum-assisted profile",
+    "max_model_size": "specialized",
+    "batch_size": 4,
+    "timeout_seconds": 180,
+    "fallback": "quantum-hybrid"
+  }
+}

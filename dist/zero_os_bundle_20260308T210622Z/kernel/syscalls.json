@@ -1,0 +1,12 @@
+{
+  "syscalls": [
+    "process.spawn",
+    "process.kill",
+    "fs.read",
+    "fs.write",
+    "mem.alloc",
+    "mem.free",
+    "net.send",
+    "net.recv"
+  ]
+}

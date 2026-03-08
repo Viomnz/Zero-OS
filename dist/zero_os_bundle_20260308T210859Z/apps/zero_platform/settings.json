@@ -1,0 +1,7 @@
+{
+  "theme": "zero-light",
+  "session_restore": true,
+  "onboarding": true,
+  "start_menu_style": "layered",
+  "window_manager": "stacked-shell"
+}

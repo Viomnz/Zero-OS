@@ -18,8 +18,12 @@ public partial class MainWindow : Window
     private const string CloneCommand = "git clone https://github.com/Viomnz/Zero-OS.git";
     private const string FirstRunCommand = @".\zero_os_launcher.ps1 first-run";
     private const string OpenShellCommand = "Start-Process \".\\zero_os_shell.html\"";
+    private const string PublishCommand = @".\publish.ps1";
+    private const string MsixCommand = @".\package_msix.ps1";
+    private readonly string _projectFile;
 
     private readonly string _repoRoot;
+    private readonly string _nativeUiRoot;
     private readonly NativeBackend _backend;
     private readonly NativeDiagnostics _diagnostics;
     private readonly ObservableCollection<string> _logs = new();
@@ -42,6 +46,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _repoRoot = ResolveRepoRoot();
+        _nativeUiRoot = Path.Combine(_repoRoot, "native_ui", "ZeroOS.NativeShell");
+        _projectFile = Path.Combine(_repoRoot, "native_ui", "ZeroOS.NativeShell", "ZeroOS.NativeShell.csproj");
         _backend = new NativeBackend(_repoRoot);
         _diagnostics = new NativeDiagnostics(_repoRoot);
 
@@ -58,8 +64,11 @@ public partial class MainWindow : Window
 
         RefreshArtifacts();
         RefreshWorkspaceTree();
+        RefreshCodeIndexStatus();
         RefreshGithubData();
         RefreshReleaseData();
+        RefreshSecuritySpecs();
+        RefreshQuickStartStatus();
         SetStatus("Ready");
         AppendLog("Application started");
     }
@@ -82,6 +91,13 @@ public partial class MainWindow : Window
     private void CopyCloneCommand_Click(object sender, RoutedEventArgs e) => CopyText(CloneCommand, "clone command");
     private void CopyFirstRun_Click(object sender, RoutedEventArgs e) => CopyText(FirstRunCommand, "first-run command");
     private void CopyOpenShell_Click(object sender, RoutedEventArgs e) => CopyText(OpenShellCommand, "open shell command");
+    private void RunFirstRun_Click(object sender, RoutedEventArgs e) => RunLauncherCommand("first-run", "First-run complete", promptOpenShell: true);
+    private void OpenShellUi_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_repoRoot, "zero_os_shell.html"));
+        SetStatus("Opened Zero OS shell UI.");
+        AppendLog("Opened Zero OS shell UI");
+    }
 
     private void OpenRepository_Click(object sender, RoutedEventArgs e) => OpenUrl(RepoUrl);
     private void OpenReleases_Click(object sender, RoutedEventArgs e) => OpenUrl(ReleasesUrl);
@@ -98,8 +114,30 @@ public partial class MainWindow : Window
         SetStatus("Release data refreshed.");
     }
 
+    private void RefreshSecuritySpecs_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshSecuritySpecs();
+        SetStatus("Security specs refreshed.");
+    }
+
+    private void CopyPublishCommand_Click(object sender, RoutedEventArgs e) => CopyText(PublishCommand, "publish command");
+    private void CopyMsixCommand_Click(object sender, RoutedEventArgs e) => CopyText(MsixCommand, "MSIX command");
+
+    private void BuildNativePublish_Click(object sender, RoutedEventArgs e)
+    {
+        RunNativeScript("publish.ps1", "Native publish complete");
+    }
+
+    private void CreateNativeMsix_Click(object sender, RoutedEventArgs e)
+    {
+        RunNativeScript("package_msix.ps1", "MSIX scaffold complete");
+    }
+
     private void ExportBundle_Click(object sender, RoutedEventArgs e) => RunBackendTask("zero os export bundle", "Export bundle complete");
     private void CreateShareZip_Click(object sender, RoutedEventArgs e) => RunBackendTask("zero os share package", "Share zip complete");
+    private void KnowEverything_Click(object sender, RoutedEventArgs e) => RunBackendTask("zero ai know everything", "Zero AI know-everything run complete");
+    private void KnowEverythingCompleteAll_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero os complete all", "Zero AI know-everything and complete-all run complete");
     private void CoreStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("core status", "Core status loaded");
     private void GithubStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("github status", "GitHub status loaded");
 
@@ -110,6 +148,24 @@ public partial class MainWindow : Window
         AppendLog("Opened dist folder");
     }
 
+    private void OpenNativePublishFolder_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_nativeUiRoot, "publish"));
+        SetStatus("Opened native publish folder.");
+    }
+
+    private void OpenNativeMsixFolder_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_nativeUiRoot, "msix"));
+        SetStatus("Opened MSIX scaffold folder.");
+    }
+
+    private void OpenSigningConfig_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_nativeUiRoot, "signing.json"));
+        SetStatus("Opened signing config.");
+    }
+
     private void RefreshArtifacts_Click(object sender, RoutedEventArgs e)
     {
         RefreshArtifacts();
@@ -117,10 +173,72 @@ public partial class MainWindow : Window
         AppendLog("Artifacts refreshed");
     }
 
+    private void OpenCureFirewallSource_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_repoRoot, "src", "zero_os", "cure_firewall.py"));
+        SetStatus("Opened Cure Firewall source.");
+    }
+
+    private void OpenAntivirusSource_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_repoRoot, "src", "zero_os", "antivirus.py"));
+        SetStatus("Opened Antivirus source.");
+    }
+
     private void RefreshFiles_Click(object sender, RoutedEventArgs e)
     {
         RefreshWorkspaceTree();
         SetStatus("Workspace files refreshed.");
+    }
+
+    private void IndexWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        RunCodeIndexTask("zero ai index workspace max=50000 shard=1000 incremental=true", "Workspace index refreshed.");
+    }
+
+    private void RefreshCodeIndex_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshCodeIndexStatus();
+        SetStatus("Code index status refreshed.");
+    }
+
+    private void WatchCodeIndexOn_Click(object sender, RoutedEventArgs e)
+    {
+        RunCodeIndexTask("zero ai index watch on name=main interval=30", "Code index watcher enabled.");
+    }
+
+    private void WatchCodeIndexTick_Click(object sender, RoutedEventArgs e)
+    {
+        RunCodeIndexTask("zero ai index watch tick name=main max=50000 shard=1000", "Code index watcher tick complete.");
+    }
+
+    private void WatchCodeIndexStatus_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshCodeIndexStatus();
+        SetStatus("Code index watcher status refreshed.");
+    }
+
+    private void WatchCodeIndexOff_Click(object sender, RoutedEventArgs e)
+    {
+        RunCodeIndexTask("zero ai index watch off name=main", "Code index watcher disabled.");
+    }
+
+    private void SearchCodeIndex_Click(object sender, RoutedEventArgs e)
+    {
+        var query = string.IsNullOrWhiteSpace(CodeSearchBox.Text) ? "native shell" : CodeSearchBox.Text.Trim();
+        RunCodeIndexTask($"zero ai code search {query} limit=10", "Code search complete.");
+    }
+
+    private void SearchSymbols_Click(object sender, RoutedEventArgs e)
+    {
+        var query = string.IsNullOrWhiteSpace(CodeSearchBox.Text) ? "launch" : CodeSearchBox.Text.Trim();
+        RunCodeIndexTask($"zero ai symbol search {query} limit=10", "Symbol search complete.");
+    }
+
+    private void RefreshQuickStart_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshQuickStartStatus();
+        SetStatus("Quick start status refreshed.");
     }
 
     private void SaveWorkspaceFile_Click(object sender, RoutedEventArgs e)
@@ -191,6 +309,152 @@ public partial class MainWindow : Window
         }
     }
 
+    private void NewWorkspaceFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var relativePath = PromptForText("Create New Folder", "Enter a relative folder path inside the Zero OS workspace:", "notes/new_folder");
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var targetPath = NormalizeWorkspacePath(relativePath);
+        if (targetPath == null)
+        {
+            SetStatus("New folder must stay inside the Zero OS workspace.");
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(targetPath);
+            RefreshWorkspaceTree();
+            RenderWorkspacePath(targetPath);
+            SetStatus($"Created folder {Path.GetFileName(targetPath)}");
+            AppendLog($"Created workspace folder {Path.GetRelativePath(_repoRoot, targetPath)}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Create folder failed.");
+            AppendLog($"Failed to create workspace folder: {ex.Message}");
+        }
+    }
+
+    private void RenameWorkspacePath_Click(object sender, RoutedEventArgs e)
+    {
+        var path = CurrentWorkspacePath();
+        if (path == null)
+        {
+            SetStatus("Select a workspace file or folder first.");
+            return;
+        }
+
+        if (!EnsureWorkspaceSelectionCanChange())
+        {
+            return;
+        }
+
+        var currentName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
+        var newName = PromptForText("Rename Path", "Enter the new file or folder name:", currentName);
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        var parent = Directory.Exists(path) ? Directory.GetParent(path)?.FullName : Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(parent))
+        {
+            SetStatus("Rename failed: invalid parent path.");
+            return;
+        }
+
+        var targetPath = NormalizeWorkspacePath(Path.Combine(parent, newName));
+        if (targetPath == null)
+        {
+            SetStatus("Rename target must stay inside the Zero OS workspace.");
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Move(path, targetPath);
+            }
+            else if (File.Exists(path))
+            {
+                File.Move(path, targetPath);
+            }
+            else
+            {
+                SetStatus("Selected path no longer exists.");
+                return;
+            }
+
+            RefreshWorkspaceTree();
+            RenderWorkspacePath(targetPath);
+            SetStatus($"Renamed to {Path.GetFileName(targetPath)}");
+            AppendLog($"Renamed workspace path to {Path.GetRelativePath(_repoRoot, targetPath)}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Rename failed.");
+            AppendLog($"Failed to rename workspace path: {ex.Message}");
+        }
+    }
+
+    private void DeleteWorkspacePath_Click(object sender, RoutedEventArgs e)
+    {
+        var path = CurrentWorkspacePath();
+        if (path == null)
+        {
+            SetStatus("Select a workspace file or folder first.");
+            return;
+        }
+
+        if (!EnsureWorkspaceSelectionCanChange())
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Delete '{Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar))}' from the Zero OS workspace?",
+            "Delete Path",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning
+        );
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+            else if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+            else
+            {
+                SetStatus("Selected path no longer exists.");
+                return;
+            }
+
+            RefreshWorkspaceTree();
+            SetStatus("Workspace path deleted.");
+            AppendLog($"Deleted workspace path {Path.GetRelativePath(_repoRoot, path)}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Delete failed.");
+            AppendLog($"Failed to delete workspace path: {ex.Message}");
+        }
+    }
+
     private void SearchWorkspace_Click(object sender, RoutedEventArgs e) => RunWorkspaceSearch();
 
     private void ClearWorkspaceSearch_Click(object sender, RoutedEventArgs e)
@@ -231,7 +495,7 @@ public partial class MainWindow : Window
 
     private void OpenWorkspacePath_Click(object sender, RoutedEventArgs e)
     {
-        var path = SelectedWorkspacePath();
+        var path = CurrentWorkspacePath();
         if (path == null)
         {
             SetStatus("Select a workspace file or folder first.");
@@ -243,7 +507,7 @@ public partial class MainWindow : Window
 
     private void RevealWorkspacePath_Click(object sender, RoutedEventArgs e)
     {
-        var path = SelectedWorkspacePath();
+        var path = CurrentWorkspacePath();
         if (path == null)
         {
             SetStatus("Select a workspace file or folder first.");
@@ -255,7 +519,7 @@ public partial class MainWindow : Window
 
     private void CopyWorkspacePath_Click(object sender, RoutedEventArgs e)
     {
-        var path = SelectedWorkspacePath();
+        var path = CurrentWorkspacePath();
         if (path == null)
         {
             SetStatus("Select a workspace file or folder first.");
@@ -363,6 +627,183 @@ public partial class MainWindow : Window
         RefreshReleaseData();
     }
 
+    private void RunNativeScript(string scriptName, string successMessage)
+    {
+        var scriptPath = Path.Combine(_nativeUiRoot, scriptName);
+        if (!File.Exists(scriptPath))
+        {
+            SetStatus($"Missing native script: {scriptName}");
+            return;
+        }
+
+        SetStatus($"Running native script: {scriptName}");
+        AppendLog($"Running native script: {scriptName}");
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell",
+            Arguments = $"-ExecutionPolicy Bypass -File \"{scriptPath}\"",
+            WorkingDirectory = _nativeUiRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null)
+        {
+            SetStatus("Failed to start native script.");
+            return;
+        }
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        OutputBox.Text = string.IsNullOrWhiteSpace(stderr) ? stdout.Trim() : $"{stdout.Trim()}{Environment.NewLine}{stderr.Trim()}".Trim();
+        if (process.ExitCode == 0)
+        {
+            SetStatus(successMessage);
+            AppendLog(successMessage);
+        }
+        else
+        {
+            SetStatus("Native script completed with errors.");
+            AppendLog($"Native script failed: {scriptName}");
+        }
+
+        RefreshReleaseData();
+    }
+
+    private void RunLauncherCommand(string launcherArgs, string successMessage, bool promptOpenShell = false)
+    {
+        var launcherPath = Path.Combine(_repoRoot, "zero_os_launcher.ps1");
+        if (!File.Exists(launcherPath))
+        {
+            SetStatus("Launcher script is missing.");
+            AppendLog("Launcher script missing");
+            return;
+        }
+
+        SetStatus($"Running launcher: {launcherArgs}");
+        AppendLog($"Running launcher command: {launcherArgs}");
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{launcherPath}\" {launcherArgs}",
+            WorkingDirectory = _repoRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(psi);
+        if (process == null)
+        {
+            SetStatus("Failed to start launcher.");
+            AppendLog("Failed to start launcher");
+            return;
+        }
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        OutputBox.Text = string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}{Environment.NewLine}{stderr}".Trim();
+        if (process.ExitCode == 0)
+        {
+            SetStatus(successMessage);
+            AppendLog(successMessage);
+            if (promptOpenShell)
+            {
+                var result = MessageBox.Show(
+                    "First-run finished. Open the Zero OS shell UI now?",
+                    "Open Shell UI",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question
+                );
+                if (result == MessageBoxResult.Yes)
+                {
+                    OpenShellUi_Click(this, new RoutedEventArgs());
+                }
+            }
+        }
+        else
+        {
+            SetStatus("Launcher completed with errors.");
+            AppendLog($"Launcher failed: {launcherArgs}");
+        }
+
+        RefreshQuickStartStatus();
+    }
+
+    private void RefreshQuickStartStatus()
+    {
+        var shellPath = Path.Combine(_repoRoot, "zero_os_shell.html");
+        var runtimeRoot = Path.Combine(_repoRoot, ".zero_os", "runtime");
+        var knowledgeIndex = Path.Combine(runtimeRoot, "zero_ai_knowledge_index.json");
+        var brainAwareness = Path.Combine(runtimeRoot, "zero_ai_brain_awareness.json");
+        var gapStatus = Path.Combine(runtimeRoot, "zero_ai_gap_status.json");
+
+        var lines = new List<string>
+        {
+            "Quick Start Wizard",
+            "",
+            $"1. Repository available: {(Directory.Exists(_repoRoot) ? "yes" : "no")}",
+            $"2. Launcher available: {(File.Exists(Path.Combine(_repoRoot, "zero_os_launcher.ps1")) ? "yes" : "no")}",
+            $"3. Shell UI file available: {(File.Exists(shellPath) ? "yes" : "no")}",
+            $"4. Runtime folder created: {(Directory.Exists(runtimeRoot) ? "yes" : "no")}",
+            $"5. Knowledge index built: {(File.Exists(knowledgeIndex) ? "yes" : "no")}",
+            $"6. Brain awareness built: {(File.Exists(brainAwareness) ? "yes" : "no")}",
+            $"7. Gap status report: {(File.Exists(gapStatus) ? "yes" : "no")}",
+            "",
+            "Recommended order:",
+            "Step 1. Open Repository",
+            "Step 2. Run First-Run",
+            "Step 3. Open Shell UI",
+            "Step 4. Know Everything",
+            "Step 5. Complete All"
+        };
+
+        QuickStartStatusBox.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    private void RefreshCodeIndexStatus()
+    {
+        var statusResult = _backend.RunTask("zero ai index status");
+        var symbolResult = _backend.RunTask("zero ai symbol status");
+        var watcherResult = _backend.RunTask("zero ai index watch status");
+        CodeIndexBox.Text =
+            "Code Index Status" + Environment.NewLine + Environment.NewLine +
+            statusResult.DisplayText() + Environment.NewLine + Environment.NewLine +
+            "Symbol Index Status" + Environment.NewLine + Environment.NewLine +
+            symbolResult.DisplayText() + Environment.NewLine + Environment.NewLine +
+            "Watcher Status" + Environment.NewLine + Environment.NewLine +
+            watcherResult.DisplayText();
+    }
+
+    private void RunCodeIndexTask(string command, string successMessage)
+    {
+        SetStatus($"Running: {command}");
+        AppendLog($"Running code index command: {command}");
+        var result = _backend.RunTask(command);
+        CodeIndexBox.Text = result.DisplayText();
+        if (result.Ok)
+        {
+            SetStatus(successMessage);
+            AppendLog(successMessage);
+        }
+        else
+        {
+            SetStatus("Code index command completed. Review output.");
+            AppendLog("Code index command completed with review-needed output");
+        }
+        RefreshCodeIndexStatus();
+    }
+
     private void RefreshArtifacts()
     {
         var items = _backend.ArtifactEntries();
@@ -437,6 +878,11 @@ public partial class MainWindow : Window
     }
 
     private string? SelectedWorkspacePath() => (WorkspaceTreeView.SelectedItem as TreeViewItem)?.Tag as string;
+
+    private string? CurrentWorkspacePath()
+    {
+        return !string.IsNullOrWhiteSpace(_activeWorkspacePath) ? _activeWorkspacePath : SelectedWorkspacePath();
+    }
 
     private void RenderWorkspaceSelection()
     {
@@ -592,6 +1038,69 @@ public partial class MainWindow : Window
     private void RefreshReleaseData()
     {
         ReleaseDataBox.Text = _backend.LoadReleaseData(RepoUrl, ReleasesUrl);
+        ReleaseStatusBox.Text = _backend.LoadProductStatus(_projectFile);
+    }
+
+    private void RefreshSecuritySpecs()
+    {
+        CureFirewallSpecBox.Text = BuildSecuritySpec(
+            "Cure Firewall",
+            Path.Combine(_repoRoot, "src", "zero_os", "cure_firewall.py"),
+            new[]
+            {
+                Path.Combine(_repoRoot, "src", "zero_os", "cure_firewall_agent.py"),
+                Path.Combine(_repoRoot, "src", "zero_os", "cure_firewall_full_auto.py"),
+                Path.Combine(_repoRoot, "tests", "test_quantum_virus_curefirewall.py"),
+                Path.Combine(_repoRoot, ".zero_os", "production", "znet_cure_report.json"),
+            });
+
+        AntivirusSpecBox.Text = BuildSecuritySpec(
+            "Antivirus",
+            Path.Combine(_repoRoot, "src", "zero_os", "antivirus.py"),
+            new[]
+            {
+                Path.Combine(_repoRoot, "src", "zero_os", "antivirus_agent.py"),
+                Path.Combine(_repoRoot, "tests", "test_antivirus_system.py"),
+                Path.Combine(_repoRoot, ".zero_os", "antivirus", "policy.json"),
+                Path.Combine(_repoRoot, ".zero_os", "antivirus", "threat_feed.json"),
+                Path.Combine(_repoRoot, ".zero_os", "antivirus", "last_scan.json"),
+            });
+    }
+
+    private string BuildSecuritySpec(string title, string primarySource, IEnumerable<string> relatedPaths)
+    {
+        var lines = new List<string> { $"{title} Spec", "" };
+        var primary = new FileInfo(primarySource);
+        if (primary.Exists)
+        {
+            lines.Add($"Primary source: {Path.GetRelativePath(_repoRoot, primary.FullName)}");
+            lines.Add($"Size: {primary.Length} bytes");
+            lines.Add($"Modified: {primary.LastWriteTime}");
+            lines.Add("");
+            lines.Add("Preview:");
+            try
+            {
+                var text = File.ReadAllText(primary.FullName);
+                lines.AddRange(text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).Take(40));
+            }
+            catch (Exception ex)
+            {
+                lines.Add($"Failed to read source preview: {ex.Message}");
+            }
+        }
+        else
+        {
+            lines.Add("Primary source file not found.");
+        }
+
+        lines.Add("");
+        lines.Add("Related files:");
+        foreach (var path in relatedPaths)
+        {
+            lines.Add($"{(File.Exists(path) ? "[present]" : "[missing]")} {Path.GetRelativePath(_repoRoot, path)}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     private void AppendLog(string message)
@@ -732,6 +1241,15 @@ public partial class MainWindow : Window
         _suspendWorkspaceDirtyTracking = true;
         WorkspaceFileBox.IsReadOnly = true;
         WorkspaceEditorStatusText.Text = "Text files can be edited here and saved back into the Zero OS workspace.";
+    }
+
+    private string? NormalizeWorkspacePath(string relativeOrAbsolutePath)
+    {
+        var candidate = Path.IsPathRooted(relativeOrAbsolutePath)
+            ? Path.GetFullPath(relativeOrAbsolutePath)
+            : Path.GetFullPath(Path.Combine(_repoRoot, relativeOrAbsolutePath.Replace('/', Path.DirectorySeparatorChar).Trim()));
+
+        return candidate.StartsWith(_repoRoot, StringComparison.OrdinalIgnoreCase) ? candidate : null;
     }
 
     private IEnumerable<string> FindSecurityBundleFiles(string artifactPath)

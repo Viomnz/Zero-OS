@@ -1,0 +1,5 @@
+{
+  "max_pending_tasks": 150,
+  "max_output_kb": 3072,
+  "min_uptime_mode": "running"
+}

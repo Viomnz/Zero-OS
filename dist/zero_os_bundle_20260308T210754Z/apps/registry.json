@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "schema": "zero-os-app-registry-v2",
+  "compatibility": {
+    "api_contract": "v1",
+    "security_policy": "signed-plugins-required"
+  },
+  "apps": [
+    {
+      "id": "zero.dashboard",
+      "name": "Zero Dashboard",
+      "entry": "zero_os_dashboard.html",
+      "status": "active",
+      "health_check": "file_exists"
+    },
+    {
+      "id": "zero.launcher",
+      "name": "Zero Launcher",
+      "entry": "zero_os_launcher.ps1",
+      "status": "active",
+      "health_check": "script_exists"
+    }
+  ]
+}

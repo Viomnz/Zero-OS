@@ -1,0 +1,5 @@
+{
+  "service": "ZeroStoreInstallerSvc",
+  "update_mode": "silent",
+  "repair_mode": "enabled"
+}

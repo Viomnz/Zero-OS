@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "contracts": [
+    {
+      "name": "smart_logic",
+      "required_fields": [
+        "engine",
+        "decision_action",
+        "decision_reason",
+        "confidence",
+        "root_issues"
+      ]
+    },
+    {
+      "name": "scoring",
+      "required_fields": [
+        "score",
+        "perfect",
+        "issues"
+      ]
+    }
+  ]
+}

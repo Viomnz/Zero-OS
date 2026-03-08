@@ -3,5 +3,9 @@
 <dict>
   <key>CFBundleName</key><string>ZeroStore</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
-</dict>
 </plist>
+
+# Smart merged additions
+  <key>CFBundleName</key><string>ZeroOS</string>
+
+# Smart merged additions

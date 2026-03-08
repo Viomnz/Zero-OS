@@ -1,0 +1,4 @@
+{
+  "algorithm": "round_robin",
+  "timeslice_ms": 25
+}

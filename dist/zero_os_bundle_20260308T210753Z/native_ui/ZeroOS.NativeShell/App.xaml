@@ -1,0 +1,12 @@
+<Application x:Class="ZeroOS.NativeShell.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="WindowBg" Color="#0D1624" />
+    <SolidColorBrush x:Key="PanelBg" Color="#152538" />
+    <SolidColorBrush x:Key="HeroBg" Color="#173453" />
+    <SolidColorBrush x:Key="TextFg" Color="#EEF6FF" />
+    <SolidColorBrush x:Key="MutedFg" Color="#BDD0E6" />
+  </Application.Resources>
+</Application>

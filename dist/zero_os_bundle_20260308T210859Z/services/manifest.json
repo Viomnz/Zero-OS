@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "schema": "zero-os-service-manifest-v2",
+  "health_policy": {
+    "check_interval_seconds": 30,
+    "restart_on_failure": true,
+    "max_restarts_per_hour": 10
+  },
+  "services": [
+    {
+      "name": "zero-ai-daemon",
+      "autostart": true,
+      "lifecycle_hooks": ["prestart", "poststart", "prestop", "poststop"],
+      "health_endpoint": "runtime/zero_ai_heartbeat.json"
+    },
+    {
+      "name": "cure-firewall",
+      "autostart": true,
+      "lifecycle_hooks": ["prestart", "poststart", "prestop", "poststop"],
+      "health_endpoint": "runtime/security_report.json"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+﻿{
+  "activation_seed": "Viomnz",
+  "law_name": "Recursion Law",
+  "source_file": "laws/recursion_law.txt",
+  "extensions": [
+    "laws/strategic_context_awareness.txt",
+    "laws/third_universe_law.txt",
+    "laws/universal_law_core_cycle_123.txt",
+    "laws/universe_laws_canonical_123.txt",
+    "laws/cure_firewall_tiered_units.txt"
+  ]
+}

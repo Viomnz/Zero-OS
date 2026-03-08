@@ -994,7 +994,7 @@
     }
 
     function readLayerPage() {
-      return localStorage.getItem(LAYER_PAGE_KEY) || "home";
+      return localStorage.getItem(LAYER_PAGE_KEY) || "start";
     }
 
     function writeLayerPage(page) {
@@ -1249,6 +1249,7 @@
 
     function renderLayerTabs(active) {
       const pages = [
+        { id: "start", label: "Start Here" },
         { id: "home", label: "Home" },
         { id: "apps", label: "Apps" },
         { id: "security", label: "Security" },
@@ -1265,6 +1266,60 @@
             <button class="layer-tab ${active === page.id ? "active" : ""}" data-layer-page="${page.id}">${page.label}</button>
           `).join("")}
         </div>
+      `;
+    }
+
+    function renderStartHerePanel() {
+      return `
+        <section class="panel">
+          <div class="panel-title">Start Here</div>
+          ${renderSummaryCards([
+            { label: "Goal", value: "No commands needed" },
+            { label: "Best Path", value: "Click buttons" },
+            { label: "Mode", value: "Guided setup" },
+            { label: "Share", value: "GitHub ready" }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">1. Open Repository</div>
+              <div class="chip-copy">Start from the GitHub repo page.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS">Open Repo</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">2. Run First-Run</div>
+              <div class="chip-copy">Run the setup step directly from the local shell.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="powershell run .\\zero_os_launcher.ps1 first-run" data-home-label="Run First-Run">Run First-Run</button>
+                <button class="btn" data-share-copy=".\\zero_os_launcher.ps1 first-run">Copy First-Run</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">3. Open Shell UI</div>
+              <div class="chip-copy">Open the shell directly from the local environment.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="powershell run Start-Process .\\zero_os_shell.html" data-home-label="Open Shell UI">Open Shell UI</button>
+                <button class="btn" data-share-copy="Start-Process \".\\zero_os_shell.html\"">Copy Open Shell</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">4. Know Everything + Complete All</div>
+              <div class="chip-copy">Run the strongest built-in guided action.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero os complete all" data-home-label="Know Everything + Complete All">Run</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">5. Share Zero OS</div>
+              <div class="chip-copy">Build a clean share bundle or zip for GitHub users.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-command="zero os export bundle" data-share-label="Export Bundle">Export Bundle</button>
+                <button class="btn" data-share-command="zero os share package" data-share-label="Create Share Zip">Create Share Zip</button>
+              </div>
+            </div>
+          </div>
+        </section>
       `;
     }
 
@@ -1568,6 +1623,9 @@
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
       return [
         renderLayerTabs(activePage),
+        `<div class="layer-view ${activePage === "start" ? "active" : ""}" data-layer-view="start">` +
+          renderStartHerePanel() +
+        `</div>`,
         `<div class="layer-view ${activePage === "home" ? "active" : ""}" data-layer-view="home">` +
           renderOnboarding(onboarding) +
           renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) +

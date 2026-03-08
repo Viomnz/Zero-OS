@@ -36,6 +36,49 @@
       </Border>
 
       <TabControl Grid.Row="1" Background="{StaticResource PanelBg}" BorderThickness="0">
+        <TabItem Header="Quick Start">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.2*" />
+              <ColumnDefinition Width="1.8*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <StackPanel>
+                <TextBlock Text="Quick Start Wizard" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="Follow these steps in order. GitHub users should be able to finish setup without learning commands."
+                           Margin="0,6,0,16"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 1. Open Repository" Click="OpenRepository_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 2. Run First-Run" Click="RunFirstRun_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 3. Open Shell UI" Click="OpenShellUi_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 4. Know Everything" Click="KnowEverything_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Step 5. Complete All" Click="KnowEverythingCompleteAll_Click" />
+                <Button Height="38" Content="Refresh Wizard Status" Click="RefreshQuickStart_Click" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Wizard Status"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="QuickStartStatusBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading quick start status..." />
+              </DockPanel>
+            </Border>
+          </Grid>
+        </TabItem>
         <TabItem Header="Share">
           <Grid Margin="12">
             <Grid.ColumnDefinitions>
@@ -44,15 +87,21 @@
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
               <StackPanel>
-                <TextBlock Text="Primary Actions" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
-                <TextBlock Text="Copy, open, export, and package Zero OS for GitHub users."
+                <TextBlock Text="Start Here" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="GitHub users should not need to know Zero OS commands. Use these buttons in order."
                            Margin="0,6,0,16"
                            TextWrapping="Wrap"
                            Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="1. Open Repository" Click="OpenRepository_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="2. Run First-Run" Click="RunFirstRun_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="3. Open Shell UI" Click="OpenShellUi_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="4. Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
+                <TextBlock Text="More Actions"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
                 <Button Height="38" Margin="0,0,0,8" Content="Copy Clone Command" Click="CopyCloneCommand_Click" />
-                <Button Height="38" Margin="0,0,0,8" Content="Copy First-Run" Click="CopyFirstRun_Click" />
-                <Button Height="38" Margin="0,0,0,8" Content="Copy Open Shell" Click="CopyOpenShell_Click" />
-                <Button Height="38" Margin="0,0,0,8" Content="Open Repository" Click="OpenRepository_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Open Releases" Click="OpenReleases_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Export Bundle" Click="ExportBundle_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Create Share Zip" Click="CreateShareZip_Click" />
@@ -76,7 +125,7 @@
                          Foreground="{StaticResource TextFg}"
                          BorderThickness="0"
                          IsReadOnly="True"
-                         Text="Zero OS Native Shell is ready." />
+                         Text="Start Here&#x0a;1. Open Repository&#x0a;2. Run First-Run&#x0a;3. Open Shell UI&#x0a;4. Know Everything + Complete All&#x0a;&#x0a;GitHub users should not need to learn commands." />
               </DockPanel>
             </Border>
           </Grid>
@@ -125,6 +174,59 @@
                          BorderThickness="0"
                          IsReadOnly="True"
                          Text="No artifact selected." />
+              </DockPanel>
+            </Border>
+          </Grid>
+        </TabItem>
+
+        <TabItem Header="Code Index">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.1*" />
+              <ColumnDefinition Width="1.9*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <StackPanel>
+                <TextBlock Text="Large Code Index" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="Index large workspaces and search code or symbols without reading the whole tree every time."
+                           Margin="0,6,0,16"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedFg}" />
+                <Button Height="40" Margin="0,0,0,8" Content="Index Workspace" Click="IndexWorkspace_Click" />
+                <Button Height="40" Margin="0,0,0,8" Content="Refresh Index Status" Click="RefreshCodeIndex_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Watch On" Click="WatchCodeIndexOn_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Watch Tick" Click="WatchCodeIndexTick_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Watch Status" Click="WatchCodeIndexStatus_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Watch Off" Click="WatchCodeIndexOff_Click" />
+                <TextBox x:Name="CodeSearchBox"
+                         Margin="0,8,0,8"
+                         Padding="10,6"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         Text="native shell" />
+                <Button Height="38" Margin="0,0,0,8" Content="Search Code" Click="SearchCodeIndex_Click" />
+                <Button Height="38" Content="Search Symbols" Click="SearchSymbols_Click" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Index Output"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="CodeIndexBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading large code index status..." />
               </DockPanel>
             </Border>
           </Grid>
@@ -192,6 +294,9 @@
                              Foreground="{StaticResource TextFg}" />
                   <Button Margin="12,0,0,0" Padding="10,4" Content="Save" Click="SaveWorkspaceFile_Click" />
                   <Button Margin="8,0,0,0" Padding="10,4" Content="New File" Click="NewWorkspaceFile_Click" />
+                  <Button Margin="8,0,0,0" Padding="10,4" Content="New Folder" Click="NewWorkspaceFolder_Click" />
+                  <Button Margin="8,0,0,0" Padding="10,4" Content="Rename" Click="RenameWorkspacePath_Click" />
+                  <Button Margin="8,0,0,0" Padding="10,4" Content="Delete" Click="DeleteWorkspacePath_Click" />
                   <Button Margin="12,0,0,0" Padding="10,4" Content="Open Externally" Click="OpenWorkspacePath_Click" />
                   <Button Margin="8,0,0,0" Padding="10,4" Content="Reveal" Click="RevealWorkspacePath_Click" />
                   <Button Margin="8,0,0,0" Padding="10,4" Content="Copy Path" Click="CopyWorkspacePath_Click" />
@@ -222,6 +327,7 @@
             <Grid>
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
               </Grid.RowDefinitions>
               <StackPanel>
@@ -233,11 +339,32 @@
                 <Button Height="38" Margin="0,0,8,8" Content="Open Releases" Click="OpenReleases_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Copy Clone Command" Click="CopyCloneCommand_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Create Share Zip" Click="CreateShareZip_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Copy Publish Command" Click="CopyPublishCommand_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Copy MSIX Command" Click="CopyMsixCommand_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Build Native Publish" Click="BuildNativePublish_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Create MSIX Scaffold" Click="CreateNativeMsix_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open Signing Config" Click="OpenSigningConfig_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open Publish Folder" Click="OpenNativePublishFolder_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open MSIX Folder" Click="OpenNativeMsixFolder_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Refresh" Click="RefreshReleaseData_Click" />
               </WrapPanel>
               </StackPanel>
+              <Border Grid.Row="1" Background="#0D1826" CornerRadius="14" Padding="14" Margin="0,10,0,0">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Top" Text="Product Status" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="ReleaseStatusBox"
+                           Margin="0,10,0,0"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           Text="Loading product status..." />
+                </DockPanel>
+              </Border>
               <TextBox x:Name="ReleaseDataBox"
-                       Grid.Row="1"
+                       Grid.Row="2"
                        Text="Loading release data..."
                        Background="#0D1826"
                        Foreground="{StaticResource TextFg}"
@@ -283,6 +410,62 @@
           </Border>
         </TabItem>
 
+        <TabItem Header="Security Specs">
+          <Grid Margin="12">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel>
+              <TextBlock Text="Security Specs" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+              <TextBlock Text="Native view of Cure Firewall and Antivirus specs from the Zero OS workspace."
+                         Margin="0,6,0,16"
+                         Foreground="{StaticResource MutedFg}" />
+              <WrapPanel>
+                <Button Height="38" Margin="0,0,8,8" Content="Refresh Specs" Click="RefreshSecuritySpecs_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open Cure Firewall Source" Click="OpenCureFirewallSource_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open Antivirus Source" Click="OpenAntivirusSource_Click" />
+              </WrapPanel>
+            </StackPanel>
+            <Grid Grid.Row="1">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="1*" />
+              </Grid.ColumnDefinitions>
+              <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,8,8,0">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Top" Text="Cure Firewall" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="CureFirewallSpecBox"
+                           Margin="0,12,0,0"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           VerticalScrollBarVisibility="Auto"
+                           TextWrapping="Wrap"
+                           Text="Loading Cure Firewall specs..." />
+                </DockPanel>
+              </Border>
+              <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="8,8,0,0">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Top" Text="Antivirus" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="AntivirusSpecBox"
+                           Margin="0,12,0,0"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           VerticalScrollBarVisibility="Auto"
+                           TextWrapping="Wrap"
+                           Text="Loading Antivirus specs..." />
+                </DockPanel>
+              </Border>
+            </Grid>
+          </Grid>
+        </TabItem>
+
         <TabItem Header="Runtime">
           <Grid Margin="12">
             <Grid.ColumnDefinitions>
@@ -296,6 +479,8 @@
                          Margin="0,6,0,16"
                          Foreground="{StaticResource MutedFg}" />
               <WrapPanel>
+                <Button Height="38" Margin="0,0,8,8" Content="Know Everything" Click="KnowEverything_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Core Status" Click="CoreStatus_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="GitHub Status" Click="GithubStatus_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open Dist Folder" Click="OpenDist_Click" />

@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "generated_utc": "20260308T204928Z",
+  "source": "C:\\Users\\gomez\\Documents\\New folder",
+  "bundle_dir": "C:\\Users\\gomez\\Documents\\New folder\\dist\\zero_ai_bundle_20260308T204928Z",
+  "bundle_kind": "zero_ai",
+  "included_roots": [
+    "src/zero_os",
+    "tests",
+    "docs"
+  ],
+  "included_files": [
+    "README.md",
+    "ROADMAP.md",
+    "zero_os_shell.html",
+    "index.html",
+    "zero_os_ui.py",
+    "zero_os_ui.sh"
+  ],
+  "copied_files": 245,
+  "copied_dirs": 5,
+  "skipped_missing": [],
+  "skipped_locked": [
+    "tests/test_context_awareness.py",
+    "tests/test_degradation_detection.py",
+    "tests/test_native_store_smart_logic.py",
+    "tests/test_plugins.py",
+    "docs/RCRP.md"
+  ]
+}

@@ -158,7 +158,34 @@
     <div class="hero-grid">
       <div>
         <h1>Get Zero OS Fast</h1>
-        <p class="sub">Clone it, run one setup command, and open the Windows-like shell UI. Zero OS is designed to be easy for GitHub users to copy, inspect, and run locally.</p>
+        <p class="sub">Clone it, run one setup command, and open the Windows-like shell UI. GitHub users should not need to learn Zero OS commands first.</p>
+        <div class="hero-card" style="margin-bottom:14px;">
+          <h2>Start Here</h2>
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">1. Download / Clone</div>
+              <div>Open the repository or copy the clone command.</div>
+            </div>
+            <div class="step">
+              <div class="step-num">2. First Run</div>
+              <div>Run <code>.\zero_os_launcher.ps1 first-run</code>.</div>
+            </div>
+            <div class="step">
+              <div class="step-num">3. Open UI</div>
+              <div>Open <code>zero_os_shell.html</code> or run <code>python zero_os_ui.py</code>.</div>
+            </div>
+            <div class="step">
+              <div class="step-num">4. Click Buttons</div>
+              <div>Use built-in actions like <code>Know Everything</code> and <code>Complete All</code>.</div>
+            </div>
+          </div>
+          <div class="action-row">
+            <a class="btn" href="https://github.com/Viomnz/Zero-OS">Open Repository</a>
+            <button class="btn primary" data-copy="git clone https://github.com/Viomnz/Zero-OS.git">Copy Clone Command</button>
+            <button class="btn" data-copy=".\zero_os_launcher.ps1 first-run">Copy First-Run</button>
+            <a class="btn" href="./zero_os_shell.html">Open Shell UI</a>
+          </div>
+        </div>
         <div class="command">git clone https://github.com/Viomnz/Zero-OS.git
 cd Zero-OS
 .\zero_os_launcher.ps1 first-run
@@ -176,20 +203,6 @@ Start-Process ".\zero_os_shell.html"</div>
           <span class="pill">GitHub intake built in</span>
           <span class="pill">Local-only runtime</span>
         </div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1. Copy</div>
-            <div>Copy the clone command or download a release zip.</div>
-          </div>
-          <div class="step">
-            <div class="step-num">2. Run</div>
-            <div>Run <code>.\zero_os_launcher.ps1 first-run</code>.</div>
-          </div>
-          <div class="step">
-            <div class="step-num">3. Open</div>
-            <div>Open <code>zero_os_shell.html</code> and use the built-in UI.</div>
-          </div>
-        </div>
       </div>
       <div class="hero-card">
         <h2>Share Options</h2>
@@ -197,13 +210,18 @@ Start-Process ".\zero_os_shell.html"</div>
           <li>Clone with Git</li>
           <li>Download repo zip</li>
           <li>Use local export bundle command</li>
+          <li>Use dedicated Zero AI bundle commands</li>
           <li>Open <code>zero_os_shell.html</code> after setup</li>
         </ul>
         <div class="command">python src/main.py "zero os export bundle"
-python src/main.py "zero os share package"</div>
+python src/main.py "zero os share package"
+python src/main.py "zero ai export bundle"
+python src/main.py "zero ai share package"</div>
         <div class="action-row">
           <button class="btn" data-copy='python src/main.py "zero os export bundle"'>Copy Export Command</button>
           <button class="btn" data-copy='python src/main.py "zero os share package"'>Copy Share Command</button>
+          <button class="btn" data-copy='python src/main.py "zero ai export bundle"'>Copy Zero AI Export</button>
+          <button class="btn" data-copy='python src/main.py "zero ai share package"'>Copy Zero AI Share</button>
         </div>
       </div>
     </div>
@@ -218,6 +236,17 @@ python src/main.py "zero os share package"</div>
         <li>Run <code>.\zero_os_launcher.ps1 first-run</code></li>
         <li>Open <a href="./zero_os_shell.html">zero_os_shell.html</a></li>
       </ul>
+    </section>
+
+    <section class="card">
+      <h2>Get Zero AI</h2>
+      <ul>
+        <li>Export the Zero AI source bundle only</li>
+        <li>Create a dedicated Zero AI zip for GitHub users</li>
+        <li>Share the generated <code>dist/zero_ai_bundle_*.zip</code> artifact</li>
+      </ul>
+      <div class="command">python src/main.py "zero ai export bundle"
+python src/main.py "zero ai share package"</div>
     </section>
 
     <section class="card">

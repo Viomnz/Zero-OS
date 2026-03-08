@@ -26,6 +26,12 @@ class WebCapability:
             return False
         if lowered.startswith("store "):
             return False
+        if lowered.startswith("zero ai search code "):
+            return False
+        if lowered.startswith("zero ai code search "):
+            return False
+        if lowered.startswith("zero ai symbol search "):
+            return False
         keys = ("web", "search", "news", "internet", "fetch", "http://", "https://")
         text = lowered
         return any(k in text for k in keys)

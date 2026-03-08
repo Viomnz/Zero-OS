@@ -1,0 +1,105 @@
+name: pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build static site bundle
+        run: |
+          mkdir -p site
+          cp index.html site/index.html
+          printf '{\n  "apps": [\n' > site/apps.json
+          first_app=1
+          if [ -f zero_os_dashboard.html ]; then
+            cp zero_os_dashboard.html site/zero_os_dashboard.html
+            if [ "$first_app" -eq 0 ]; then printf ',\n' >> site/apps.json; fi
+            printf '    {"name":"Zero OS Dashboard","path":"zero_os_dashboard.html"}' >> site/apps.json
+            first_app=0
+          fi
+          if [ -f zero_os_shell.html ]; then
+            cp zero_os_shell.html site/zero_os_shell.html
+            if [ "$first_app" -eq 0 ]; then printf ',\n' >> site/apps.json; fi
+            printf '    {"name":"Zero OS Shell","path":"zero_os_shell.html"}' >> site/apps.json
+            first_app=0
+          fi
+          printf '\n  ]\n}\n' >> site/apps.json
+          cp README.md site/README.md
+          cp ROADMAP.md site/ROADMAP.md
+          touch site/.nojekyll
+          cp site/index.html site/404.html
+
+      - name: Build site manifest page
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          site = Path("site")
+          data = json.loads((site / "apps.json").read_text(encoding="utf-8"))
+          cards = []
+          for app in data.get("apps", []):
+              cards.append(
+                  f'<li><a href="{app["path"]}">{app["name"]}</a><span> - {app["path"]}</span></li>'
+              )
+          if not cards:
+              cards.append("<li>No UI pages are currently packaged for GitHub Pages.</li>")
+
+          html = f"""<!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Zero OS Site Manifest</title>
+            <style>
+              body {{ margin: 0; font-family: 'Segoe UI', Tahoma, sans-serif; background: #0d1624; color: #eef6ff; padding: 24px; }}
+              main {{ max-width: 880px; margin: 0 auto; background: rgba(21,37,56,.92); border: 1px solid rgba(135,180,227,.18); border-radius: 18px; padding: 24px; }}
+              h1 {{ margin-top: 0; }}
+              p, li, a, span {{ color: #bdd0e6; }}
+              a {{ color: #6ac7ff; text-decoration: none; }}
+              a:hover {{ text-decoration: underline; }}
+              ul {{ padding-left: 18px; }}
+              .links a {{ margin-right: 16px; }}
+            </style>
+          </head>
+          <body>
+            <main>
+              <h1>Zero OS Site Manifest</h1>
+              <p>This page shows which Zero OS web entrypoints were packaged into GitHub Pages for this deploy.</p>
+              <ul>
+                {''.join(cards)}
+              </ul>
+              <p class="links">
+                <a href="index.html">Open portal</a>
+                <a href="README.md">Open README</a>
+                <a href="ROADMAP.md">Open roadmap</a>
+                <a href="apps.json">Open manifest JSON</a>
+              </p>
+            </main>
+          </body>
+          </html>
+          """
+          (site / "apps.html").write_text(html, encoding="utf-8")
+          PY
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          force_orphan: true

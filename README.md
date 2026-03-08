@@ -8,6 +8,13 @@ Zero-OS runs on one **main highway**: a single dispatcher that routes every requ
 ## Quick Start
 Clone it, run one setup command, and open Zero OS:
 
+GitHub users do not need to learn Zero OS commands first.
+Use this simple flow:
+1. Clone or download Zero OS
+2. Run `.\zero_os_launcher.ps1 first-run`
+3. Open the UI with `python zero_os_ui.py` or `Start-Process ".\zero_os_shell.html"`
+4. Use the built-in buttons like `Know Everything` and `Know Everything + Complete All`
+
 ```powershell
 git clone https://github.com/Viomnz/Zero-OS.git
 cd Zero-OS

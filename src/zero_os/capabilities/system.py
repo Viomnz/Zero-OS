@@ -165,13 +165,21 @@ from zero_os.maturity import maturity_scaffold_all, maturity_status
 from zero_os.smart_logic_governance import decide_false_positive, list_false_positive_reviews
 from zero_os.harmony import zero_ai_harmony_status
 from zero_os.knowledge_map import build_knowledge_index, knowledge_find, knowledge_status
+from zero_os.large_code_index import index_status as large_index_status, index_workspace as large_index_workspace, list_workspaces as large_list_workspaces, register_workspace as large_register_workspace, search_code as large_search_code, search_symbols as large_search_symbols, symbol_status as large_symbol_status, watcher_set as large_watcher_set, watcher_status as large_watcher_status, watcher_tick as large_watcher_tick
 from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
 from zero_os.brain_awareness import brain_awareness_status, build_brain_awareness
 from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
-from zero_os.share_bundle import export_bundle as zero_os_export_bundle, share_package as zero_os_share_package
+from zero_os.share_bundle import (
+    export_bundle as zero_os_export_bundle,
+    export_zero_ai_bundle,
+    export_zero_ai_bundle_strict,
+    share_package as zero_os_share_package,
+    share_zero_ai_package,
+    share_zero_ai_package_strict,
+)
 from zero_os.conscious_machine_architecture import (
     consciousness_architecture_long_term_memory_status,
     consciousness_architecture_silicon_awareness_status,
@@ -480,6 +488,7 @@ from zero_os.native_app_store import (
 from zero_os.task_executor import run_task as zero_ai_run_task, run_task_resume as zero_ai_run_task_resume
 from zero_os.task_memory import status as zero_ai_task_memory_status
 from zero_os.tool_capability_registry import registry_status as zero_ai_registry_status
+from zero_os.auto_completion import auto_max_fix_upgrade_everything
 
 
 class SystemCapability:
@@ -570,6 +579,15 @@ class SystemCapability:
             "zero ai harmony",
             "zero ai knowledge",
             "zero ai know everything",
+            "zero ai index workspace",
+            "zero ai index status",
+            "zero ai index register",
+            "zero ai index list",
+            "zero ai search code",
+            "zero ai code search",
+            "zero ai symbol status",
+            "zero ai symbol search",
+            "zero ai index watch",
             "zero ai backup",
             "zero ai recover",
             "zero ai security",
@@ -591,8 +609,14 @@ class SystemCapability:
             "zero ai gap",
             "zero ai self upgrade",
             "zero ai upgrade",
+            "zero ai export",
+            "zero ai share",
+            "zero ai export strict",
+            "zero ai share strict",
             "zero os export",
             "zero os share",
+            "zero os complete",
+            "auto max fix upgrade",
             "zero os native ui",
             "zero ai ask",
             "zero ai api",
@@ -1750,6 +1774,21 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_os_export_bundle(task.cwd), indent=2))
         if text.strip() in {"zero os share package", "zero os share", "zero os export package"}:
             return Result(self.name, json.dumps(zero_os_share_package(task.cwd), indent=2))
+        if text.strip() in {"zero ai export bundle strict", "zero ai export strict", "zero ai bundle export strict"}:
+            return Result(self.name, json.dumps(export_zero_ai_bundle_strict(task.cwd), indent=2))
+        if text.strip() in {"zero ai export bundle", "zero ai export", "zero ai bundle export"}:
+            return Result(self.name, json.dumps(export_zero_ai_bundle(task.cwd), indent=2))
+        if text.strip() in {"zero ai share package strict", "zero ai share strict", "zero ai export package strict"}:
+            return Result(self.name, json.dumps(share_zero_ai_package_strict(task.cwd), indent=2))
+        if text.strip() in {"zero ai share package", "zero ai share", "zero ai export package"}:
+            return Result(self.name, json.dumps(share_zero_ai_package(task.cwd), indent=2))
+        if text.strip() in {
+            "zero os complete all",
+            "zero os auto max fix upgrade",
+            "auto max fix upgrade everything",
+            "zero os maximize complete",
+        }:
+            return Result(self.name, json.dumps(auto_max_fix_upgrade_everything(task.cwd), indent=2))
         if text.strip() in {
             "zero os native ui",
             "zero os native ui launch",
@@ -2087,6 +2126,20 @@ class SystemCapability:
             out = build_knowledge_index(task.cwd)
             st = knowledge_status(task.cwd)
             return Result(self.name, json.dumps({"build": out, "status": st}, indent=2))
+        idx_reg = re.match(r"^zero ai index register\s+path=(\S+)(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if idx_reg:
+            path_value = idx_reg.group(1).strip().strip("\"'")
+            name = (idx_reg.group(2) or "main").strip()
+            return Result(self.name, json.dumps(large_register_workspace(task.cwd, path_value, name=name), indent=2))
+        if text.strip() == "zero ai index list":
+            return Result(self.name, json.dumps(large_list_workspaces(task.cwd), indent=2))
+        idx = re.match(r"^zero ai index workspace(?:\s+name=(\S+))?(?:\s+max=(\d+))?(?:\s+shard=(\d+))?(?:\s+incremental=(true|false|1|0|yes|no|on|off))?$", raw.strip(), flags=re.IGNORECASE)
+        if idx:
+            name = (idx.group(1) or "main").strip()
+            max_files = int(idx.group(2) or "50000")
+            shard_size = int(idx.group(3) or "1000")
+            incremental = (idx.group(4) or "true").strip().lower() in {"1", "true", "yes", "on"}
+            return Result(self.name, json.dumps(large_index_workspace(task.cwd, name=name, max_files=max_files, shard_size=shard_size, incremental=incremental), indent=2))
         if text.strip() == "zero ai backup status":
             return Result(self.name, json.dumps(zero_ai_backup_status(task.cwd), indent=2))
         if text.strip() == "zero ai backup create":
@@ -2097,11 +2150,56 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_recover(task.cwd, snapshot_id=snap), indent=2))
         if text.strip() == "zero ai knowledge status":
             return Result(self.name, json.dumps(knowledge_status(task.cwd), indent=2))
+        idx_status = re.match(r"^zero ai index status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if idx_status:
+            name = (idx_status.group(1) or "main").strip()
+            return Result(self.name, json.dumps(large_index_status(task.cwd, name=name), indent=2))
+        watch_on = re.match(r"^zero ai index watch on(?:\s+name=(\S+))?(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if watch_on:
+            name = (watch_on.group(1) or "main").strip()
+            interval_seconds = int(watch_on.group(2) or "60")
+            return Result(self.name, json.dumps(large_watcher_set(task.cwd, name=name, enabled=True, interval_seconds=interval_seconds), indent=2))
+        watch_off = re.match(r"^zero ai index watch off(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if watch_off:
+            name = (watch_off.group(1) or "main").strip()
+            return Result(self.name, json.dumps(large_watcher_set(task.cwd, name=name, enabled=False), indent=2))
+        watch_status = re.match(r"^zero ai index watch status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if watch_status:
+            name = (watch_status.group(1) or "main").strip()
+            return Result(self.name, json.dumps(large_watcher_status(task.cwd, name=name), indent=2))
+        watch_tick = re.match(r"^zero ai index watch tick(?:\s+name=(\S+))?(?:\s+max=(\d+))?(?:\s+shard=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if watch_tick:
+            name = (watch_tick.group(1) or "main").strip()
+            max_files = int(watch_tick.group(2) or "50000")
+            shard_size = int(watch_tick.group(3) or "1000")
+            return Result(self.name, json.dumps(large_watcher_tick(task.cwd, name=name, max_files=max_files, shard_size=shard_size), indent=2))
+        symbol_stat = re.match(r"^zero ai symbol status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if symbol_stat:
+            name = (symbol_stat.group(1) or "main").strip()
+            return Result(self.name, json.dumps(large_symbol_status(task.cwd, name=name), indent=2))
         kfind = re.match(r"^zero ai knowledge find\s+(.+?)(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
         if kfind:
             query = kfind.group(1).strip().strip("\"'")
             limit = int(kfind.group(2) or "20")
             return Result(self.name, json.dumps(knowledge_find(task.cwd, query, limit=limit), indent=2))
+        code_find = re.match(r"^zero ai search code\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if code_find:
+            query = code_find.group(1).strip().strip("\"'")
+            limit = int(code_find.group(2) or "20")
+            name = (code_find.group(3) or "main").strip()
+            return Result(self.name, json.dumps(large_search_code(task.cwd, query, name=name, limit=limit), indent=2))
+        code_find_alt = re.match(r"^zero ai code search\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if code_find_alt:
+            query = code_find_alt.group(1).strip().strip("\"'")
+            limit = int(code_find_alt.group(2) or "20")
+            name = (code_find_alt.group(3) or "main").strip()
+            return Result(self.name, json.dumps(large_search_code(task.cwd, query, name=name, limit=limit), indent=2))
+        symbol_find = re.match(r"^zero ai symbol search\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if symbol_find:
+            query = symbol_find.group(1).strip().strip("\"'")
+            limit = int(symbol_find.group(2) or "20")
+            name = (symbol_find.group(3) or "main").strip()
+            return Result(self.name, json.dumps(large_search_symbols(task.cwd, query, name=name, limit=limit), indent=2))
         fp_list = re.match(r"^false positive review list(?:\s+limit=(\d+))?$", text.strip(), flags=re.IGNORECASE)
         if fp_list:
             limit = int(fp_list.group(1) or "100")
@@ -2965,6 +3063,12 @@ class SystemCapability:
             "- beginner os fix\n"
             "- zero os export bundle\n"
             "- zero os share package\n"
+            "- zero ai export bundle\n"
+            "- zero ai export bundle strict\n"
+            "- zero ai share package\n"
+            "- zero ai share package strict\n"
+            "- zero os complete all\n"
+            "- zero os auto max fix upgrade\n"
             "- zero os native ui launch\n"
             "- zero os ui launch\n"
             "- shell run <command>\n"
@@ -3110,6 +3214,17 @@ class SystemCapability:
             "- zero ai knowledge status\n"
             "- zero ai knowledge find <query> [limit=<n>]\n"
             "- zero ai know everything\n"
+            "- zero ai index workspace [name=<workspace>] [max=<files>] [shard=<files_per_shard>]\n"
+            "- zero ai index register path=<workspace_path> [name=<workspace>]\n"
+            "- zero ai index list\n"
+            "- zero ai index status [name=<workspace>]\n"
+            "- zero ai index watch on [name=<workspace>] [interval=<seconds>]\n"
+            "- zero ai index watch off [name=<workspace>]\n"
+            "- zero ai index watch status [name=<workspace>]\n"
+            "- zero ai index watch tick [name=<workspace>] [max=<files>] [shard=<files_per_shard>]\n"
+            "- zero ai search code <query> [limit=<n>] [name=<workspace>]\n"
+            "- zero ai symbol status [name=<workspace>]\n"
+            "- zero ai symbol search <query> [limit=<n>] [name=<workspace>]\n"
             "- zero ai backup status\n"
             "- zero ai backup create\n"
             "- zero ai recover [snapshot=<id|latest>]\n"

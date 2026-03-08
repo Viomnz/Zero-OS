@@ -1,0 +1,11 @@
+[Unit]
+Description=Zero Store Backend
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/zero-store
+ExecStart=/usr/bin/python3 -c 'from zero_os.native_store_backend import run_server; run_server("/opt/zero-store")'
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
