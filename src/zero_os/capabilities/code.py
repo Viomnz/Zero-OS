@@ -30,6 +30,8 @@ class CodeCapability:
             return False
         if text.startswith("zero ai "):
             return False
+        if text in {"go fix all", "go fix it all", "fix all now"}:
+            return False
         keys = (
             "code",
             "build",

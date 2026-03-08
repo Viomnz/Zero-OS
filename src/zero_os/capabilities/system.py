@@ -312,6 +312,7 @@ class SystemCapability:
             "zero ai brain awareness",
             "zero ai fix all",
             "go fix all",
+            "fix all now",
             "zero ai identity",
             "zero ai consciousness",
             "conscious machine architecture",
@@ -499,7 +500,7 @@ class SystemCapability:
         if ctick:
             prompt = (ctick.group(1) or "").strip()
             return Result(self.name, json.dumps(consciousness_tick(task.cwd, prompt=prompt), indent=2))
-        if text.strip() in {"zero ai fix all", "go fix all"}:
+        if text.strip() in {"zero ai fix all", "go fix all", "fix all now"}:
             return Result(self.name, json.dumps(zero_ai_sync_all(task.cwd), indent=2))
         if text.strip() in {"zero ai gap status", "zero ai cover gap status"}:
             return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
@@ -988,7 +989,14 @@ class SystemCapability:
             rt_allowed, rt_reason = runtime_preexec_gate(task.cwd, f"shell run {cmd}")
             if not rt_allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": rt_reason, "command": cmd}, indent=2))
-            ent_allowed, ent_reason = preexec_check(task.cwd, f"shell run {cmd}", user="owner")
+            signed = enterprise_sign_action(task.cwd, "owner", f"shell run {cmd}")
+            ent_allowed, ent_reason = preexec_check(
+                task.cwd,
+                f"shell run {cmd}",
+                user="owner",
+                token=str(signed.get("token", "")),
+                signed_payload=signed.get("payload", {}),
+            )
             if not ent_allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": ent_reason, "command": cmd}, indent=2))
             return Result(self.name, json.dumps(unified_shell_run(cmd, task.cwd), indent=2))
@@ -1366,6 +1374,7 @@ class SystemCapability:
             "- architecture measure\n"
             "- architecture explain\n"
             "- zero ai fix all\n"
+            "- fix all now\n"
             "- security trust init\n"
             "- enterprise security status\n"
             "- enterprise security on [siem=<webhook_url>]\n"
