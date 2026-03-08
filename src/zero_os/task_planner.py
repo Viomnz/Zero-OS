@@ -54,6 +54,49 @@ def build_plan(request: str) -> dict:
     gh_issues = re.search(r"github\s+issues\s+([a-z0-9._/-]+)", lowered)
     if gh_issues:
         steps.append({"kind": "github_issues", "target": gh_issues.group(1)})
+    gh_prs = re.search(r"github\s+prs\s+([a-z0-9._/-]+)", lowered)
+    if gh_prs:
+        steps.append({"kind": "github_prs", "target": gh_prs.group(1)})
+    gh_issue_read = re.search(r"github\s+issue\s+read\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_read:
+        steps.append({"kind": "github_issue_read", "target": {"repo": gh_issue_read.group(1), "issue": int(gh_issue_read.group(2))}})
+    gh_issue_comments = re.search(r"github\s+issue\s+comments\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_comments:
+        steps.append({"kind": "github_issue_comments", "target": {"repo": gh_issue_comments.group(1), "issue": int(gh_issue_comments.group(2))}})
+    gh_issue_plan = re.search(r"github\s+issue\s+plan\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_plan:
+        steps.append({"kind": "github_issue_plan", "target": {"repo": gh_issue_plan.group(1), "issue": int(gh_issue_plan.group(2))}})
+    gh_issue_act = re.search(r"github\s+issue\s+act\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_act:
+        steps.append({"kind": "github_issue_act", "target": {"repo": gh_issue_act.group(1), "issue": int(gh_issue_act.group(2)), "execute": False}})
+    gh_issue_reply_post = re.search(r"github\s+issue\s+reply\s+post\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_reply_post:
+        text_match = re.search(r'text=(.+)$', text, flags=re.IGNORECASE)
+        steps.append({"kind": "github_issue_reply_post", "target": {"repo": gh_issue_reply_post.group(1), "issue": int(gh_issue_reply_post.group(2)), "text": (text_match.group(1).strip() if text_match else "")}})
+    gh_issue_reply = re.search(r"github\s+issue\s+reply\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_issue_reply and not gh_issue_reply_post:
+        execute = " execute=true" in lowered
+        steps.append({"kind": "github_issue_reply_draft", "target": {"repo": gh_issue_reply.group(1), "issue": int(gh_issue_reply.group(2)), "execute": execute}})
+    gh_pr_read = re.search(r"github\s+pr\s+read\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_read:
+        steps.append({"kind": "github_pr_read", "target": {"repo": gh_pr_read.group(1), "pr": int(gh_pr_read.group(2))}})
+    gh_pr_comments = re.search(r"github\s+pr\s+comments\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_comments:
+        steps.append({"kind": "github_pr_comments", "target": {"repo": gh_pr_comments.group(1), "pr": int(gh_pr_comments.group(2))}})
+    gh_pr_plan = re.search(r"github\s+pr\s+plan\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_plan:
+        steps.append({"kind": "github_pr_plan", "target": {"repo": gh_pr_plan.group(1), "pr": int(gh_pr_plan.group(2))}})
+    gh_pr_act = re.search(r"github\s+pr\s+act\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_act:
+        steps.append({"kind": "github_pr_act", "target": {"repo": gh_pr_act.group(1), "pr": int(gh_pr_act.group(2)), "execute": False}})
+    gh_pr_reply_post = re.search(r"github\s+pr\s+reply\s+post\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_reply_post:
+        text_match = re.search(r'text=(.+)$', text, flags=re.IGNORECASE)
+        steps.append({"kind": "github_pr_reply_post", "target": {"repo": gh_pr_reply_post.group(1), "pr": int(gh_pr_reply_post.group(2)), "text": (text_match.group(1).strip() if text_match else "")}})
+    gh_pr_reply = re.search(r"github\s+pr\s+reply\s+([a-z0-9._/-]+)\s+(\d+)", lowered)
+    if gh_pr_reply and not gh_pr_reply_post:
+        execute = " execute=true" in lowered
+        steps.append({"kind": "github_pr_reply_draft", "target": {"repo": gh_pr_reply.group(1), "pr": int(gh_pr_reply.group(2)), "execute": execute}})
     cloud_cfg = re.search(r"cloud\s+target\s+set\s+([a-z0-9._-]+)\s+provider\s+([a-z0-9._-]+)", lowered)
     if cloud_cfg:
         steps.append({"kind": "cloud_target_set", "target": {"name": cloud_cfg.group(1), "provider": cloud_cfg.group(2)}})

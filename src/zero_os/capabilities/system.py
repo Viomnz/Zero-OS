@@ -21,6 +21,7 @@ from zero_os.cure_firewall import (
 )
 from zero_os.law_store import law_export, law_status
 from zero_os.hyperlayer.runtime_core import hyperlayer_status
+from zero_os.github_integration_pack import connect_repo as github_connect, issue_act as github_issue_act, issue_comments as github_issue_comments, issue_plan as github_issue_plan, issue_read as github_issue_read, issue_reply_draft as github_issue_reply_draft, issue_reply_post as github_issue_reply_post, issue_summary as github_issue_summary, pr_act as github_pr_act, pr_comments as github_pr_comments, pr_plan as github_pr_plan, pr_read as github_pr_read, pr_reply_draft as github_pr_reply_draft, pr_reply_post as github_pr_reply_post, pr_summary as github_pr_summary, status as github_status
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, beginner_os_coverage, os_readiness
 from zero_os.production_core import (
     api_token_create,
@@ -169,7 +170,7 @@ from zero_os.brain_awareness import brain_awareness_status, build_brain_awarenes
 from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
-from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status
+from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
 from zero_os.conscious_machine_architecture import (
     consciousness_architecture_long_term_memory_status,
     consciousness_architecture_silicon_awareness_status,
@@ -586,6 +587,8 @@ class SystemCapability:
             "silicon awareness machine",
             "strong persistent long-term memory",
             "zero ai gap",
+            "zero ai self upgrade",
+            "zero ai upgrade",
             "zero ai ask",
             "zero ai api",
             "zero ai approvals",
@@ -610,6 +613,7 @@ class SystemCapability:
             "runtime dashboard",
             "runtime slo",
             "runtime validate",
+            "github",
             "architecture run",
             "architecture verify",
             "architecture measure",
@@ -1737,6 +1741,195 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
         if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
             return Result(self.name, json.dumps(zero_ai_gap_fix(task.cwd), indent=2))
+        if text.strip() in {"github status", "github integration status"}:
+            return Result(self.name, json.dumps(github_status(task.cwd), indent=2))
+        github_connect_m = re.match(r"^github repo connect\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+token=(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if github_connect_m:
+            return Result(self.name, json.dumps(github_connect(task.cwd, github_connect_m.group(1), (github_connect_m.group(2) or "").strip()), indent=2))
+        github_issues_m = re.match(r"^github issues\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+state=(open|closed|all))?(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if github_issues_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_issue_summary(
+                        task.cwd,
+                        github_issues_m.group(1),
+                        github_issues_m.group(2) or "open",
+                        int(github_issues_m.group(3) or "10"),
+                    ),
+                    indent=2,
+                ),
+            )
+        github_prs_m = re.match(r"^github prs\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+state=(open|closed|all))?(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if github_prs_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_pr_summary(
+                        task.cwd,
+                        github_prs_m.group(1),
+                        github_prs_m.group(2) or "open",
+                        int(github_prs_m.group(3) or "10"),
+                    ),
+                    indent=2,
+                ),
+            )
+        github_issue_read_m = re.match(r"^github issue read\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_issue_read_m:
+            return Result(self.name, json.dumps(github_issue_read(task.cwd, github_issue_read_m.group(1), int(github_issue_read_m.group(2))), indent=2))
+        github_issue_comments_m = re.match(r"^github issue comments\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_issue_comments_m:
+            return Result(self.name, json.dumps(github_issue_comments(task.cwd, github_issue_comments_m.group(1), int(github_issue_comments_m.group(2))), indent=2))
+        github_issue_plan_m = re.match(r"^github issue plan\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_issue_plan_m:
+            return Result(self.name, json.dumps(github_issue_plan(task.cwd, github_issue_plan_m.group(1), int(github_issue_plan_m.group(2))), indent=2))
+        github_issue_act_m = re.match(
+            r"^github issue act\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_issue_act_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_issue_act(
+                        task.cwd,
+                        github_issue_act_m.group(1),
+                        int(github_issue_act_m.group(2)),
+                        (github_issue_act_m.group(3) or "false").lower() == "true",
+                    ),
+                    indent=2,
+                ),
+            )
+        github_issue_reply_post_m = re.match(
+            r'^github issue reply post\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)\s+text=(.+)$',
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_issue_reply_post_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_issue_reply_post(
+                        task.cwd,
+                        github_issue_reply_post_m.group(1),
+                        int(github_issue_reply_post_m.group(2)),
+                        github_issue_reply_post_m.group(3).strip(),
+                    ),
+                    indent=2,
+                ),
+            )
+        github_issue_reply_m = re.match(
+            r"^github issue reply\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_issue_reply_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_issue_reply_draft(
+                        task.cwd,
+                        github_issue_reply_m.group(1),
+                        int(github_issue_reply_m.group(2)),
+                        (github_issue_reply_m.group(3) or "false").lower() == "true",
+                    ),
+                    indent=2,
+                ),
+            )
+        github_pr_read_m = re.match(r"^github pr read\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_pr_read_m:
+            return Result(self.name, json.dumps(github_pr_read(task.cwd, github_pr_read_m.group(1), int(github_pr_read_m.group(2))), indent=2))
+        github_pr_comments_m = re.match(r"^github pr comments\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_pr_comments_m:
+            return Result(self.name, json.dumps(github_pr_comments(task.cwd, github_pr_comments_m.group(1), int(github_pr_comments_m.group(2))), indent=2))
+        github_pr_plan_m = re.match(r"^github pr plan\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if github_pr_plan_m:
+            return Result(self.name, json.dumps(github_pr_plan(task.cwd, github_pr_plan_m.group(1), int(github_pr_plan_m.group(2))), indent=2))
+        github_pr_act_m = re.match(
+            r"^github pr act\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_pr_act_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_pr_act(
+                        task.cwd,
+                        github_pr_act_m.group(1),
+                        int(github_pr_act_m.group(2)),
+                        (github_pr_act_m.group(3) or "false").lower() == "true",
+                    ),
+                    indent=2,
+                ),
+            )
+        github_pr_reply_post_m = re.match(
+            r'^github pr reply post\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)\s+text=(.+)$',
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_pr_reply_post_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_pr_reply_post(
+                        task.cwd,
+                        github_pr_reply_post_m.group(1),
+                        int(github_pr_reply_post_m.group(2)),
+                        github_pr_reply_post_m.group(3).strip(),
+                    ),
+                    indent=2,
+                ),
+            )
+        github_pr_reply_m = re.match(
+            r"^github pr reply\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if github_pr_reply_m:
+            return Result(
+                self.name,
+                json.dumps(
+                    github_pr_reply_draft(
+                        task.cwd,
+                        github_pr_reply_m.group(1),
+                        int(github_pr_reply_m.group(2)),
+                        (github_pr_reply_m.group(3) or "false").lower() == "true",
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() in {
+            "zero ai self upgrade",
+            "zero ai upgrade",
+            "zero ai upgrade system",
+            "zero ai self upgrade for better system",
+        }:
+            gate = autonomy_evaluate(
+                task.cwd,
+                action="zero ai self upgrade",
+                blast_radius="service",
+                reversible=True,
+                evidence_count=12,
+                contradictory_signals=0,
+                independent_verifiers=4,
+                checks={
+                    "gap_status_ready": True,
+                    "backup_ready": True,
+                    "system_optimize_ready": True,
+                },
+            )
+            if gate["decision"] != "allow":
+                return Result(self.name, json.dumps({"ok": False, "reason": "autonomy_gate", "gate": gate}, indent=2))
+            result = zero_ai_upgrade_system(task.cwd)
+            autonomy_record(
+                task.cwd,
+                "zero ai self upgrade",
+                "success" if result.get("ok") else "failed",
+                gate["confidence"]["confidence"],
+            )
+            return Result(self.name, json.dumps({"ok": bool(result.get("ok", False)), "gate": gate, "result": result}, indent=2))
         if text.strip() in {"zero ai runtime status", "phase runtime status"}:
             return Result(self.name, json.dumps(zero_ai_runtime_status(task.cwd), indent=2))
         if text.strip() in {"zero ai runtime run", "phase runtime run", "zero ai runtime all"}:
@@ -2808,8 +3001,26 @@ class SystemCapability:
             "- silicon awareness machine\n"
             "- strong persistent long-term memory\n"
             "- zero ai consciousness tick [prompt]\n"
+            "- github status\n"
+            "- github repo connect <owner/repo> [token=<token>]\n"
+            "- github issues <owner/repo> [state=open|closed|all] [limit=<n>]\n"
+            "- github prs <owner/repo> [state=open|closed|all] [limit=<n>]\n"
+            "- github issue read <owner/repo> <number>\n"
+            "- github issue comments <owner/repo> <number>\n"
+            "- github issue plan <owner/repo> <number>\n"
+            "- github issue act <owner/repo> <number> [execute=true|false]\n"
+            "- github issue reply <owner/repo> <number> [execute=true|false]\n"
+            "- github issue reply post <owner/repo> <number> text=<message>\n"
+            "- github pr read <owner/repo> <number>\n"
+            "- github pr comments <owner/repo> <number>\n"
+            "- github pr plan <owner/repo> <number>\n"
+            "- github pr act <owner/repo> <number> [execute=true|false]\n"
+            "- github pr reply <owner/repo> <number> [execute=true|false]\n"
+            "- github pr reply post <owner/repo> <number> text=<message>\n"
             "- zero ai gap status\n"
             "- zero ai gap fix\n"
+            "- zero ai self upgrade\n"
+            "- zero ai upgrade system\n"
             "- zero ai runtime status\n"
             "- zero ai runtime run\n"
             "- runtime telemetry ingest [source=<name>]\n"

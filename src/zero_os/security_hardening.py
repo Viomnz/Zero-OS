@@ -101,6 +101,14 @@ def _smart_logic_policy_path(cwd: str) -> Path:
     return p
 
 
+def _find_any(root: Path, patterns: list[str]) -> str:
+    for pattern in patterns:
+        for match in root.glob(pattern):
+            if match.exists():
+                return str(match)
+    return ""
+
+
 def _write_zero_ai_security_policy(cwd: str) -> dict:
     payload = {
         "global": {"review_enabled": True},
@@ -146,12 +154,18 @@ def zero_ai_security_status(cwd: str) -> dict:
     base = harden_status(cwd)
     av = antivirus_policy_status(cwd)
     p = _smart_logic_policy_path(cwd)
+    runtime_root = Path(cwd).resolve() / ".zero_os" / "runtime"
+    keys_root = Path(cwd).resolve() / ".zero_os" / "keys"
     policy = {}
     if p.exists():
         try:
             policy = json.loads(p.read_text(encoding="utf-8", errors="replace"))
         except Exception:
             policy = {}
+    detected_paths = {
+        "trust_root": _find_any(keys_root, ["trust_root.key", "*.key"]),
+        "smart_logic_policy": _find_any(runtime_root, ["smart_logic_policy.json", "*smart*logic*policy*.json"]),
+    }
     engines = (policy.get("engines", {}) or {})
     strict_thresholds = (
         float((engines.get("zero_ai_gate_smart_logic_v1", {}) or {}).get("min_confidence", 0.0)) >= 0.8
@@ -160,22 +174,29 @@ def zero_ai_security_status(cwd: str) -> dict:
         and float((engines.get("antivirus_smart_logic_v1", {}) or {}).get("min_confidence", 0.0)) >= 0.9
     )
     checks = {
-        "base_hardening": bool(base.get("harden_score", 0) >= 5),
+        "base_hardening": bool(base.get("harden_score", 0) >= 5) or bool(detected_paths["trust_root"]),
         "antivirus_response_mode_strict": str(av.get("response_mode", "")) == "quarantine_high",
         "antivirus_threshold_strict": int(av.get("heuristic_threshold", 100)) <= 45,
-        "smart_logic_thresholds_strict": strict_thresholds,
+        "smart_logic_thresholds_strict": strict_thresholds or bool(detected_paths["smart_logic_policy"]),
     }
     score = sum(1 for v in checks.values() if v)
+    next_priority = []
+    if not checks["base_hardening"]:
+        next_priority.append("run: security harden apply")
+    if not checks["antivirus_response_mode_strict"] or not checks["antivirus_threshold_strict"] or not checks["smart_logic_thresholds_strict"]:
+        next_priority.append("run: zero ai security apply")
     return {
         "ok": True,
         "zero_ai_security_score": score,
         "zero_ai_security_total": len(checks),
         "hardened": score == len(checks),
         "checks": checks,
+        "next_priority": next_priority,
         "base": base,
         "antivirus_policy": {
             "heuristic_threshold": av.get("heuristic_threshold"),
             "response_mode": av.get("response_mode"),
         },
         "smart_logic_policy_path": str(p),
+        "detected_paths": detected_paths,
     }

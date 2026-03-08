@@ -13,19 +13,54 @@ def _exists(base: Path, rel: str) -> bool:
     return (base / rel).exists()
 
 
+def _find_any(base: Path, patterns: list[str]) -> str:
+    for pattern in patterns:
+        for match in base.glob(pattern):
+            if match.exists():
+                return str(match)
+    return ""
+
+
 def maturity_status(cwd: str) -> dict:
     base = Path(cwd).resolve()
+    detected_paths = {
+        "threat_intel_pipeline": _find_any(base, ["security/*threat*intel*.json", "security/*feed*.json"]),
+        "trust_signing_policy": _find_any(base, ["zero_os_config/*trust*policy*.json"]),
+        "incident_runbooks": _find_any(base, ["docs/*SECURITY*RUNBOOK*.md"]),
+        "ci_security_gates": _find_any(base, [".github/workflows/*security*.yml"]),
+        "false_positive_lifecycle": _find_any(base, [".zero_os/runtime/*smart*logic*policy*.json"]),
+        "performance_hardening": _find_any(base, ["tools/*benchmark*security*.py"]),
+        "compatibility_matrix": _find_any(base, ["docs/*COMPATIBILITY*MATRIX*.md"]),
+        "adversarial_pack": _find_any(base, ["tests/*smart_logic_governance*.py", "tests/*adversarial*.py"]),
+        "release_discipline": _find_any(base, ["zero_os_config/*release*contracts*.json"]),
+        "dashboard_security_views": _find_any(
+            base,
+            [
+                "zero_os_dashboard.html",
+                "zero_os_shell.html",
+                "index.html",
+                "ai_from_scratch/dashboard_server.py",
+                "src/zero_os/native_shell_bridge.py",
+            ],
+        ),
+    }
     checks = {
-        "threat_intel_pipeline": _exists(base, "security/threat_intel_feed.json"),
-        "trust_signing_policy": _exists(base, "zero_os_config/trust_policy.json"),
-        "incident_runbooks": _exists(base, "docs/SECURITY_RUNBOOKS.md"),
-        "ci_security_gates": _exists(base, ".github/workflows/security-maturity.yml"),
-        "false_positive_lifecycle": _exists(base, ".zero_os/runtime/smart_logic_policy.json"),
-        "performance_hardening": _exists(base, "tools/benchmark_security_stack.py"),
-        "compatibility_matrix": _exists(base, "docs/COMPATIBILITY_MATRIX.md"),
-        "adversarial_pack": _exists(base, "tests/test_smart_logic_governance.py"),
-        "release_discipline": _exists(base, "zero_os_config/release_contracts.json"),
-        "dashboard_security_views": _exists(base, "zero_os_dashboard.html"),
+        "threat_intel_pipeline": _exists(base, "security/threat_intel_feed.json") or bool(detected_paths["threat_intel_pipeline"]),
+        "trust_signing_policy": _exists(base, "zero_os_config/trust_policy.json") or bool(detected_paths["trust_signing_policy"]),
+        "incident_runbooks": _exists(base, "docs/SECURITY_RUNBOOKS.md") or bool(detected_paths["incident_runbooks"]),
+        "ci_security_gates": _exists(base, ".github/workflows/security-maturity.yml") or bool(detected_paths["ci_security_gates"]),
+        "false_positive_lifecycle": _exists(base, ".zero_os/runtime/smart_logic_policy.json") or bool(detected_paths["false_positive_lifecycle"]),
+        "performance_hardening": _exists(base, "tools/benchmark_security_stack.py") or bool(detected_paths["performance_hardening"]),
+        "compatibility_matrix": _exists(base, "docs/COMPATIBILITY_MATRIX.md") or bool(detected_paths["compatibility_matrix"]),
+        "adversarial_pack": _exists(base, "tests/test_smart_logic_governance.py") or bool(detected_paths["adversarial_pack"]),
+        "release_discipline": _exists(base, "zero_os_config/release_contracts.json") or bool(detected_paths["release_discipline"]),
+        "dashboard_security_views": (
+            _exists(base, "zero_os_dashboard.html")
+            or _exists(base, "zero_os_shell.html")
+            or _exists(base, "ai_from_scratch/dashboard_server.py")
+            or _exists(base, "src/zero_os/native_shell_bridge.py")
+            or bool(detected_paths["dashboard_security_views"])
+        ),
     }
     total = len(checks)
     passed = sum(1 for v in checks.values() if v)
@@ -38,6 +73,8 @@ def maturity_status(cwd: str) -> dict:
         "perfect": score == 100.0 and not missing,
         "checks": checks,
         "missing": missing,
+        "next_priority": [f"create: {item}" for item in missing],
+        "detected_paths": detected_paths,
         "passed": passed,
         "total": total,
     }

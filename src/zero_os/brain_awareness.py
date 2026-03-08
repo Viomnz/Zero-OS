@@ -22,6 +22,14 @@ def _runtime(cwd: str) -> Path:
     return p
 
 
+def _find_any(root: Path, patterns: list[str]) -> str:
+    for pattern in patterns:
+        for match in root.glob(pattern):
+            if match.is_file():
+                return str(match)
+    return ""
+
+
 def build_brain_awareness(cwd: str) -> dict:
     build_knowledge_index(cwd)
     knowledge = knowledge_status(cwd)
@@ -81,10 +89,17 @@ def build_brain_awareness(cwd: str) -> dict:
 
 
 def brain_awareness_status(cwd: str) -> dict:
-    p = _runtime(cwd) / "zero_ai_brain_awareness.json"
-    if not p.exists():
+    root = _runtime(cwd)
+    p = root / "zero_ai_brain_awareness.json"
+    detected = _find_any(root, ["zero_ai_brain_awareness.json", "*brain*awareness*.json"])
+    if not p.exists() and not detected:
         return {"ok": False, "missing": True, "hint": "run: zero ai brain awareness build"}
     try:
-        return json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        target = Path(detected) if detected else p
+        data = json.loads(target.read_text(encoding="utf-8", errors="replace"))
+        if isinstance(data, dict):
+            data.setdefault("detected_paths", {"brain_awareness": str(target)})
+            data.setdefault("next_priority", [] if data.get("aware", False) else ["run: zero ai brain awareness build"])
+        return data
     except Exception:
         return {"ok": False, "missing": True, "hint": "run: zero ai brain awareness build"}

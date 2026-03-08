@@ -25,17 +25,34 @@ def _snapshots_root(cwd: str) -> Path:
     return p
 
 
+def _find_any(root: Path, patterns: list[str]) -> str:
+    for pattern in patterns:
+        for match in root.glob(pattern):
+            if match.exists():
+                return str(match)
+    return ""
+
+
 def zero_ai_backup_status(cwd: str) -> dict:
     root = _snapshots_root(cwd)
     snaps = [p for p in root.iterdir() if p.is_dir()] if root.exists() else []
     latest = sorted(snaps, key=lambda x: x.name)[-1].name if snaps else ""
     cure_backup = Path(cwd).resolve() / ".zero_os" / "backups" / "cure_firewall"
+    detected_paths = {
+        "snapshot_meta": _find_any(root, ["*/snapshot.json"]),
+        "cure_backup": _find_any(Path(cwd).resolve() / ".zero_os" / "backups", ["cure_firewall/**/*", "cure_firewall/*"]),
+    }
+    next_priority = []
+    if not snaps and not cure_backup.exists() and not detected_paths["snapshot_meta"]:
+        next_priority.append("run: zero ai backup create")
     return {
         "ok": True,
         "snapshot_count": len(snaps),
         "latest_snapshot": latest,
-        "cure_firewall_backup_exists": cure_backup.exists(),
+        "cure_firewall_backup_exists": cure_backup.exists() or bool(detected_paths["cure_backup"]),
         "cure_firewall_backup_path": str(cure_backup),
+        "detected_paths": detected_paths,
+        "next_priority": next_priority,
     }
 
 

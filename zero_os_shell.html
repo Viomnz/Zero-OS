@@ -149,6 +149,38 @@
       margin-bottom: 10px;
     }
 
+    .layer-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .layer-tab {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .layer-tab.active {
+      background: rgba(91, 184, 255, 0.16);
+      color: var(--text);
+      border-color: rgba(91, 184, 255, 0.38);
+    }
+
+    .layer-view {
+      display: none;
+    }
+
+    .layer-view.active {
+      display: block;
+    }
+
     .panel {
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -520,6 +552,7 @@
     const $ = (id) => document.getElementById(id);
     const RECENT_KEY = "zero_os_shell_recent_v1";
     const PIN_KEY = "zero_os_shell_pins_v1";
+    const LAYER_PAGE_KEY = "zero_os_shell_layer_page_v1";
     const menuSections = [
       {
         title: "Everyday",
@@ -538,6 +571,14 @@
         ]
       },
       {
+        title: "GitHub",
+        items: [
+          { label: "GitHub Status", desc: "Show connected GitHub repositories.", command: "github status" },
+          { label: "GitHub Issues", desc: "List issue inbox for the sample connected repo.", command: "github issues octocat/Hello-World limit=5" },
+          { label: "GitHub PRs", desc: "List pull request inbox for the sample connected repo.", command: "github prs octocat/Hello-World limit=5" }
+        ]
+      },
+      {
         title: "Window Actions",
         items: [
           { label: "Maximize Zero Files", desc: "Bring the file window forward.", command: "native desktop window action app=Zero Files action=maximize" },
@@ -550,7 +591,8 @@
       { label: "Zero Files", icon: "F", desc: "File workspace and desktop storage view.", favorite: true, installed: true, command: "native desktop window open app=Zero Files layer=top" },
       { label: "Zero Security", icon: "S", desc: "Security posture and protection review.", favorite: true, installed: true, command: "zero ai security status" },
       { label: "Zero Runtime", icon: "R", desc: "Kernel and runtime inspection.", favorite: false, installed: true, command: "kernel stack status" },
-      { label: "System Status", icon: "P", desc: "Platform readiness and health checks.", favorite: true, installed: true, command: "native platform status" }
+      { label: "System Status", icon: "P", desc: "Platform readiness and health checks.", favorite: true, installed: true, command: "native platform status" },
+      { label: "GitHub Inbox", icon: "G", desc: "Connected GitHub repos, issues, and PR intake.", favorite: false, installed: true, command: "github status" }
     ];
 
     function tickClock() {
@@ -587,6 +629,14 @@
 
     function writePins(labels) {
       localStorage.setItem(PIN_KEY, JSON.stringify(labels));
+    }
+
+    function readLayerPage() {
+      return localStorage.getItem(LAYER_PAGE_KEY) || "home";
+    }
+
+    function writeLayerPage(page) {
+      localStorage.setItem(LAYER_PAGE_KEY, page);
     }
 
     function pinnedAppEntries() {
@@ -704,6 +754,116 @@
       return `<details class="details"><summary>${title}</summary><pre>${JSON.stringify(data, null, 2)}</pre></details>`;
     }
 
+    function renderLayerTabs(active) {
+      const pages = [
+        { id: "home", label: "Home" },
+        { id: "apps", label: "Apps" },
+        { id: "security", label: "Security" },
+        { id: "runtime", label: "Runtime" },
+        { id: "recovery", label: "Recovery" },
+        { id: "github", label: "GitHub" }
+      ];
+      return `
+        <div class="layer-tabs">
+          ${pages.map((page) => `
+            <button class="layer-tab ${active === page.id ? "active" : ""}" data-layer-page="${page.id}">${page.label}</button>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderSecurityPanel(sec, recValue) {
+      const secValue = sec && sec.hardened ? "Hardened" : "Baseline";
+      return `
+        <section class="panel">
+          <div class="panel-title">Security Review</div>
+          ${renderSummaryCards([
+            { label: "Security State", value: secValue },
+            { label: "Recovery", value: recValue },
+            { label: "Status Badge", value: sec && (sec.mark_strict || sec.hardened) ? "Protected" : "Needs review" },
+            { label: "Next Step", value: sec && sec.hardened ? "Monitor" : "Run hardening" }
+          ])}
+          ${renderDetails("Show security details", sec || { hint: "run: ./zero_os_launcher.ps1 first-run" })}
+        </section>
+      `;
+    }
+
+    function renderRuntimePanel(triadValue, kernel, runtime, backup) {
+      return `
+        <section class="panel">
+          <div class="panel-title">Runtime Review</div>
+          ${renderSummaryCards([
+            { label: "Triad", value: triadValue },
+            { label: "Kernel", value: kernel && kernel.processes ? `${kernel.processes.length} processes` : "Idle" },
+            { label: "Isolation", value: kernel && kernel.isolation ? String(kernel.isolation.mode || "shared") : "unknown" },
+            { label: "Validation", value: runtime && runtime.ok ? "Passing" : "Needs check" }
+          ])}
+          ${renderDetails("Show runtime details", { kernel: kernel || {}, triad: triadValue, runtime: runtime || {}, recovery: backup || {} })}
+        </section>
+      `;
+    }
+
+    function renderRecoveryPanel(onboarding, backup, notices) {
+      return `
+        <section class="panel">
+          <div class="panel-title">Recovery Layer</div>
+          <div class="action-list">
+            ${onboarding.actions.map((action) => `
+              <div class="action-chip">
+                <div class="chip-title">${action.label}</div>
+                <div class="chip-copy">Recommended from the current recovery and readiness state.</div>
+                <button class="btn" data-home-command="${action.command}" data-home-label="${action.label}">Run</button>
+              </div>
+            `).join("")}
+            <div class="action-chip">
+              <div class="chip-title">Recovery Status</div>
+              <div class="chip-copy">${backup && backup.ok ? "Recovery proof is present." : "Recovery proof is missing or stale."}</div>
+            </div>
+            ${notices.map((item) => `
+              <div class="notice-chip">
+                <div class="chip-title">${item.title}</div>
+                <div class="chip-copy">${item.copy}</div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderGitHubPanel(github) {
+      const repos = Object.entries(((github || {}).repos) || {});
+      return `
+        <section class="panel">
+          <div class="panel-title">GitHub Layer</div>
+          ${renderSummaryCards([
+            { label: "Connected Repos", value: String(repos.length) },
+            { label: "Tokens Ready", value: String(repos.filter(([, cfg]) => cfg && cfg.token_set).length) },
+            { label: "Events Logged", value: String((((github || {}).events) || []).length) },
+            { label: "Mode", value: repos.length ? "Read and act locally" : "Not connected" }
+          ])}
+          <div class="action-list">
+            ${repos.length ? repos.map(([name, cfg]) => `
+              <div class="action-chip">
+                <div class="chip-title">${name}</div>
+                <div class="chip-copy">Connected: ${cfg && cfg.connected ? "yes" : "no"} · Token: ${cfg && cfg.token_set ? "set" : "missing"}</div>
+                <div class="task-actions">
+                  <button class="btn" data-home-command="github issues ${name} limit=5" data-home-label="Issues ${name}">Issues</button>
+                  <button class="btn" data-home-command="github prs ${name} limit=5" data-home-label="PRs ${name}">PRs</button>
+                  <button class="btn" data-home-command="github status" data-home-label="GitHub Status">Refresh</button>
+                </div>
+              </div>
+            `).join("") : `
+              <div class="action-chip">
+                <div class="chip-title">No connected repo yet</div>
+                <div class="chip-copy">Connect one with: github repo connect owner/repo [token=...]</div>
+              </div>
+            `}
+          </div>
+          ${renderDetails("Show GitHub integration details", github || { repos: {}, events: [] })}
+        </section>
+      `;
+    }
+
     function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) {
       const notices = [];
       if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
@@ -778,6 +938,42 @@
           </section>
         </div>
       `;
+    }
+
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github) {
+      const notices = renderNotifications(sec, backup, triad, desktop);
+      const recValue = backup && backup.ok ? "Recoverable" : "No report";
+      const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
+      return [
+        renderLayerTabs(activePage),
+        `<div class="layer-view ${activePage === "home" ? "active" : ""}" data-layer-view="home">` +
+          renderOnboarding(onboarding) +
+          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) +
+          renderTaskSwitcher(desktop) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "apps" ? "active" : ""}" data-layer-view="apps">` +
+          `<section class="panel"><div class="panel-title">App Library Layer</div><div class="action-list">${renderLibraryCards(desktop, storeState, storeRegistry)}</div></section>` +
+          renderTaskSwitcher(desktop) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "security" ? "active" : ""}" data-layer-view="security">` +
+          renderSecurityPanel(sec, recValue) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "runtime" ? "active" : ""}" data-layer-view="runtime">` +
+          renderRuntimePanel(triadValue, kernel, runtime, backup) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
+          renderRecoveryPanel(onboarding, backup, notices) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "github" ? "active" : ""}" data-layer-view="github">` +
+          renderGitHubPanel(github) +
+        `</div>`,
+        renderSummaryCards([
+          { label: "Desktop", value: `${(desktop && desktop.windows || []).length} windows` },
+          { label: "Start Menu", value: desktop && desktop.start_menu && desktop.start_menu.style ? desktop.start_menu.style : "layered" },
+          { label: "Mode", value: "Windows-like shell" },
+          { label: "Active Page", value: activePage }
+        ])
+      ].join("");
     }
 
     function renderLibraryCards(desktop, storeState, storeRegistry) {
@@ -895,9 +1091,10 @@
         loadJson(".zero_os/desktop/session.json"),
         loadJson(".zero_os/runtime/kernel_stack_state.json")
       ]);
-      const [storeState, storeRegistry] = await Promise.all([
+      const [storeState, storeRegistry, github] = await Promise.all([
         loadJson(".zero_os/native_store/state.json"),
-        loadJson(".zero_os/store/registry.json")
+        loadJson(".zero_os/store/registry.json"),
+        loadJson(".zero_os/integrations/github.json")
       ]);
 
       const coreValue = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
@@ -916,18 +1113,17 @@
         ? "Live runtime JSON loaded"
         : "No runtime JSON yet. Run first-run, then open-dashboard.";
 
+      const activePage = readLayerPage();
       $("startLayer").innerHTML = [
-        renderOnboarding(onboarding),
-        renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry),
-        renderTaskSwitcher(desktop),
-        renderSummaryCards([
-          { label: "Platform", value: coreValue },
-          { label: "Desktop", value: `${(desktop && desktop.windows || []).length} windows` },
-          { label: "Start Menu", value: desktop && desktop.start_menu && desktop.start_menu.style ? desktop.start_menu.style : "layered" },
-          { label: "Mode", value: "Windows-like shell" }
-        ]),
+        renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github),
         renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
       ].join("");
+      $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          writeLayerPage(button.dataset.layerPage || "home");
+          await refreshLayers();
+        });
+      });
       $("startLayer").querySelectorAll("[data-onboard-command], [data-home-command], [data-task-command]").forEach((button) => {
         button.addEventListener("click", async () => {
           const label = button.dataset.onboardLabel || button.dataset.homeLabel || button.dataset.taskLabel || "Run Action";
@@ -947,25 +1143,8 @@
       });
       renderDrawer(notices, readRecentActions());
 
-      $("securityLayer").innerHTML = [
-        renderSummaryCards([
-          { label: "Security State", value: secValue },
-          { label: "Recovery", value: recValue },
-          { label: "Status Badge", value: sec && (sec.mark_strict || sec.hardened) ? "Protected" : "Needs review" },
-          { label: "Next Step", value: sec && sec.hardened ? "Monitor" : "Run hardening" }
-        ]),
-        renderDetails("Show security details", sec || { hint: "run: ./zero_os_launcher.ps1 first-run" })
-      ].join("");
-
-      $("runtimeLayer").innerHTML = [
-        renderSummaryCards([
-          { label: "Triad", value: triadValue },
-          { label: "Kernel", value: kernel && kernel.processes ? `${kernel.processes.length} processes` : "Idle" },
-          { label: "Isolation", value: kernel && kernel.isolation ? String(kernel.isolation.mode || "shared") : "unknown" },
-          { label: "Validation", value: runtime && runtime.ok ? "Passing" : "Needs check" }
-        ]),
-        renderDetails("Show runtime details", { kernel: kernel || {}, triad: triad || {}, runtime: runtime || {}, recovery: backup || {} })
-      ].join("");
+      $("securityLayer").innerHTML = renderSecurityPanel(sec, recValue);
+      $("runtimeLayer").innerHTML = renderRuntimePanel(triadValue, kernel, runtime, backup);
 
       const b = pickSecurityBadge(sec);
       const el = $("secBadge");

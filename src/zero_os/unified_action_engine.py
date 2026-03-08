@@ -8,7 +8,24 @@ from zero_os.browser_session_connector import browser_session_action, browser_se
 from zero_os.autonomous_fix_gate import autonomy_evaluate
 from zero_os.cloud_deploy_integration import configure_target as cloud_target_set, deploy as cloud_deploy, status as cloud_status
 from zero_os.connector_layer import run_recovery, run_self_repair, store_install, store_status, web_fetch
-from zero_os.github_integration_pack import connect_repo as github_connect, issue_summary as github_issues, status as github_status
+from zero_os.github_integration_pack import (
+    connect_repo as github_connect,
+    issue_act as github_issue_act,
+    issue_comments as github_issue_comments,
+    issue_plan as github_issue_plan,
+    issue_reply_draft as github_issue_reply_draft,
+    issue_reply_post as github_issue_reply_post,
+    issue_read as github_issue_read,
+    issue_summary as github_issues,
+    pr_comments as github_pr_comments,
+    pr_act as github_pr_act,
+    pr_plan as github_pr_plan,
+    pr_reply_draft as github_pr_reply_draft,
+    pr_reply_post as github_pr_reply_post,
+    pr_read as github_pr_read,
+    pr_summary as github_prs,
+    status as github_status,
+)
 from zero_os.observation_layer import collect_observations
 from zero_os.tool_capability_registry import registry_status
 from zero_os.verification_web_flow import verify_web_lookup
@@ -88,6 +105,99 @@ def execute_step(cwd: str, step: dict) -> dict:
     if kind == "github_issues":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": github_issues(cwd, str(target))}
+    if kind == "github_prs":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_prs(cwd, str(target))}
+    if kind == "github_pr_comments":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_pr_comments(cwd, str(target.get("repo", "")), int(target.get("pr", 0)))}
+    if kind == "github_issue_read":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_issue_read(cwd, str(target.get("repo", "")), int(target.get("issue", 0)))}
+    if kind == "github_issue_comments":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_issue_comments(cwd, str(target.get("repo", "")), int(target.get("issue", 0)))}
+    if kind == "github_issue_plan":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_issue_plan(cwd, str(target.get("repo", "")), int(target.get("issue", 0)))}
+    if kind == "github_issue_act":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_issue_act(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("issue", 0)),
+                bool(target.get("execute", False)),
+            ),
+        }
+    if kind == "github_issue_reply_draft":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_issue_reply_draft(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("issue", 0)),
+                bool(target.get("execute", False)),
+            ),
+        }
+    if kind == "github_issue_reply_post":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_issue_reply_post(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("issue", 0)),
+                str(target.get("text", "")),
+            ),
+        }
+    if kind == "github_pr_read":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_pr_read(cwd, str(target.get("repo", "")), int(target.get("pr", 0)))}
+    if kind == "github_pr_plan":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": github_pr_plan(cwd, str(target.get("repo", "")), int(target.get("pr", 0)))}
+    if kind == "github_pr_act":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_pr_act(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("pr", 0)),
+                bool(target.get("execute", False)),
+            ),
+        }
+    if kind == "github_pr_reply_draft":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_pr_reply_draft(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("pr", 0)),
+                bool(target.get("execute", False)),
+            ),
+        }
+    if kind == "github_pr_reply_post":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {
+            "ok": True,
+            "kind": kind,
+            "result": github_pr_reply_post(
+                cwd,
+                str(target.get("repo", "")),
+                int(target.get("pr", 0)),
+                str(target.get("text", "")),
+            ),
+        }
     if kind == "cloud_target_set":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": cloud_target_set(cwd, str(target.get("name", "")), str(target.get("provider", "")))}
