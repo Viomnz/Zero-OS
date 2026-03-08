@@ -43,6 +43,7 @@ def _toolchain_status() -> dict:
     checks = {
         "windows": {
             "makeappx": _find_tool("makeappx.exe", "makeappx"),
+            "wix": _find_tool("wix.exe", "wix"),
             "candle": _find_tool("candle.exe", "candle"),
             "light": _find_tool("light.exe", "light"),
         },
@@ -771,6 +772,7 @@ def build_windows_native(cwd: str, app_name: str, version: str) -> dict:
     output_root = win_root / "out"
     output_root.mkdir(parents=True, exist_ok=True)
     makeappx = _find_tool("makeappx.exe", "makeappx")
+    wix = _find_tool("wix.exe", "wix")
     candle = _find_tool("candle.exe", "candle")
     light = _find_tool("light.exe", "light")
     manifest = win_root / "ZeroStore.msixmanifest"
@@ -788,7 +790,13 @@ def build_windows_native(cwd: str, app_name: str, version: str) -> dict:
             built.append(str(msix_path))
     else:
         missing.append("makeappx")
-    if candle and light:
+    if wix:
+        cmd = [wix, "build", str(wxs), "-o", str(msi_path)]
+        commands.append(cmd)
+        run = subprocess.run(cmd, capture_output=True, text=True)
+        if run.returncode == 0:
+            built.append(str(msi_path))
+    elif candle and light:
         wixobj = output_root / "installer.wixobj"
         cmd1 = [candle, "-out", str(wixobj), str(wxs)]
         cmd2 = [light, "-out", str(msi_path), str(wixobj)]
@@ -798,6 +806,8 @@ def build_windows_native(cwd: str, app_name: str, version: str) -> dict:
         if run1.returncode == 0 and run2.returncode == 0:
             built.append(str(msi_path))
     else:
+        if not wix:
+            missing.append("wix")
         if not candle:
             missing.append("candle")
         if not light:

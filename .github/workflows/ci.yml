@@ -50,26 +50,20 @@ jobs:
       - name: Install WiX toolset
         shell: powershell
         run: |
-          choco install wixtoolset --no-progress -y
-          $candleCmd = Get-Command candle.exe -ErrorAction SilentlyContinue
-          if (-not $candleCmd) {
-            $roots = @("C:\Program Files (x86)", "C:\Program Files", "$env:ChocolateyInstall\lib")
-            $candidate = Get-ChildItem -Path $roots -Recurse -Filter candle.exe -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($candidate) {
-              $candidate.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            }
-          } else {
-            Split-Path -Parent $candleCmd.Source | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          dotnet tool install --global wix
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to install WiX .NET tool"
           }
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Refresh WiX path
+      - name: Verify WiX tooling
         shell: powershell
         run: |
+          $wixCmd = Get-Command wix -ErrorAction SilentlyContinue
           $candleCmd = Get-Command candle.exe -ErrorAction SilentlyContinue
           $lightCmd = Get-Command light.exe -ErrorAction SilentlyContinue
-          if (-not $candleCmd -or -not $lightCmd) {
-            Write-Error "WiX binaries not found after installation"
+          if (-not $wixCmd -and (-not $candleCmd -or -not $lightCmd)) {
+            Write-Error "No supported WiX tooling found after installation"
           }
 
       - name: Add makeappx from Windows SDK
@@ -96,8 +90,10 @@ jobs:
         run: |
           $missing = @()
           if (-not (Get-Command makeappx -ErrorAction SilentlyContinue)) { $missing += "makeappx" }
-          if (-not (Get-Command candle -ErrorAction SilentlyContinue)) { $missing += "candle" }
-          if (-not (Get-Command light -ErrorAction SilentlyContinue)) { $missing += "light" }
+          $hasWix = [bool](Get-Command wix -ErrorAction SilentlyContinue)
+          $hasCandle = [bool](Get-Command candle -ErrorAction SilentlyContinue)
+          $hasLight = [bool](Get-Command light -ErrorAction SilentlyContinue)
+          if (-not $hasWix -and -not ($hasCandle -and $hasLight)) { $missing += "wix-or-candle-light" }
           if ($missing.Count -gt 0) {
             Write-Error ("Missing required Windows packaging tools: " + ($missing -join ", "))
           }
