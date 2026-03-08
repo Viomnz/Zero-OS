@@ -1,0 +1,20 @@
+{
+  "dev": {
+    "enterprise_security_enabled": false,
+    "triad_ops_enabled": true,
+    "self_repair_enabled": true,
+    "response_mode": "manual"
+  },
+  "stage": {
+    "enterprise_security_enabled": true,
+    "triad_ops_enabled": true,
+    "self_repair_enabled": true,
+    "response_mode": "quarantine_high"
+  },
+  "prod": {
+    "enterprise_security_enabled": true,
+    "triad_ops_enabled": true,
+    "self_repair_enabled": true,
+    "response_mode": "quarantine_critical"
+  }
+}

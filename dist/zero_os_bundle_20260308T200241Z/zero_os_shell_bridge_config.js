@@ -1,0 +1,1 @@
+window.ZERO_SHELL_BRIDGE_TOKEN = "ed455d16205efb097c3a78f3bce40acf11a6a3855ecaa84f";

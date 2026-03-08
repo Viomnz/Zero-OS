@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "generated_utc": "20260308T200241Z",
+  "source": "C:\\Users\\gomez\\Documents\\New folder",
+  "bundle_dir": "C:\\Users\\gomez\\Documents\\New folder\\dist\\zero_os_bundle_20260308T200241Z",
+  "excluded_roots": [
+    ".zero_os",
+    "dist"
+  ],
+  "excluded_parts": [
+    ".git",
+    ".pytest_cache",
+    "__pycache__"
+  ],
+  "copied_files": 427,
+  "copied_dirs": 50,
+  "skipped_locked": [
+    ".gitignore",
+    "ARCHITECTURE.md",
+    "tests/test_global_runtime_network.py"
+  ]
+}

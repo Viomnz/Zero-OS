@@ -1,0 +1,45 @@
+name: ui-cross-platform-smoke
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: smoke-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Universal UI smoke
+        env:
+          ZERO_OS_UI_SMOKE: "1"
+        run: python zero_os_ui.py
+
+      - name: Export bundle smoke
+        run: python src/main.py "zero os export bundle"
+
+      - name: Share package smoke
+        run: python src/main.py "zero os share package"
+
+      - name: Upload dist artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-os-ui-smoke-${{ matrix.os }}
+          path: dist
+          if-no-files-found: warn

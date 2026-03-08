@@ -1,0 +1,5 @@
+{
+  "name": "zero-kernel",
+  "boot_mode": "single-user",
+  "version": 1
+}

@@ -2,6 +2,104 @@
 
 Zero-OS runs on one **main highway**: a single dispatcher that routes every request to capability lanes.
 
+[![UI Cross-Platform Smoke](https://github.com/Viomnz/Zero-OS/actions/workflows/ui-cross-platform-smoke.yml/badge.svg)](https://github.com/Viomnz/Zero-OS/actions/workflows/ui-cross-platform-smoke.yml)
+[GitHub Releases](https://github.com/Viomnz/Zero-OS/releases)
+
+## Quick Start
+Clone it, run one setup command, and open Zero OS:
+
+```powershell
+git clone https://github.com/Viomnz/Zero-OS.git
+cd Zero-OS
+.\zero_os_launcher.ps1 first-run
+Start-Process ".\zero_os_shell.html"
+```
+
+Cross-platform UI launch:
+
+```powershell
+python zero_os_ui.py
+```
+
+Or with `make`:
+
+```sh
+make ui
+```
+
+On macOS or Linux:
+
+```sh
+chmod +x ./zero_os_ui.sh
+./zero_os_ui.sh
+```
+
+`zero_os_ui.py` picks the best available UI automatically:
+- Windows: Zero OS native desktop UI
+- macOS/Linux: Zero OS web shell with the local shell bridge
+
+GitHub Actions also smoke-tests this universal UI path on Windows, macOS, and Linux.
+
+If you want the local dashboard server too:
+
+```powershell
+.\zero_os_launcher.ps1 open-dashboard
+.\zero_os_launcher.ps1 start-shell-bridge
+```
+
+Fast checks:
+
+```powershell
+python src/main.py "core status"
+python src/main.py "security overview"
+python src/main.py "github status"
+```
+
+Cross-platform shortcuts with `make`:
+
+```sh
+make core
+make security
+make github
+make bundle
+make share
+make release
+```
+
+## Get Zero OS
+Best ways for GitHub users to copy Zero OS:
+- `git clone https://github.com/Viomnz/Zero-OS.git`
+- download the repo zip from GitHub Releases or the repository page
+- run `.\zero_os_launcher.ps1 first-run`
+- open [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
+
+If you want to create a clean shareable local copy from this repo, use:
+
+```powershell
+python src/main.py "zero os export bundle"
+python src/main.py "zero os share package"
+```
+
+Those commands generate a sanitized export under `dist/` without local runtime secrets.
+
+## Release For GitHub Users
+To publish an easy download for GitHub users:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That triggers the release workflow in [release-share-bundle.yml](C:\Users\gomez\Documents\New folder\.github\workflows\release-share-bundle.yml), which:
+- builds `zero os share package`
+- creates a `zero_os_bundle_*.zip`
+- uploads it to the GitHub Release page
+
+So users can either:
+- clone the repo
+- download the repository zip
+- or download the ready-made release bundle zip
+
 ## Open Source Commitment
 Zero OS is a **full open source** project.
 Architecture, runtime behavior, security model, and roadmap are documented for public review and contribution.

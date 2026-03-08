@@ -171,6 +171,7 @@ from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
+from zero_os.share_bundle import export_bundle as zero_os_export_bundle, share_package as zero_os_share_package
 from zero_os.conscious_machine_architecture import (
     consciousness_architecture_long_term_memory_status,
     consciousness_architecture_silicon_awareness_status,
@@ -416,6 +417,7 @@ from zero_os.native_store_desktop import (
     launch as nsd_launch,
     scaffold as nsd_scaffold,
 )
+from zero_os.universal_ui_launcher import launch as universal_ui_launch
 from zero_os.native_platform import maximize as np_maximize, status as np_status
 from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, autonomy_status
 from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
@@ -589,6 +591,9 @@ class SystemCapability:
             "zero ai gap",
             "zero ai self upgrade",
             "zero ai upgrade",
+            "zero os export",
+            "zero os share",
+            "zero os native ui",
             "zero ai ask",
             "zero ai api",
             "zero ai approvals",
@@ -1741,6 +1746,20 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
         if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
             return Result(self.name, json.dumps(zero_ai_gap_fix(task.cwd), indent=2))
+        if text.strip() in {"zero os export bundle", "zero os export", "zero os bundle export"}:
+            return Result(self.name, json.dumps(zero_os_export_bundle(task.cwd), indent=2))
+        if text.strip() in {"zero os share package", "zero os share", "zero os export package"}:
+            return Result(self.name, json.dumps(zero_os_share_package(task.cwd), indent=2))
+        if text.strip() in {
+            "zero os native ui",
+            "zero os native ui launch",
+            "native zero ui",
+            "launch zero os native ui",
+            "zero os ui",
+            "zero os ui launch",
+            "launch zero os ui",
+        }:
+            return Result(self.name, json.dumps(universal_ui_launch(task.cwd), indent=2))
         if text.strip() in {"github status", "github integration status"}:
             return Result(self.name, json.dumps(github_status(task.cwd), indent=2))
         github_connect_m = re.match(r"^github repo connect\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+token=(.+))?$", raw.strip(), flags=re.IGNORECASE)
@@ -2944,6 +2963,10 @@ class SystemCapability:
             "- os missing fix\n"
             "- beginner os status\n"
             "- beginner os fix\n"
+            "- zero os export bundle\n"
+            "- zero os share package\n"
+            "- zero os native ui launch\n"
+            "- zero os ui launch\n"
             "- shell run <command>\n"
             "- terminal run <command>\n"
             "- powershell run <command>\n"
