@@ -24,6 +24,8 @@ class WebCapability:
             return False
         if lowered.startswith("enterprise integration "):
             return False
+        if lowered.startswith("store "):
+            return False
         keys = ("web", "search", "news", "internet", "fetch", "http://", "https://")
         text = lowered
         return any(k in text for k in keys)

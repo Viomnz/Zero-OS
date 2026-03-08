@@ -73,6 +73,13 @@ class EnterpriseSecurityTests(unittest.TestCase):
         self.assertTrue(ldata["policy"]["enabled"])
         self.assertTrue(ldata["policy"]["require_signed_critical_actions"])
 
+    def test_enterprise_integration_bootstrap_local(self) -> None:
+        out = self.highway.dispatch("enterprise integration bootstrap local", cwd=str(self.base))
+        data = json.loads(out.summary)
+        self.assertTrue(data["ok"])
+        for k in ("edr", "siem", "iam", "zerotrust"):
+            self.assertTrue(data["items"][k]["enabled"])
+
 
 if __name__ == "__main__":
     unittest.main()

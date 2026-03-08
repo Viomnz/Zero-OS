@@ -144,6 +144,7 @@ from zero_os.enterprise_security import (
     adversarial_validate,
     enterprise_enable,
     enterprise_status,
+    integration_bootstrap_local,
     integration_configure,
     integration_probe,
     integration_status,
@@ -216,7 +217,128 @@ from zero_os.architecture_runtime import (
     architecture_verify,
 )
 from zero_os.kernel_rnd.foundation_status import kernel_foundation_status
+from zero_os.kernel_rnd.runtime_stack import (
+    block_driver_set,
+    display_driver_set,
+    driver_load,
+    driver_unload,
+    fs_journal_set,
+    fs_mount,
+    fs_read,
+    fs_recovery_run,
+    fs_write,
+    input_driver_set,
+    kernel_stack_status,
+    memory_alloc,
+    memory_free,
+    net_protocol_set,
+    net_iface_add,
+    nic_driver_set,
+    net_route_add,
+    platform_topology_set,
+    scheduler_enqueue,
+    scheduler_tick,
+)
+from zero_os.kernel_rnd.native_boot_ops import (
+    boot_verify,
+    elf_load,
+    loader_status,
+    measured_boot_record,
+    measured_boot_status,
+    module_load,
+    panic_recover,
+    panic_status,
+    panic_trigger,
+    secure_boot_set,
+    uefi_scaffold,
+    uefi_status,
+)
+from zero_os.real_os_status import real_os_status
 from zero_os.rate_limit import check_and_record
+from zero_os.app_store_universal import (
+    detect_device as store_detect_device,
+    list_packages as store_list_packages,
+    publish_package as store_publish_package,
+    resolve_package as store_resolve_package,
+    security_scan as store_security_scan,
+    validate_package as store_validate_package,
+)
+from zero_os.universal_runtime_ecosystem import (
+    adapter_set as ure_adapter_set,
+    adapters_status as ure_adapters_status,
+    coverage_status as ure_coverage_status,
+    execution_flow as ure_execution_flow,
+    infrastructure_status as ure_infra_status,
+    runtime_install as ure_runtime_install,
+    runtime_status as ure_runtime_status,
+    security_status as ure_security_status,
+)
+from zero_os.app_store_production_ops import (
+    abuse_block_ip as store_abuse_block_ip,
+    account_create as store_account_create,
+    analytics_status as store_analytics_status,
+    billing_charge as store_billing_charge,
+    compliance_set as store_compliance_set,
+    compliance_status as store_compliance_status,
+    install_app as store_install_app,
+    license_grant as store_license_grant,
+    review_add as store_review_add,
+    search_apps as store_search_apps,
+    security_enforce as store_security_enforce,
+    slo_set as store_slo_set,
+    storage_replicate as store_storage_replicate,
+    storage_rollback as store_storage_rollback,
+    telemetry_status as store_telemetry_status,
+    uninstall_app as store_uninstall_app,
+    upgrade_app as store_upgrade_app,
+)
+from zero_os.global_runtime_network import (
+    adaptive_mode as grn_adaptive_mode,
+    cache_put as grn_cache_put,
+    cache_status as grn_cache_status,
+    network_status as grn_network_status,
+    node_discovery as grn_node_discovery,
+    node_register as grn_node_register,
+    runtime_release_propagate as grn_runtime_release_propagate,
+    security_validate as grn_security_validate,
+    telemetry_status as grn_telemetry_status,
+)
+from zero_os.runtime_protocol_v1 import (
+    adapter_allowlist_set as rp_adapter_allowlist_set,
+    adapter_contract as rp_adapter_contract,
+    audit_status as rp_audit_status,
+    capability_handshake as rp_capability_handshake,
+    capability_handshake_secure as rp_capability_handshake_secure,
+    compatibility_check as rp_compatibility_check,
+    deprecation_add as rp_deprecation_add,
+    handshake_proof_preview as rp_handshake_proof_preview,
+    key_rotate as rp_key_rotate,
+    nonce_issue as rp_nonce_issue,
+    package_attest as rp_package_attest,
+    package_verify as rp_package_verify,
+    protocol_status as rp_protocol_status,
+    security_grade as rp_security_grade,
+    maximize_security as rp_maximize_security,
+    security_set as rp_security_set,
+    security_status as rp_security_status,
+    signer_allow as rp_signer_allow,
+    signer_revoke as rp_signer_revoke,
+)
+from zero_os.runtime_protocol_ecosystem import (
+    ecosystem_grade as rpe_grade,
+    ecosystem_maximize as rpe_maximize,
+    ecosystem_status as rpe_status,
+)
+from zero_os.rcrp import (
+    device_profile_set as rcrp_device_profile_set,
+    graph_register as rcrp_graph_register,
+    learning_observe as rcrp_learning_observe,
+    mesh_node_register as rcrp_mesh_node_register,
+    migrate as rcrp_migrate,
+    plan_build as rcrp_plan_build,
+    status as rcrp_status,
+    token_set as rcrp_token_set,
+)
 
 
 class SystemCapability:
@@ -344,6 +466,46 @@ class SystemCapability:
             "architecture measure",
             "architecture explain",
             "kernel foundation",
+            "real os status",
+            "os reality status",
+            "kernel stack",
+            "kernel scheduler",
+            "kernel memory",
+            "kernel driver",
+            "kernel fs",
+            "kernel net",
+            "kernel block",
+            "kernel nic",
+            "kernel journal",
+            "kernel fs write",
+            "kernel fs read",
+            "kernel fs recover",
+            "kernel net protocol",
+            "kernel input",
+            "kernel display",
+            "kernel acpi",
+            "kernel apic",
+            "kernel smp",
+            "kernel platform",
+            "kernel uefi",
+            "kernel elf",
+            "kernel module",
+            "kernel panic",
+            "kernel secure boot",
+            "kernel measured boot",
+            "kernel boot verify",
+            "store ",
+            "app store",
+            "universal runtime",
+            "universal ",
+            "os adapter",
+            "ecosystem coverage",
+            "runtime network",
+            "runtime node",
+            "runtime protocol",
+            "runtime protocol ecosystem",
+            "rcrp ",
+            "recursive capability runtime protocol",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -377,6 +539,381 @@ class SystemCapability:
 
         if text.strip() in {"kernel foundation status", "kernel status"}:
             return Result(self.name, json.dumps(kernel_foundation_status(task.cwd), indent=2))
+        if text.strip() in {"real os status", "os reality status"}:
+            return Result(self.name, json.dumps(real_os_status(task.cwd), indent=2))
+        if text.strip() in {"kernel stack status", "kernel runtime status"}:
+            return Result(self.name, json.dumps(kernel_stack_status(task.cwd), indent=2))
+        ks_enq = re.match(
+            r"^kernel scheduler enqueue\s+([A-Za-z0-9._-]+)(?:\s+priority=(-?\d+))?(?:\s+slice=(\d+))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ks_enq:
+            pri = int(ks_enq.group(2)) if ks_enq.group(2) else 0
+            slc = int(ks_enq.group(3)) if ks_enq.group(3) else 10
+            return Result(self.name, json.dumps(scheduler_enqueue(task.cwd, ks_enq.group(1), pri, slc), indent=2))
+        if text.strip() == "kernel scheduler tick":
+            return Result(self.name, json.dumps(scheduler_tick(task.cwd), indent=2))
+        km_alloc = re.match(r"^kernel memory alloc\s+([A-Za-z0-9._-]+)(?:\s+pages=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if km_alloc:
+            pages = int(km_alloc.group(2)) if km_alloc.group(2) else 1
+            return Result(self.name, json.dumps(memory_alloc(task.cwd, km_alloc.group(1), pages), indent=2))
+        km_free = re.match(r"^kernel memory free\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
+        if km_free:
+            return Result(self.name, json.dumps(memory_free(task.cwd, km_free.group(1)), indent=2))
+        kd_load = re.match(r"^kernel driver load\s+([A-Za-z0-9._-]+)(?:\s+version=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if kd_load:
+            ver = kd_load.group(2) if kd_load.group(2) else "dev"
+            return Result(self.name, json.dumps(driver_load(task.cwd, kd_load.group(1), ver), indent=2))
+        kd_unload = re.match(r"^kernel driver unload\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
+        if kd_unload:
+            return Result(self.name, json.dumps(driver_unload(task.cwd, kd_unload.group(1)), indent=2))
+        kfs_mount = re.match(
+            r"^kernel fs mount\s+([A-Za-z0-9._-]+)\s+path=(\S+)(?:\s+type=(\S+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if kfs_mount:
+            fs_type = kfs_mount.group(3) if kfs_mount.group(3) else "vfs"
+            return Result(self.name, json.dumps(fs_mount(task.cwd, kfs_mount.group(1), kfs_mount.group(2), fs_type), indent=2))
+        kn_if = re.match(r"^kernel net iface add\s+([A-Za-z0-9._-]+)\s+cidr=(\S+)$", text.strip(), flags=re.IGNORECASE)
+        if kn_if:
+            return Result(self.name, json.dumps(net_iface_add(task.cwd, kn_if.group(1), kn_if.group(2)), indent=2))
+        kn_route = re.match(r"^kernel net route add\s+(\S+)\s+via=(\S+)$", text.strip(), flags=re.IGNORECASE)
+        if kn_route:
+            return Result(self.name, json.dumps(net_route_add(task.cwd, kn_route.group(1), kn_route.group(2)), indent=2))
+        kb_drv = re.match(r"^kernel block driver\s+(ahci|nvme|virtio-blk)\s+(on|off)(?:\s+version=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if kb_drv:
+            ver = kb_drv.group(3) if kb_drv.group(3) else "dev"
+            return Result(self.name, json.dumps(block_driver_set(task.cwd, kb_drv.group(1), kb_drv.group(2).lower() == "on", ver), indent=2))
+        kfs_j = re.match(r"^kernel fs journal\s+(on|off)$", text.strip(), flags=re.IGNORECASE)
+        if kfs_j:
+            return Result(self.name, json.dumps(fs_journal_set(task.cwd, kfs_j.group(1).lower() == "on"), indent=2))
+        kfs_w = re.match(r"^kernel fs write\s+([A-Za-z0-9._-]+)\s+path=(\S+)\s+data=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if kfs_w:
+            return Result(self.name, json.dumps(fs_write(task.cwd, kfs_w.group(1), kfs_w.group(2), kfs_w.group(3)), indent=2))
+        kfs_r = re.match(r"^kernel fs read\s+([A-Za-z0-9._-]+)\s+path=(\S+)$", text.strip(), flags=re.IGNORECASE)
+        if kfs_r:
+            return Result(self.name, json.dumps(fs_read(task.cwd, kfs_r.group(1), kfs_r.group(2)), indent=2))
+        if text.strip() == "kernel fs recover":
+            return Result(self.name, json.dumps(fs_recovery_run(task.cwd), indent=2))
+        kn_proto = re.match(r"^kernel net protocol\s+(arp|ip|tcp|udp|dhcp|dns)\s+(on|off)$", text.strip(), flags=re.IGNORECASE)
+        if kn_proto:
+            return Result(self.name, json.dumps(net_protocol_set(task.cwd, kn_proto.group(1), kn_proto.group(2).lower() == "on"), indent=2))
+        kn_nic = re.match(r"^kernel nic driver set\s+([A-Za-z0-9._-]+)\s+driver=(\S+)(?:\s+(on|off))?$", raw.strip(), flags=re.IGNORECASE)
+        if kn_nic:
+            enabled = (kn_nic.group(3) or "on").lower() == "on"
+            return Result(self.name, json.dumps(nic_driver_set(task.cwd, kn_nic.group(1), kn_nic.group(2), enabled), indent=2))
+        kin = re.match(r"^kernel input\s+(keyboard|mouse)\s+driver=(\S+)\s+(on|off)$", text.strip(), flags=re.IGNORECASE)
+        if kin:
+            return Result(self.name, json.dumps(input_driver_set(task.cwd, kin.group(1), kin.group(2), kin.group(3).lower() == "on"), indent=2))
+        kdisp = re.match(r"^kernel display driver\s+(\S+)\s+mode=(\S+)$", text.strip(), flags=re.IGNORECASE)
+        if kdisp:
+            return Result(self.name, json.dumps(display_driver_set(task.cwd, kdisp.group(1), kdisp.group(2)), indent=2))
+        ktop = re.match(
+            r"^kernel platform set(?:\s+acpi=(on|off))?(?:\s+apic=(on|off))?(?:\s+smp=(on|off))?(?:\s+cpus=(\d+))?$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ktop:
+            acpi = None if not ktop.group(1) else (ktop.group(1).lower() == "on")
+            apic = None if not ktop.group(2) else (ktop.group(2).lower() == "on")
+            smp = None if not ktop.group(3) else (ktop.group(3).lower() == "on")
+            cpus = None if not ktop.group(4) else int(ktop.group(4))
+            return Result(self.name, json.dumps(platform_topology_set(task.cwd, acpi, apic, smp, cpus), indent=2))
+        if text.strip() == "kernel uefi status":
+            return Result(self.name, json.dumps(uefi_status(task.cwd), indent=2))
+        if text.strip() == "kernel uefi scaffold":
+            return Result(self.name, json.dumps(uefi_scaffold(task.cwd), indent=2))
+        kelf = re.match(r"^kernel elf load\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if kelf:
+            return Result(self.name, json.dumps(elf_load(task.cwd, kelf.group(1)), indent=2))
+        kmod = re.match(r"^kernel module load\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if kmod:
+            return Result(self.name, json.dumps(module_load(task.cwd, kmod.group(1)), indent=2))
+        if text.strip() in {"kernel modules status", "kernel loaders status"}:
+            return Result(self.name, json.dumps(loader_status(task.cwd), indent=2))
+        kpanic = re.match(r"^kernel panic trigger\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if kpanic:
+            return Result(self.name, json.dumps(panic_trigger(task.cwd, kpanic.group(1)), indent=2))
+        if text.strip() == "kernel panic status":
+            return Result(self.name, json.dumps(panic_status(task.cwd), indent=2))
+        if text.strip() == "kernel panic recover":
+            return Result(self.name, json.dumps(panic_recover(task.cwd), indent=2))
+        ksboot = re.match(r"^kernel secure boot\s+(on|off)(?:\s+pk=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ksboot:
+            return Result(self.name, json.dumps(secure_boot_set(task.cwd, ksboot.group(1).lower() == "on", ksboot.group(2) or ""), indent=2))
+        kmb = re.match(r"^kernel measured boot record\s+([A-Za-z0-9._-]+)\s+path=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if kmb:
+            return Result(self.name, json.dumps(measured_boot_record(task.cwd, kmb.group(1), kmb.group(2)), indent=2))
+        if text.strip() == "kernel measured boot status":
+            return Result(self.name, json.dumps(measured_boot_status(task.cwd), indent=2))
+        kbv = re.match(r"^kernel boot verify\s+(\S+)\s+sha256=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if kbv:
+            return Result(self.name, json.dumps(boot_verify(task.cwd, kbv.group(1), kbv.group(2)), indent=2))
+        s_validate = re.match(r"^store validate\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if s_validate:
+            return Result(self.name, json.dumps(store_validate_package(task.cwd, s_validate.group(1)), indent=2))
+        s_publish = re.match(r"^store publish\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if s_publish:
+            return Result(self.name, json.dumps(store_publish_package(task.cwd, s_publish.group(1)), indent=2))
+        if text.strip() == "store list":
+            return Result(self.name, json.dumps(store_list_packages(task.cwd), indent=2))
+        s_resolve = re.match(r"^store resolve\s+([A-Za-z0-9._-]+)(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if s_resolve:
+            return Result(self.name, json.dumps(store_resolve_package(task.cwd, s_resolve.group(1), s_resolve.group(2) or ""), indent=2))
+        s_resolve_dev = re.match(
+            r"^store resolve device\s+([A-Za-z0-9._-]+)(?:\s+os=(\S+))?(?:\s+cpu=(\S+))?(?:\s+arch=(\S+))?(?:\s+security=(\S+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if s_resolve_dev:
+            return Result(
+                self.name,
+                json.dumps(
+                    store_resolve_package(
+                        task.cwd,
+                        s_resolve_dev.group(1),
+                        s_resolve_dev.group(2) or "",
+                        s_resolve_dev.group(3) or "",
+                        s_resolve_dev.group(4) or "",
+                        s_resolve_dev.group(5) or "",
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "store client detect":
+            return Result(self.name, json.dumps({"ok": True, "device": store_detect_device()}, indent=2))
+        s_scan = re.match(r"^store security scan\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if s_scan:
+            return Result(self.name, json.dumps(store_security_scan(task.cwd, s_scan.group(1)), indent=2))
+        u_install = re.match(r"^universal runtime install(?:\s+version=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if u_install:
+            return Result(self.name, json.dumps(ure_runtime_install(task.cwd, u_install.group(1) or "0.1"), indent=2))
+        if text.strip() == "universal runtime status":
+            return Result(self.name, json.dumps(ure_runtime_status(task.cwd), indent=2))
+        if text.strip() == "universal adapters status":
+            return Result(self.name, json.dumps(ure_adapters_status(task.cwd), indent=2))
+        u_adapter = re.match(r"^universal adapter set\s+(windows|linux|macos|android|ios)\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if u_adapter:
+            return Result(self.name, json.dumps(ure_adapter_set(task.cwd, u_adapter.group(1), u_adapter.group(2)), indent=2))
+        u_flow = re.match(r"^universal execution flow\s+([A-Za-z0-9._-]+)(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if u_flow:
+            return Result(self.name, json.dumps(ure_execution_flow(task.cwd, u_flow.group(1), u_flow.group(2) or ""), indent=2))
+        if text.strip() == "universal security status":
+            return Result(self.name, json.dumps(ure_security_status(task.cwd), indent=2))
+        if text.strip() == "universal infrastructure status":
+            return Result(self.name, json.dumps(ure_infra_status(task.cwd), indent=2))
+        if text.strip() == "universal ecosystem coverage":
+            return Result(self.name, json.dumps(ure_coverage_status(task.cwd), indent=2))
+        acct = re.match(r"^store account create\s+email=(\S+)(?:\s+tier=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if acct:
+            return Result(self.name, json.dumps(store_account_create(task.cwd, acct.group(1), acct.group(2) or "free"), indent=2))
+        bill = re.match(r"^store billing charge\s+user=(\S+)\s+amount=(\d+(?:\.\d+)?)(?:\s+currency=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if bill:
+            return Result(self.name, json.dumps(store_billing_charge(task.cwd, bill.group(1), float(bill.group(2)), bill.group(3) or "USD"), indent=2))
+        lic = re.match(r"^store license grant\s+user=(\S+)\s+app=([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if lic:
+            return Result(self.name, json.dumps(store_license_grant(task.cwd, lic.group(1), lic.group(2)), indent=2))
+        inst = re.match(r"^store install\s+user=(\S+)\s+app=([A-Za-z0-9._-]+)(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if inst:
+            return Result(self.name, json.dumps(store_install_app(task.cwd, inst.group(1), inst.group(2), inst.group(3) or ""), indent=2))
+        uninst = re.match(r"^store uninstall\s+id=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if uninst:
+            return Result(self.name, json.dumps(store_uninstall_app(task.cwd, uninst.group(1)), indent=2))
+        upg = re.match(r"^store upgrade\s+id=(\S+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if upg:
+            return Result(self.name, json.dumps(store_upgrade_app(task.cwd, upg.group(1), upg.group(2)), indent=2))
+        enf = re.match(r"^store security enforce\s+app=([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if enf:
+            return Result(self.name, json.dumps(store_security_enforce(task.cwd, enf.group(1)), indent=2))
+        repl = re.match(r"^store replicate\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if repl:
+            return Result(self.name, json.dumps(store_storage_replicate(task.cwd, repl.group(1), repl.group(2)), indent=2))
+        rb = re.match(r"^store rollback\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rb:
+            return Result(self.name, json.dumps(store_storage_rollback(task.cwd, rb.group(1), rb.group(2)), indent=2))
+        rev = re.match(r"^store review add\s+app=([A-Za-z0-9._-]+)\s+user=(\S+)\s+rating=(\d)(?:\s+text=(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if rev:
+            return Result(self.name, json.dumps(store_review_add(task.cwd, rev.group(1), rev.group(2), int(rev.group(3)), rev.group(4) or ""), indent=2))
+        srch = re.match(r"^store search\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if srch:
+            return Result(self.name, json.dumps(store_search_apps(task.cwd, srch.group(1)), indent=2))
+        if text.strip() == "store analytics status":
+            return Result(self.name, json.dumps(store_analytics_status(task.cwd), indent=2))
+        pol = re.match(r"^store policy ios external\s+(on|off)$", text.strip(), flags=re.IGNORECASE)
+        if pol:
+            return Result(self.name, json.dumps(store_compliance_set(task.cwd, pol.group(1).lower() == "on"), indent=2))
+        if text.strip() == "store compliance status":
+            return Result(self.name, json.dumps(store_compliance_status(task.cwd), indent=2))
+        if text.strip() == "store telemetry status":
+            return Result(self.name, json.dumps(store_telemetry_status(task.cwd), indent=2))
+        slo = re.match(r"^store slo set\s+availability=(\d+(?:\.\d+)?)\s+p95=(\d+)$", raw.strip(), flags=re.IGNORECASE)
+        if slo:
+            return Result(self.name, json.dumps(store_slo_set(task.cwd, float(slo.group(1)), int(slo.group(2))), indent=2))
+        blk = re.match(r"^store abuse block ip\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if blk:
+            return Result(self.name, json.dumps(store_abuse_block_ip(task.cwd, blk.group(1)), indent=2))
+        nreg = re.match(r"^runtime network node register\s+os=(\S+)\s+device=(\S+)\s+mode=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nreg:
+            return Result(self.name, json.dumps(grn_node_register(task.cwd, nreg.group(1), nreg.group(2), nreg.group(3)), indent=2))
+        ndisc = re.match(r"^runtime network node discover(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ndisc:
+            return Result(self.name, json.dumps(grn_node_discovery(task.cwd, ndisc.group(1) or ""), indent=2))
+        cput = re.match(r"^runtime network cache put\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)\s+region=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if cput:
+            return Result(self.name, json.dumps(grn_cache_put(task.cwd, cput.group(1), cput.group(2), cput.group(3)), indent=2))
+        if text.strip() == "runtime network cache status":
+            return Result(self.name, json.dumps(grn_cache_status(task.cwd), indent=2))
+        rprop = re.match(r"^runtime network release propagate\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rprop:
+            return Result(self.name, json.dumps(grn_runtime_release_propagate(task.cwd, rprop.group(1)), indent=2))
+        sval = re.match(r"^runtime network security validate\s+signed=(true|false)$", text.strip(), flags=re.IGNORECASE)
+        if sval:
+            return Result(self.name, json.dumps(grn_security_validate(task.cwd, sval.group(1).lower() == "true"), indent=2))
+        adap = re.match(r"^runtime network adaptive mode\s+device=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if adap:
+            return Result(self.name, json.dumps(grn_adaptive_mode(task.cwd, adap.group(1)), indent=2))
+        if text.strip() == "runtime network status":
+            return Result(self.name, json.dumps(grn_network_status(task.cwd), indent=2))
+        if text.strip() == "runtime network telemetry":
+            return Result(self.name, json.dumps(grn_telemetry_status(task.cwd), indent=2))
+        if text.strip() == "runtime protocol status":
+            return Result(self.name, json.dumps(rp_protocol_status(task.cwd), indent=2))
+        rp_ad = re.match(r"^runtime protocol adapter\s+(windows|linux|macos|android|ios)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_ad:
+            return Result(self.name, json.dumps(rp_adapter_contract(task.cwd, rp_ad.group(1)), indent=2))
+        rp_hs = re.match(
+            r"^runtime protocol handshake\s+os=(\S+)\s+cpu=(\S+)\s+arch=(\S+)\s+security=(\S+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if rp_hs:
+            return Result(
+                self.name,
+                json.dumps(rp_capability_handshake(task.cwd, rp_hs.group(1), rp_hs.group(2), rp_hs.group(3), rp_hs.group(4)), indent=2),
+            )
+        rp_at = re.match(r"^runtime protocol attest\s+path=(\S+)\s+signer=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_at:
+            return Result(self.name, json.dumps(rp_package_attest(task.cwd, rp_at.group(1), rp_at.group(2)), indent=2))
+        rp_ver = re.match(r"^runtime protocol verify\s+path=(\S+)\s+signer=(\S+)\s+signature=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_ver:
+            return Result(self.name, json.dumps(rp_package_verify(task.cwd, rp_ver.group(1), rp_ver.group(2), rp_ver.group(3)), indent=2))
+        rp_cp = re.match(r"^runtime protocol compatibility\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_cp:
+            return Result(self.name, json.dumps(rp_compatibility_check(task.cwd, rp_cp.group(1)), indent=2))
+        rp_dep = re.match(r"^runtime protocol deprecate\s+api=(\S+)\s+remove_after=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_dep:
+            return Result(self.name, json.dumps(rp_deprecation_add(task.cwd, rp_dep.group(1), rp_dep.group(2)), indent=2))
+        if text.strip() == "runtime protocol security status":
+            return Result(self.name, json.dumps(rp_security_status(task.cwd), indent=2))
+        if text.strip() == "runtime protocol security grade":
+            return Result(self.name, json.dumps(rp_security_grade(task.cwd), indent=2))
+        if text.strip() in {"runtime protocol security maximize", "maximize runtime protocol security"}:
+            return Result(self.name, json.dumps(rp_maximize_security(task.cwd), indent=2))
+        rp_sec = re.match(r"^runtime protocol security set\s+strict=(on|off)\s+min=(low|baseline|strict|high)$", text.strip(), flags=re.IGNORECASE)
+        if rp_sec:
+            return Result(
+                self.name,
+                json.dumps(rp_security_set(task.cwd, rp_sec.group(1).lower() == "on", rp_sec.group(2).lower()), indent=2),
+            )
+        rp_sa = re.match(r"^runtime protocol signer allow\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_sa:
+            return Result(self.name, json.dumps(rp_signer_allow(task.cwd, rp_sa.group(1)), indent=2))
+        rp_sr = re.match(r"^runtime protocol signer revoke\s+(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_sr:
+            return Result(self.name, json.dumps(rp_signer_revoke(task.cwd, rp_sr.group(1)), indent=2))
+        if text.strip() == "runtime protocol key rotate":
+            return Result(self.name, json.dumps(rp_key_rotate(task.cwd), indent=2))
+        rp_n = re.match(r"^runtime protocol nonce issue\s+node=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_n:
+            return Result(self.name, json.dumps(rp_nonce_issue(task.cwd, rp_n.group(1)), indent=2))
+        rp_hs2 = re.match(
+            r"^runtime protocol secure handshake\s+os=(\S+)\s+cpu=(\S+)\s+arch=(\S+)\s+security=(\S+)\s+nonce=(\S+)\s+proof=(\S+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if rp_hs2:
+            return Result(
+                self.name,
+                json.dumps(
+                    rp_capability_handshake_secure(
+                        task.cwd,
+                        rp_hs2.group(1),
+                        rp_hs2.group(2),
+                        rp_hs2.group(3),
+                        rp_hs2.group(4),
+                        rp_hs2.group(5),
+                        rp_hs2.group(6),
+                    ),
+                    indent=2,
+                ),
+            )
+        rp_pf = re.match(
+            r"^runtime protocol proof preview\s+os=(\S+)\s+cpu=(\S+)\s+arch=(\S+)\s+security=(\S+)\s+nonce=(\S+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if rp_pf:
+            return Result(
+                self.name,
+                json.dumps(
+                    rp_handshake_proof_preview(task.cwd, rp_pf.group(1), rp_pf.group(2), rp_pf.group(3), rp_pf.group(4), rp_pf.group(5)),
+                    indent=2,
+                ),
+            )
+        rp_al = re.match(r"^runtime protocol adapter allowlist\s+(windows|linux|macos|android|ios)\s+hash=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rp_al:
+            return Result(self.name, json.dumps(rp_adapter_allowlist_set(task.cwd, rp_al.group(1), rp_al.group(2)), indent=2))
+        if text.strip() == "runtime protocol audit status":
+            return Result(self.name, json.dumps(rp_audit_status(task.cwd), indent=2))
+        if text.strip() == "runtime protocol ecosystem status":
+            return Result(self.name, json.dumps(rpe_status(task.cwd), indent=2))
+        if text.strip() == "runtime protocol ecosystem grade":
+            return Result(self.name, json.dumps(rpe_grade(task.cwd), indent=2))
+        if text.strip() in {"runtime protocol ecosystem maximize", "maximize runtime protocol layer ecosystem"}:
+            return Result(self.name, json.dumps(rpe_maximize(task.cwd), indent=2))
+        if text.strip() in {"rcrp status", "recursive capability runtime protocol status"}:
+            return Result(self.name, json.dumps(rcrp_status(task.cwd), indent=2))
+        rcrp_dev = re.match(
+            r"^rcrp device set(?:\s+cpu=(\S+))?(?:\s+gpu=(\S+))?(?:\s+ram=(\d+))?(?:\s+network=(\S+))?(?:\s+energy=(\S+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if rcrp_dev:
+            ram = int(rcrp_dev.group(3)) if rcrp_dev.group(3) else None
+            return Result(
+                self.name,
+                json.dumps(
+                    rcrp_device_profile_set(
+                        task.cwd,
+                        rcrp_dev.group(1) or "",
+                        rcrp_dev.group(2) or "",
+                        ram,
+                        rcrp_dev.group(4) or "",
+                        rcrp_dev.group(5) or "",
+                    ),
+                    indent=2,
+                ),
+            )
+        rcrp_graph = re.match(r"^rcrp graph register\s+app=([A-Za-z0-9._-]+)\s+json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_graph:
+            return Result(self.name, json.dumps(rcrp_graph_register(task.cwd, rcrp_graph.group(1), rcrp_graph.group(2)), indent=2))
+        rcrp_token = re.match(r"^rcrp token set\s+(\S+)\s+(on|off)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_token:
+            return Result(self.name, json.dumps(rcrp_token_set(task.cwd, rcrp_token.group(1), rcrp_token.group(2).lower() == "on"), indent=2))
+        rcrp_plan = re.match(r"^rcrp plan build\s+app=([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_plan:
+            return Result(self.name, json.dumps(rcrp_plan_build(task.cwd, rcrp_plan.group(1)), indent=2))
+        rcrp_node = re.match(r"^rcrp mesh node register\s+name=(\S+)\s+power=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_node:
+            return Result(self.name, json.dumps(rcrp_mesh_node_register(task.cwd, rcrp_node.group(1), rcrp_node.group(2)), indent=2))
+        rcrp_m = re.match(r"^rcrp migrate\s+app=([A-Za-z0-9._-]+)\s+plan=(\S+)\s+target=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_m:
+            return Result(self.name, json.dumps(rcrp_migrate(task.cwd, rcrp_m.group(1), rcrp_m.group(2), rcrp_m.group(3)), indent=2))
+        rcrp_l = re.match(r"^rcrp learning observe\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if rcrp_l:
+            return Result(self.name, json.dumps(rcrp_learning_observe(task.cwd, rcrp_l.group(1)), indent=2))
 
         if text.strip() == "antivirus status":
             data = {
@@ -547,6 +1084,8 @@ class SystemCapability:
             return Result(self.name, json.dumps(enterprise_status(task.cwd), indent=2))
         if text.strip() == "enterprise integration status":
             return Result(self.name, json.dumps(integration_status(task.cwd), indent=2))
+        if text.strip() == "enterprise integration bootstrap local":
+            return Result(self.name, json.dumps(integration_bootstrap_local(task.cwd), indent=2))
         if text.strip() == "enterprise rollout status":
             return Result(self.name, json.dumps(rollout_status(task.cwd), indent=2))
         rollout_m = re.match(r"^enterprise rollout set\s+(dev|stage|prod)$", text.strip(), flags=re.IGNORECASE)
@@ -989,14 +1528,7 @@ class SystemCapability:
             rt_allowed, rt_reason = runtime_preexec_gate(task.cwd, f"shell run {cmd}")
             if not rt_allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": rt_reason, "command": cmd}, indent=2))
-            signed = enterprise_sign_action(task.cwd, "owner", f"shell run {cmd}")
-            ent_allowed, ent_reason = preexec_check(
-                task.cwd,
-                f"shell run {cmd}",
-                user="owner",
-                token=str(signed.get("token", "")),
-                signed_payload=signed.get("payload", {}),
-            )
+            ent_allowed, ent_reason = preexec_check(task.cwd, f"shell run {cmd}", user="owner")
             if not ent_allowed:
                 return Result(self.name, json.dumps({"ok": False, "reason": ent_reason, "command": cmd}, indent=2))
             return Result(self.name, json.dumps(unified_shell_run(cmd, task.cwd), indent=2))
@@ -1297,6 +1829,111 @@ class SystemCapability:
             "- code intake <path>\n"
             "- os readiness\n"
             "- os readiness --json\n"
+            "- real os status\n"
+            "- os reality status\n"
+            "- kernel stack status\n"
+            "- kernel scheduler enqueue <name> [priority=<n>] [slice=<ms>]\n"
+            "- kernel scheduler tick\n"
+            "- kernel memory alloc <owner> [pages=<n>]\n"
+            "- kernel memory free <owner>\n"
+            "- kernel driver load <name> [version=<v>]\n"
+            "- kernel driver unload <name>\n"
+            "- kernel block driver <ahci|nvme|virtio-blk> <on|off> [version=<v>]\n"
+            "- kernel fs mount <name> path=<path> [type=<fs_type>]\n"
+            "- kernel fs journal <on|off>\n"
+            "- kernel fs write <mount> path=<path> data=<text>\n"
+            "- kernel fs read <mount> path=<path>\n"
+            "- kernel fs recover\n"
+            "- kernel net iface add <name> cidr=<cidr>\n"
+            "- kernel net route add <destination> via=<gateway>\n"
+            "- kernel net protocol <arp|ip|tcp|udp|dhcp|dns> <on|off>\n"
+            "- kernel nic driver set <nic> driver=<name> [on|off]\n"
+            "- kernel input <keyboard|mouse> driver=<name> <on|off>\n"
+            "- kernel display driver <name> mode=<mode>\n"
+            "- kernel platform set [acpi=on|off] [apic=on|off] [smp=on|off] [cpus=<n>]\n"
+            "- kernel uefi status\n"
+            "- kernel uefi scaffold\n"
+            "- kernel elf load <path>\n"
+            "- kernel module load <path>\n"
+            "- kernel modules status\n"
+            "- kernel panic trigger <reason>\n"
+            "- kernel panic status\n"
+            "- kernel panic recover\n"
+            "- kernel secure boot <on|off> [pk=<hash>]\n"
+            "- kernel measured boot record <component> path=<path>\n"
+            "- kernel measured boot status\n"
+            "- kernel boot verify <path> sha256=<hex>\n"
+            "- store validate <package_dir>\n"
+            "- store publish <package_dir>\n"
+            "- store list\n"
+            "- store resolve <app_name> [os=<windows|linux|macos|android|ios>]\n"
+            "- store resolve device <app_name> [os=<...>] [cpu=<...>] [arch=<...>] [security=<...>]\n"
+            "- store client detect\n"
+            "- store security scan <app_name>\n"
+            "- store account create email=<email> [tier=<free|pro|enterprise>]\n"
+            "- store billing charge user=<id> amount=<n> [currency=<code>]\n"
+            "- store license grant user=<id> app=<name>\n"
+            "- store install user=<id> app=<name> [os=<target_os>]\n"
+            "- store uninstall id=<install_id>\n"
+            "- store upgrade id=<install_id> version=<v>\n"
+            "- store security enforce app=<name>\n"
+            "- store replicate app=<name> version=<v>\n"
+            "- store rollback app=<name> version=<v>\n"
+            "- store review add app=<name> user=<id> rating=<1..5> [text=<msg>]\n"
+            "- store search <query>\n"
+            "- store analytics status\n"
+            "- store policy ios external <on|off>\n"
+            "- store compliance status\n"
+            "- store telemetry status\n"
+            "- store slo set availability=<n> p95=<sec>\n"
+            "- store abuse block ip <ip>\n"
+            "- runtime network node register os=<os> device=<class> mode=<mode>\n"
+            "- runtime network node discover [os=<os>]\n"
+            "- runtime network cache put app=<name> version=<v> region=<r>\n"
+            "- runtime network cache status\n"
+            "- runtime network release propagate version=<v>\n"
+            "- runtime network security validate signed=<true|false>\n"
+            "- runtime network adaptive mode device=<class>\n"
+            "- runtime network status\n"
+            "- runtime network telemetry\n"
+            "- runtime protocol status\n"
+            "- runtime protocol security status\n"
+            "- runtime protocol security grade\n"
+            "- runtime protocol security maximize\n"
+            "- runtime protocol security set strict=<on|off> min=<low|baseline|strict|high>\n"
+            "- runtime protocol signer allow <name>\n"
+            "- runtime protocol signer revoke <name>\n"
+            "- runtime protocol key rotate\n"
+            "- runtime protocol adapter <windows|linux|macos|android|ios>\n"
+            "- runtime protocol adapter allowlist <windows|linux|macos|android|ios> hash=<sha256>\n"
+            "- runtime protocol nonce issue node=<id>\n"
+            "- runtime protocol handshake os=<os> cpu=<cpu> arch=<arch> security=<level>\n"
+            "- runtime protocol secure handshake os=<os> cpu=<cpu> arch=<arch> security=<level> nonce=<n> proof=<p>\n"
+            "- runtime protocol proof preview os=<os> cpu=<cpu> arch=<arch> security=<level> nonce=<n>\n"
+            "- runtime protocol attest path=<path> signer=<name>\n"
+            "- runtime protocol verify path=<path> signer=<name> signature=<sig>\n"
+            "- runtime protocol compatibility version=<v>\n"
+            "- runtime protocol deprecate api=<name> remove_after=<date>\n"
+            "- runtime protocol audit status\n"
+            "- runtime protocol ecosystem status\n"
+            "- runtime protocol ecosystem grade\n"
+            "- runtime protocol ecosystem maximize\n"
+            "- rcrp status\n"
+            "- rcrp device set [cpu=<c>] [gpu=<g>] [ram=<gb>] [network=<n>] [energy=<mode>]\n"
+            "- rcrp graph register app=<name> json=<graph_json>\n"
+            "- rcrp token set <token_name> <on|off>\n"
+            "- rcrp plan build app=<name>\n"
+            "- rcrp mesh node register name=<node> power=<tier>\n"
+            "- rcrp migrate app=<name> plan=<plan_id> target=<node_id>\n"
+            "- rcrp learning observe <observation>\n"
+            "- universal runtime install [version=<v>]\n"
+            "- universal runtime status\n"
+            "- universal adapters status\n"
+            "- universal adapter set <windows|linux|macos|android|ios> <module>\n"
+            "- universal execution flow <app_name> [os=<target_os>]\n"
+            "- universal security status\n"
+            "- universal infrastructure status\n"
+            "- universal ecosystem coverage\n"
             "- os missing fix\n"
             "- beginner os status\n"
             "- beginner os fix\n"
@@ -1381,6 +2018,7 @@ class SystemCapability:
             "- enterprise security off\n"
             "- enterprise role set <user> <admin|operator|viewer>\n"
             "- enterprise integration status\n"
+            "- enterprise integration bootstrap local\n"
             "- enterprise integration set <edr|siem|iam|zerotrust> <on|off> [provider=<name>] [endpoint=<url_or_tenant>]\n"
             "- enterprise integration probe <edr|siem|iam|zerotrust>\n"
             "- enterprise rollout status\n"

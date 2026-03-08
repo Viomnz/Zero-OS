@@ -51,6 +51,15 @@ Goal now:
 - ship stable cross-platform smart OS behavior first
 - build kernel primitives in parallel without blocking releases
 
+## Native Image (Standalone Boot)
+- Minimal standalone native boot image is available now.
+- Build command:
+  - `.\zero_os_launcher.ps1 native-build`
+- Run in QEMU:
+  - `.\zero_os_launcher.ps1 native-run`
+- Native boot docs:
+  - [docs/kernel/boot_media.md](C:\Users\gomez\Documents\New folder\docs\kernel\boot_media.md)
+
 ## Current Capability Gap
 Missing for true high-capability AI:
 - large trained foundation model behavior
@@ -107,6 +116,22 @@ Behavior is tuned by both user mode and performance profile.
 - `plugins/*`: optional custom lanes loaded from local `plugins/` files
 - `fallback`: unmatched tasks
 
+## 2-Minute First Run
+Run one command to initialize, harden defaults, enable monitoring, and set up local integrations:
+```powershell
+.\zero_os_launcher.ps1 first-run
+```
+
+Then open:
+- [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
+- [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html)
+
+Quick check:
+```powershell
+python src/main.py "resilience status"
+python src/main.py "security overview"
+```
+
 ## Commands
 ```powershell
 python src/main.py "create file notes/plan.txt with main highway online"
@@ -159,6 +184,7 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 ## Local dashboard
 - Open [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html) in your browser.
 - It auto-refreshes runtime files every 5 seconds.
+- Windows-like shell UI: [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
 
 ## One-command launcher
 - Run:
@@ -178,6 +204,8 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 - Threat model: [THREAT_MODEL.md](C:\Users\gomez\Documents\New folder\THREAT_MODEL.md)
 - Security contribution rules: [CONTRIBUTING_SECURITY.md](C:\Users\gomez\Documents\New folder\CONTRIBUTING_SECURITY.md)
 - Version roadmap: [ROADMAP.md](C:\Users\gomez\Documents\New folder\ROADMAP.md)
+- Top user choice plan: [docs/TOP_USER_CHOICE_90D.md](C:\Users\gomez\Documents\New folder\docs\TOP_USER_CHOICE_90D.md)
+- Top user choice targets: [zero_os_config/top_user_choice_targets.json](C:\Users\gomez\Documents\New folder\zero_os_config\top_user_choice_targets.json)
 
 Notes:
 - Cure Firewall now outputs a custom recursion score (`0-100`).

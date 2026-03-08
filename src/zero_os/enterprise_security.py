@@ -216,6 +216,25 @@ def integration_probe(cwd: str, name: str) -> dict:
     return {"ok": True, "integration": n, "provider": item.get("provider", ""), "endpoint": endpoint}
 
 
+def integration_bootstrap_local(cwd: str) -> dict:
+    base = "local"
+    defaults = {
+        "edr": {"enabled": True, "provider": "windows-defender", "endpoint": "local://defender"},
+        "siem": {"enabled": True, "provider": "local-log", "webhook": "http://127.0.0.1:8765/siem"},
+        "iam": {"enabled": True, "provider": "local-rbac", "tenant": "zero-local"},
+        "zerotrust": {"enabled": True, "provider": "local-policy", "policy_url": "local://zero-trust"},
+    }
+    _save(_integrations_path(cwd), defaults)
+    status = integration_status(cwd)
+    return {
+        "ok": True,
+        "profile": base,
+        "score": status.get("score", 0),
+        "total": status.get("total", 4),
+        "items": status.get("items", {}),
+    }
+
+
 def rollout_status(cwd: str) -> dict:
     default = {
         "environment": "dev",

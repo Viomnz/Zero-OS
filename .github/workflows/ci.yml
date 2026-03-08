@@ -21,8 +21,36 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy
+          python -m pip install numpy pytest
 
       - name: Run Security Gate
         run: |
           python tools/ci_security_gates.py
+
+      - name: Run Core Tests
+        run: |
+          python -m pytest -q tests/test_enterprise_security.py tests/test_resilience.py tests/test_kernel_stack.py tests/test_real_os_status.py tests/test_native_boot_ops.py tests/test_native_dev_ecosystem.py
+
+  native-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm qemu-system-x86
+
+      - name: Build kernel + userland
+        run: |
+          python tools/native_dev_ecosystem.py build-all
+
+      - name: QEMU Boot Smoke
+        run: |
+          python tools/native_dev_ecosystem.py qemu-smoke --timeout 5

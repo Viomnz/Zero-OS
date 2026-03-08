@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zero OS Shell</title>
+  <style>
+    :root {
+      --bg1: #0d1f3a;
+      --bg2: #13284a;
+      --glass: rgba(16, 28, 48, 0.68);
+      --glass-2: rgba(21, 36, 61, 0.8);
+      --line: rgba(189, 212, 255, 0.24);
+      --text: #edf4ff;
+      --muted: #a9bad7;
+      --accent: #5bb8ff;
+      --ok: #66d6a7;
+      --warn: #ffce75;
+      --bad: #ff7f92;
+      --shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+      --radius: 14px;
+      --taskbar-h: 56px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Segoe UI Variable", Tahoma, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 0%, #284f8f 0%, transparent 62%),
+        radial-gradient(1200px 700px at 85% 10%, #193d7a 0%, transparent 62%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      overflow: hidden;
+    }
+
+    .desktop {
+      position: relative;
+      width: 100%;
+      height: calc(100% - var(--taskbar-h));
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      gap: 14px;
+    }
+
+    .dock {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .dock h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .status-item {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .status-key { color: var(--muted); font-size: 12px; }
+    .status-val { font-weight: 700; margin-top: 2px; }
+
+    .canvas {
+      position: relative;
+      min-height: 0;
+    }
+
+    .window {
+      position: absolute;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--glass-2);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .window .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 15, 30, 0.48);
+      font-size: 13px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .window .content {
+      padding: 12px;
+      font-size: 12px;
+      max-height: 300px;
+      overflow: auto;
+      color: #dfe9f8;
+    }
+
+    .win-a { left: 8px; top: 8px; width: min(560px, 55vw); }
+    .win-b { right: 8px; top: 8px; width: min(520px, 46vw); }
+    .win-c { left: 80px; bottom: 8px; width: min(640px, 62vw); }
+
+    .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .ok { background: rgba(102,214,167,.2); color: var(--ok); }
+    .warn { background: rgba(255,206,117,.2); color: var(--warn); }
+    .bad { background: rgba(255,127,146,.2); color: var(--bad); }
+
+    .taskbar {
+      height: var(--taskbar-h);
+      border-top: 1px solid var(--line);
+      background: rgba(7, 16, 32, 0.92);
+      backdrop-filter: blur(16px);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+    }
+
+    .task-left, .task-center, .task-right { display: flex; align-items: center; gap: 8px; }
+    .task-center { justify-content: center; }
+    .task-right { justify-content: flex-end; }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .start-btn {
+      min-width: 84px;
+      font-weight: 700;
+      background: linear-gradient(140deg, #72beff, #2a6fca);
+      border-color: rgba(255,255,255,.24);
+    }
+
+    .start-menu {
+      position: fixed;
+      left: 10px;
+      bottom: calc(var(--taskbar-h) + 10px);
+      width: min(620px, 96vw);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 25, 43, 0.96);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      padding: 14px;
+      display: none;
+      z-index: 100;
+    }
+
+    .start-menu.show { display: block; }
+
+    .menu-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .tile {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 10px;
+      min-height: 72px;
+      font-size: 12px;
+    }
+
+    .search {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 10px;
+      outline: none;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .desktop { grid-template-columns: 1fr; }
+      .canvas { min-height: 56vh; }
+      .win-a, .win-b, .win-c { position: relative; left: auto; right: auto; top: auto; bottom: auto; width: 100%; margin-bottom: 10px; }
+      .taskbar { grid-template-columns: 1fr auto; }
+      .task-center { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="desktop">
+    <aside class="dock">
+      <h2>System Layers</h2>
+      <div class="status-item">
+        <div class="status-key">First-Run Checklist</div>
+        <div class="status-val">
+          1) `.\zero_os_launcher.ps1 first-run`
+          <br/>2) `.\zero_os_launcher.ps1 open-dashboard`
+        </div>
+      </div>
+      <div class="status-item"><div class="status-key">Core</div><div class="status-val" id="v-core">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Triad</div><div class="status-val" id="v-triad">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Security</div><div class="status-val" id="v-sec">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Recovery</div><div class="status-val" id="v-rec">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Data Feed</div><div class="status-val" id="v-hint">Checking runtime files...</div></div>
+      <button class="btn" id="refreshBtn">Refresh Layers</button>
+    </aside>
+
+    <main class="canvas" id="canvas">
+      <section class="window win-a" data-win>
+        <div class="bar"><span>Start Layer</span><span class="badge ok">Ready</span></div>
+        <div class="content"><pre id="startLayer">Loading start layer...</pre></div>
+      </section>
+      <section class="window win-b" data-win>
+        <div class="bar"><span>Security Layer</span><span class="badge warn" id="secBadge">Checking</span></div>
+        <div class="content"><pre id="securityLayer">Loading security layer...</pre></div>
+      </section>
+      <section class="window win-c" data-win>
+        <div class="bar"><span>Runtime Layer</span><span class="badge ok">Live</span></div>
+        <div class="content"><pre id="runtimeLayer">Loading runtime layer...</pre></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="start-menu" id="startMenu">
+    <input class="search" placeholder="Search apps, commands, settings" />
+    <div class="menu-grid">
+      <div class="tile"><strong>Fix All</strong><br/>Run `fix all now`</div>
+      <div class="tile"><strong>Resilience</strong><br/>Run `resilience status`</div>
+      <div class="tile"><strong>Security</strong><br/>Run `security overview`</div>
+      <div class="tile"><strong>Unified Shell</strong><br/>Run `shell:&lt;command&gt;`</div>
+      <div class="tile"><strong>Terminal Alias</strong><br/>Run `terminal:&lt;command&gt;`</div>
+      <div class="tile"><strong>PowerShell Alias</strong><br/>Run `powershell:&lt;command&gt;`</div>
+      <div class="tile"><strong>Open Dashboard</strong><br/>Run `.\zero_os_launcher.ps1 open-dashboard`</div>
+      <div class="tile"><strong>Start Daemon</strong><br/>Run `.\zero_os_launcher.ps1 start-daemon`</div>
+      <div class="tile"><strong>Status Daemon</strong><br/>Run `.\zero_os_launcher.ps1 status-daemon`</div>
+      <div class="tile"><strong>Command Lines Book</strong><br/>Run `.\zero_os_launcher.ps1 menu`</div>
+      <div class="tile"><strong>Native Build</strong><br/>Run `.\zero_os_launcher.ps1 native-build`</div>
+      <div class="tile"><strong>Native Build All</strong><br/>Run `.\zero_os_launcher.ps1 native-build-all`</div>
+      <div class="tile"><strong>Native Smoke</strong><br/>Run `.\zero_os_launcher.ps1 native-smoke`</div>
+      <div class="tile"><strong>Native Run</strong><br/>Run `.\zero_os_launcher.ps1 native-run`</div>
+      <div class="tile"><strong>Kernel Stack</strong><br/>Run `kernel stack status`</div>
+      <div class="tile"><strong>Trust Backup</strong><br/>Run `resilience trust backup create`</div>
+      <div class="tile"><strong>Outage Failover</strong><br/>Run `resilience outage failover`</div>
+      <div class="tile"><strong>Kernel Lockdown</strong><br/>Run `resilience kernel lockdown`</div>
+    </div>
+  </div>
+
+  <footer class="taskbar">
+    <div class="task-left">
+      <button class="btn start-btn" id="startBtn">Start</button>
+      <button class="btn" id="layersBtn">Layers</button>
+    </div>
+    <div class="task-center">
+      <button class="btn">Zero Shell</button>
+      <button class="btn">Zero Security</button>
+      <button class="btn">Zero Runtime</button>
+    </div>
+    <div class="task-right">
+      <span id="clock" class="btn"></span>
+    </div>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function tickClock() {
+      const now = new Date();
+      $("clock").textContent = now.toLocaleString();
+    }
+
+    async function loadJson(path) {
+      try {
+        const res = await fetch(path + "?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    function pickSecurityBadge(sec) {
+      if (!sec) return { cls: "warn", txt: "Unknown" };
+      if (sec.hardened || sec.mark_strict) return { cls: "ok", txt: "Hardened" };
+      return { cls: "bad", txt: "Risk" };
+    }
+
+    async function refreshLayers() {
+      const [triad, runtime, backup, sec, resilience] = await Promise.all([
+        loadJson(".zero_os/runtime/triad_balance.json"),
+        loadJson(".zero_os/runtime/independent_runtime_validation.json"),
+        loadJson(".zero_os/runtime/zero_ai_recovery_report.json"),
+        loadJson(".zero_os/runtime/zero_ai_security_status.json"),
+        loadJson(".zero_os/resilience/kernel_driver_status.json"),
+      ]);
+
+      $("v-core").textContent = resilience && resilience.ok ? "Trusted" : "Check required";
+      $("v-triad").textContent = triad && triad.balanced ? "Balanced" : "Degraded";
+      $("v-sec").textContent = sec && sec.hardened ? "Hardened" : "Baseline";
+      $("v-rec").textContent = backup && backup.ok ? "Recoverable" : "No report";
+      $("v-hint").textContent = (triad || runtime || backup || sec || resilience)
+        ? "Live runtime JSON loaded"
+        : "No runtime JSON yet. Run first-run, then open-dashboard.";
+
+      $("startLayer").textContent = JSON.stringify({
+        start_menu: "enabled",
+        shell_mode: "windows-like",
+        top_actions: ["fix all now", "resilience status", "security overview"],
+      }, null, 2);
+
+      $("securityLayer").textContent = JSON.stringify(sec || { hint: "run: .\\zero_os_launcher.ps1 first-run" }, null, 2);
+      $("runtimeLayer").textContent = JSON.stringify({
+        triad: triad || {},
+        runtime: runtime || {},
+        recovery: backup || {},
+      }, null, 2);
+
+      const b = pickSecurityBadge(sec);
+      const el = $("secBadge");
+      el.className = "badge " + b.cls;
+      el.textContent = b.txt;
+    }
+
+    function setupStartMenu() {
+      const startBtn = $("startBtn");
+      const menu = $("startMenu");
+      startBtn.addEventListener("click", () => menu.classList.toggle("show"));
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== startBtn) menu.classList.remove("show");
+      });
+    }
+
+    function setupWindows() {
+      const windows = Array.from(document.querySelectorAll("[data-win]"));
+      windows.forEach((win) => {
+        const bar = win.querySelector(".bar");
+        let sx = 0, sy = 0, lx = 0, ly = 0, dragging = false;
+        bar.addEventListener("mousedown", (e) => {
+          if (window.innerWidth <= 980) return;
+          dragging = true;
+          sx = e.clientX; sy = e.clientY;
+          const rect = win.getBoundingClientRect();
+          lx = rect.left; ly = rect.top;
+          win.style.zIndex = String(Date.now() % 100000);
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!dragging) return;
+          const dx = e.clientX - sx;
+          const dy = e.clientY - sy;
+          win.style.left = (lx + dx) + "px";
+          win.style.top = (ly + dy) + "px";
+          win.style.right = "auto";
+          win.style.bottom = "auto";
+        });
+        window.addEventListener("mouseup", () => dragging = false);
+      });
+    }
+
+    $("refreshBtn").addEventListener("click", refreshLayers);
+    $("layersBtn").addEventListener("click", refreshLayers);
+
+    tickClock();
+    setInterval(tickClock, 1000);
+    setupStartMenu();
+    setupWindows();
+    refreshLayers();
+    setInterval(refreshLayers, 10000);
+  </script>
+</body>
+</html>

@@ -96,3 +96,10 @@ Exit Criteria:
 3. Add per-channel command rate limits
 4. Add richer observability dashboards
 5. Build reproducible benchmark profiles for low-end and high-end PCs
+
+## Top User Choice Track
+Reference execution plan:
+- `docs/TOP_USER_CHOICE_90D.md`
+
+Reference measurable targets:
+- `zero_os_config/top_user_choice_targets.json`

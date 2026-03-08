@@ -184,6 +184,43 @@ function Guide-Next {
   Write-Output "8. codex-run:<goal>"
 }
 
+function First-Run {
+  python tools/first_run_setup.py
+}
+function Native-Build {
+  param([string]$ArgsText)
+  if ($ArgsText) {
+    $parts = $ArgsText.Split(",")
+    $img = if ($parts.Length -ge 1 -and $parts[0]) { $parts[0] } else { "zero_os_native.img" }
+    $size = if ($parts.Length -ge 2 -and $parts[1]) { $parts[1] } else { "1440" }
+    powershell -ExecutionPolicy Bypass -File .\scripts\build_boot_media.ps1 -ImageName $img -SizeKb $size
+  } else {
+    powershell -ExecutionPolicy Bypass -File .\scripts\build_boot_media.ps1
+  }
+}
+function Native-Run {
+  param([string]$ImagePath)
+  if ($ImagePath) {
+    powershell -ExecutionPolicy Bypass -File .\scripts\run_native_image.ps1 -ImagePath $ImagePath
+  } else {
+    powershell -ExecutionPolicy Bypass -File .\scripts\run_native_image.ps1
+  }
+}
+function Native-Toolchain {
+  python tools/native_dev_ecosystem.py toolchain-status
+}
+function Native-BuildAll {
+  powershell -ExecutionPolicy Bypass -File .\scripts\native_build_all.ps1
+}
+function Native-Smoke {
+  param([string]$TimeoutSec)
+  if ($TimeoutSec) {
+    powershell -ExecutionPolicy Bypass -File .\scripts\native_qemu_smoke.ps1 -Timeout $TimeoutSec
+  } else {
+    powershell -ExecutionPolicy Bypass -File .\scripts\native_qemu_smoke.ps1
+  }
+}
+
 function Show-Menu {
   @"
 Zero-OS One Command Launcher
@@ -194,6 +231,15 @@ Usage:
 Actions:
   menu                      Show this options list
   guide                     Guided startup sequence
+  first-run                 One-command first-run setup + hardening
+  native-build              Build standalone native OS boot image
+  native-build:<img,size>   Build custom image name and size KB
+  native-run                Boot image in QEMU (qemu-system-i386 required)
+  native-run:<path>         Boot selected image path in QEMU
+  native-toolchain          Show cross-compiler and emulator toolchain status
+  native-build-all          Build kernel image + userland modules + manifest
+  native-smoke              Run QEMU integration smoke test
+  native-smoke:<seconds>    Run QEMU smoke test with timeout
   suggest:<goal>            Suggest up to 9 best actions for user goal
 
   open-dashboard            Start local dashboard server and print URL
@@ -249,6 +295,15 @@ Actions:
 switch -Regex ($Action) {
   "^menu$" { Show-Menu; break }
   "^guide$" { Guide-Next; break }
+  "^first-run$" { First-Run; break }
+  "^native-build$" { Native-Build; break }
+  "^native-build:(.+)$" { Native-Build -ArgsText $Matches[1]; break }
+  "^native-run$" { Native-Run; break }
+  "^native-run:(.+)$" { Native-Run -ImagePath $Matches[1]; break }
+  "^native-toolchain$" { Native-Toolchain; break }
+  "^native-build-all$" { Native-BuildAll; break }
+  "^native-smoke$" { Native-Smoke; break }
+  "^native-smoke:(.+)$" { Native-Smoke -TimeoutSec $Matches[1]; break }
   "^suggest:(.+)$" { Suggest-Actions -Goal $Matches[1]; break }
 
   "^open-dashboard$" { Open-Dashboard; break }

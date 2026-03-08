@@ -22,6 +22,10 @@ class CodeCapability:
             return False
         if text.startswith("zerofs "):
             return False
+        if text.startswith("kernel "):
+            return False
+        if text.startswith("rcrp "):
+            return False
         if text.startswith("code intake "):
             return False
         if text.startswith("beginner os "):
