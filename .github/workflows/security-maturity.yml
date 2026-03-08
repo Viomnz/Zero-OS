@@ -41,8 +41,20 @@ jobs:
       - name: Export Compliance Evidence
         run: python tools/export_compliance_evidence.py
 
+      - name: Verify Security Artifact Directory
+        shell: powershell
+        run: |
+          if (-not (Test-Path "security/artifacts")) {
+            Write-Error "security/artifacts directory not found"
+          }
+          $files = Get-ChildItem "security/artifacts" -File -ErrorAction SilentlyContinue
+          if (-not $files) {
+            Write-Error "security/artifacts directory is empty"
+          }
+
       - name: Upload Security Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: security-artifacts
-          path: security/artifacts/*
+          path: security/artifacts
+          if-no-files-found: error
