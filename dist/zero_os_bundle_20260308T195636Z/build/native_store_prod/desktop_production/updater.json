@@ -1,6 +1,0 @@
-{
-  "app": "ZeroStore",
-  "version": "1.0",
-  "channel": "stable",
-  "rollback_supported": true
-}

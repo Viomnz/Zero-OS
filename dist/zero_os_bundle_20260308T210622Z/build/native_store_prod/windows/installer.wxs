@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<Wix>
-  <Product Name="ZeroStore" Version="1.0" Manufacturer="Zero OS" UpgradeCode="PUT-GUID-HERE" />
-
-# Smart merged additions
-  <Product Name="ZeroOS" Version="1.0.0" Manufacturer="Zero OS" UpgradeCode="PUT-GUID-HERE" />
-
-# Smart merged additions

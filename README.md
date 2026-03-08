@@ -9,6 +9,25 @@ Zero-OS runs on one **main highway**: a single dispatcher that routes every requ
 Clone it, run one setup command, and open Zero OS:
 
 GitHub users do not need to learn Zero OS commands first.
+
+[Download Native App](https://github.com/Viomnz/Zero-OS/releases)
+
+For Windows beginners, you can also just double-click:
+- `Zero OS QuickStart.cmd`
+- `Open Zero OS.cmd`
+- `Open Zero OS Native Shell.cmd`
+
+Cross-platform QuickStart:
+- Windows, macOS, Linux: `python zero_os_quickstart.py`
+- macOS, Linux: `./zero_os_quickstart.sh`
+- macOS Finder: double-click `Zero OS QuickStart.command`
+- with make: `make quickstart`
+
+If you want real `.exe` launchers, build them with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.BeginnerLauncher\publish_launchers.ps1
+```
 Use this simple flow:
 1. Clone or download Zero OS
 2. Run `.\zero_os_launcher.ps1 first-run`
@@ -95,6 +114,19 @@ To publish an easy download for GitHub users:
 ```powershell
 git tag v1.0.0
 git push origin v1.0.0
+```
+
+For Windows users who do not want to build anything locally, the native release flow now produces:
+- a published native shell build
+- a portable installer zip with launchers and onboarding docs
+- an MSIX package for Windows-native installation
+
+You can also build that package locally:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\publish.ps1
+powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\package_msix.ps1
+powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\package_portable.ps1
 ```
 
 That triggers the release workflow in [release-share-bundle.yml](C:\Users\gomez\Documents\New folder\.github\workflows\release-share-bundle.yml), which:

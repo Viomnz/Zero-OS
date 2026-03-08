@@ -49,6 +49,7 @@
                            Margin="0,6,0,16"
                            TextWrapping="Wrap"
                            Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Download Native App" Click="OpenReleases_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Step 1. Open Repository" Click="OpenRepository_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Step 2. Run First-Run" Click="RunFirstRun_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Step 3. Open Shell UI" Click="OpenShellUi_Click" />
@@ -92,6 +93,7 @@
                            Margin="0,6,0,16"
                            TextWrapping="Wrap"
                            Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Download Native App" Click="OpenReleases_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="1. Open Repository" Click="OpenRepository_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="2. Run First-Run" Click="RunFirstRun_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="3. Open Shell UI" Click="OpenShellUi_Click" />
@@ -103,6 +105,7 @@
                            Foreground="{StaticResource TextFg}" />
                 <Button Height="38" Margin="0,0,0,8" Content="Copy Clone Command" Click="CopyCloneCommand_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Open Releases" Click="OpenReleases_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Open Installer Folder" Click="OpenNativeInstallerFolder_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Export Bundle" Click="ExportBundle_Click" />
                 <Button Height="38" Margin="0,0,0,8" Content="Create Share Zip" Click="CreateShareZip_Click" />
                 <Button Height="38" Content="Open Dist Folder" Click="OpenDist_Click" />
@@ -125,7 +128,7 @@
                          Foreground="{StaticResource TextFg}"
                          BorderThickness="0"
                          IsReadOnly="True"
-                         Text="Start Here&#x0a;1. Open Repository&#x0a;2. Run First-Run&#x0a;3. Open Shell UI&#x0a;4. Know Everything + Complete All&#x0a;&#x0a;GitHub users should not need to learn commands." />
+                         Text="Start Here&#x0a;1. Download Native App or clone Zero OS&#x0a;2. Run First-Run&#x0a;3. Open Shell UI&#x0a;4. Use the built-in buttons&#x0a;&#x0a;GitHub users should not need to learn commands." />
               </DockPanel>
             </Border>
           </Grid>
@@ -332,19 +335,22 @@
               </Grid.RowDefinitions>
               <StackPanel>
               <TextBlock Text="Release Manager" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
-              <TextBlock Text="Prepare release links and release bundle output for GitHub users."
+              <TextBlock Text="Prepare release links, portable installers, and Windows-native packages for GitHub users."
                          Margin="0,6,0,16"
                          Foreground="{StaticResource MutedFg}" />
               <WrapPanel>
+                <Button Height="38" Margin="0,0,8,8" Content="Download Native App" Click="OpenReleases_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open Releases" Click="OpenReleases_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Copy Clone Command" Click="CopyCloneCommand_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Create Share Zip" Click="CreateShareZip_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Copy Publish Command" Click="CopyPublishCommand_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Copy MSIX Command" Click="CopyMsixCommand_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Build Native Publish" Click="BuildNativePublish_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Create Portable Installer" Click="CreatePortableInstaller_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Create MSIX Scaffold" Click="CreateNativeMsix_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open Signing Config" Click="OpenSigningConfig_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open Publish Folder" Click="OpenNativePublishFolder_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Open Installer Folder" Click="OpenNativeInstallerFolder_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open MSIX Folder" Click="OpenNativeMsixFolder_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Refresh" Click="RefreshReleaseData_Click" />
               </WrapPanel>

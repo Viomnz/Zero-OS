@@ -1,5 +1,0 @@
-C:\Users\gomez\Documents\New folder\publish\ZeroOS.NativeShell.exe
-C:\Users\gomez\Documents\New folder\publish\ZeroOS.NativeShell.dll
-C:\Users\gomez\Documents\New folder\publish\ZeroOS.NativeShell.deps.json
-C:\Users\gomez\Documents\New folder\publish\ZeroOS.NativeShell.runtimeconfig.json
-C:\Users\gomez\Documents\New folder\publish\ZeroOS.NativeShell.pdb

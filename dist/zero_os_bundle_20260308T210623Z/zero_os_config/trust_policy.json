@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "critical_actions_require_signature": true,
-  "key_rotation_days": 30,
-  "allowed_signers": [
-    "owner"
-  ]
-}

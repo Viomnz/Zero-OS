@@ -706,8 +706,9 @@
       <div class="status-item">
         <div class="status-key">First-Run Checklist</div>
         <div class="status-val">
-          1) `./zero_os_launcher.ps1 first-run`
-          <br/>2) `./zero_os_launcher.ps1 open-dashboard`
+          1) Download Native App or clone Zero OS
+          <br/>2) Run first-run
+          <br/>3) Open the shell UI
         </div>
       </div>
       <div class="status-item"><div class="status-key">Core</div><div class="status-val" id="v-core">Loading...</div></div>
@@ -1281,6 +1282,14 @@
           ])}
           <div class="action-list">
             <div class="action-chip">
+              <div class="chip-title">0. Download Native App</div>
+              <div class="chip-copy">Best path for Windows users who want Zero OS without building anything locally.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS/releases">Download Native App</button>
+                <button class="btn" data-share-copy="https://github.com/Viomnz/Zero-OS/releases">Copy Download Link</button>
+              </div>
+            </div>
+            <div class="action-chip">
               <div class="chip-title">1. Open Repository</div>
               <div class="chip-copy">Start from the GitHub repo page.</div>
               <div class="task-actions">
@@ -1463,10 +1472,19 @@
           ${renderSummaryCards([
             { label: "Git Clone", value: "Ready" },
             { label: "Release Download", value: "Ready" },
+            { label: "Native App", value: "Release ready" },
             { label: "Local Bundle", value: "Built in" },
             { label: "Share Zip", value: "Built in" }
           ])}
           <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">Download Native App</div>
+              <div class="chip-copy">Open the latest Windows-native release if you do not want to build Zero OS locally.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS/releases">Open Releases</button>
+                <button class="btn" data-share-copy="https://github.com/Viomnz/Zero-OS/releases">Copy Download Link</button>
+              </div>
+            </div>
             <div class="action-chip">
               <div class="chip-title">Clone From GitHub</div>
               <div class="chip-copy">Copy the Git clone command for GitHub users.</div>

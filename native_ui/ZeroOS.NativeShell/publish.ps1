@@ -1,7 +1,9 @@
 param(
   [string]$Configuration = "Release",
   [string]$Runtime = "win-x64",
-  [string]$Output = ""
+  [string]$Output = "",
+  [switch]$SelfContained = $true,
+  [switch]$SingleFile = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,11 +12,16 @@ if (-not $Output) {
   $Output = Join-Path $PSScriptRoot "publish"
 }
 
+if (Test-Path $Output) {
+  Remove-Item -Recurse -Force $Output
+}
+
 dotnet publish $Project `
   -c $Configuration `
   -r $Runtime `
-  --self-contained false `
-  -p:PublishSingleFile=false `
+  --self-contained $($SelfContained.ToString().ToLowerInvariant()) `
+  -p:PublishSingleFile=$($SingleFile.ToString().ToLowerInvariant()) `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
   -o $Output
 
 Write-Output "Published ZeroOS.NativeShell to $Output"

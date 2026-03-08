@@ -1,6 +1,0 @@
-{
-  "app": "ZeroOS",
-  "version": "1.0.0",
-  "channel": "stable",
-  "rollback_supported": true
-}

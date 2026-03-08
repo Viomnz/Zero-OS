@@ -34,11 +34,37 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\publish.ps1
 
+      - name: Package portable native shell
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\package_portable.ps1
+
+      - name: Package MSIX native shell
+        shell: powershell
+        env:
+          ZERO_OS_SIGNING_PFX_PASSWORD: ${{ secrets.ZERO_OS_SIGNING_PFX_PASSWORD }}
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\package_msix.ps1
+
       - name: Upload native shell artifact
         uses: actions/upload-artifact@v4
         with:
           name: zero-os-native-shell-windows
           path: native_ui/ZeroOS.NativeShell/publish
+          if-no-files-found: error
+
+      - name: Upload portable installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-os-native-shell-portable
+          path: native_ui/ZeroOS.NativeShell/installers
+          if-no-files-found: error
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-os-native-shell-msix
+          path: native_ui/ZeroOS.NativeShell/msix/*.msix
           if-no-files-found: error
 
       - name: Zip native shell publish output
@@ -51,5 +77,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: native_ui/ZeroOS.NativeShell/publish/zero-os-native-shell-windows.zip
+          files: |
+            native_ui/ZeroOS.NativeShell/publish/zero-os-native-shell-windows.zip
+            native_ui/ZeroOS.NativeShell/installers/*.zip
+            native_ui/ZeroOS.NativeShell/msix/*.msix
           generate_release_notes: true

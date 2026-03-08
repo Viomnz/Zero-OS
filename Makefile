@@ -1,10 +1,11 @@
 PYTHON ?= python
 
-.PHONY: help ui share bundle release core security github
+.PHONY: help ui quickstart share bundle release core security github
 
 help:
 	@echo "Zero OS tasks"
 	@echo "  make ui        Launch the best available Zero OS UI"
+	@echo "  make quickstart Run first-run and open Zero OS"
 	@echo "  make bundle    Export a clean Zero OS bundle into dist/"
 	@echo "  make share     Create a shareable Zero OS zip package"
 	@echo "  make release   Create a share zip and print the tag flow"
@@ -14,6 +15,9 @@ help:
 
 ui:
 	$(PYTHON) zero_os_ui.py
+
+quickstart:
+	$(PYTHON) zero_os_quickstart.py
 
 bundle:
 	$(PYTHON) src/main.py "zero os export bundle"

@@ -1,5 +1,0 @@
-{
-  "allocator": "paged",
-  "page_size": 4096,
-  "protection": true
-}

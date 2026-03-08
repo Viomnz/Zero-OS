@@ -2,7 +2,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  IgnorableNamespaces="uap">
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap desktop rescap">
   <Identity
     Name="ZeroOS.NativeShell"
     Publisher="CN=ZeroOS"
@@ -20,7 +22,7 @@
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22631.0" />
   </Dependencies>
   <Applications>
-    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
+    <Application Id="App" Executable="ZeroOS.NativeShell.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="Zero OS Native Shell"
         Description="Windows-native sharing and release shell for Zero OS."
@@ -30,6 +32,12 @@
         <uap:DefaultTile Wide310x150Logo="assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="assets\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="ZeroOS.NativeShell.exe" />
+      </Extensions>
     </Application>
   </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
 </Package>

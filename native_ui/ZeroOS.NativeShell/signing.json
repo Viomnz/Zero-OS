@@ -1,13 +1,20 @@
 {
   "enabled": false,
-  "provider": "manual",
+  "provider": "signtool-pfx",
+  "publisher": "CN=ZeroOS",
   "certificate_subject": "CN=ZeroOS",
   "certificate_thumbprint": "",
   "pfx_path": "",
+  "pfx_password_env": "ZERO_OS_SIGNING_PFX_PASSWORD",
+  "algorithm": "SHA256",
   "timestamp_url": "http://timestamp.digicert.com",
+  "package_identity_name": "ZeroOS.NativeShell",
+  "package_display_name": "Zero OS Native Shell",
+  "package_publisher_display_name": "Zero OS",
   "notes": [
-    "Fill this file before producing a signed release.",
-    "Use a trusted code-signing certificate for production.",
+    "Set enabled=true only when a real trusted code-signing certificate is available.",
+    "Point pfx_path to a local PFX file or inject it during CI.",
+    "Store the PFX password in the environment variable named by pfx_password_env.",
     "Keep private signing material out of the repository."
   ]
 }

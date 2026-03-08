@@ -18,7 +18,9 @@ public partial class MainWindow : Window
     private const string CloneCommand = "git clone https://github.com/Viomnz/Zero-OS.git";
     private const string FirstRunCommand = @".\zero_os_launcher.ps1 first-run";
     private const string OpenShellCommand = "Start-Process \".\\zero_os_shell.html\"";
+    private const string DownloadNativeAppLink = "https://github.com/Viomnz/Zero-OS/releases";
     private const string PublishCommand = @".\publish.ps1";
+    private const string PortableInstallerCommand = @".\package_portable.ps1";
     private const string MsixCommand = @".\package_msix.ps1";
     private readonly string _projectFile;
 
@@ -128,6 +130,11 @@ public partial class MainWindow : Window
         RunNativeScript("publish.ps1", "Native publish complete");
     }
 
+    private void CreatePortableInstaller_Click(object sender, RoutedEventArgs e)
+    {
+        RunNativeScript("package_portable.ps1", "Portable installer package complete");
+    }
+
     private void CreateNativeMsix_Click(object sender, RoutedEventArgs e)
     {
         RunNativeScript("package_msix.ps1", "MSIX scaffold complete");
@@ -152,6 +159,12 @@ public partial class MainWindow : Window
     {
         OpenPath(Path.Combine(_nativeUiRoot, "publish"));
         SetStatus("Opened native publish folder.");
+    }
+
+    private void OpenNativeInstallerFolder_Click(object sender, RoutedEventArgs e)
+    {
+        OpenPath(Path.Combine(_nativeUiRoot, "installers"));
+        SetStatus("Opened native installer folder.");
     }
 
     private void OpenNativeMsixFolder_Click(object sender, RoutedEventArgs e)
@@ -747,10 +760,16 @@ public partial class MainWindow : Window
         var knowledgeIndex = Path.Combine(runtimeRoot, "zero_ai_knowledge_index.json");
         var brainAwareness = Path.Combine(runtimeRoot, "zero_ai_brain_awareness.json");
         var gapStatus = Path.Combine(runtimeRoot, "zero_ai_gap_status.json");
+        var installerDir = Path.Combine(_nativeUiRoot, "installers");
+        var msixDir = Path.Combine(_nativeUiRoot, "msix");
+        var portableReady = Directory.Exists(installerDir) && Directory.GetFiles(installerDir, "*.zip").Length > 0;
+        var msixReady = Directory.Exists(msixDir) && Directory.GetFiles(msixDir, "*.msix").Length > 0;
 
         var lines = new List<string>
         {
             "Quick Start Wizard",
+            "",
+            "Fastest path: Download Native App -> Run First-Run -> Open Shell UI",
             "",
             $"1. Repository available: {(Directory.Exists(_repoRoot) ? "yes" : "no")}",
             $"2. Launcher available: {(File.Exists(Path.Combine(_repoRoot, "zero_os_launcher.ps1")) ? "yes" : "no")}",
@@ -759,8 +778,11 @@ public partial class MainWindow : Window
             $"5. Knowledge index built: {(File.Exists(knowledgeIndex) ? "yes" : "no")}",
             $"6. Brain awareness built: {(File.Exists(brainAwareness) ? "yes" : "no")}",
             $"7. Gap status report: {(File.Exists(gapStatus) ? "yes" : "no")}",
+            $"8. Portable installer ready: {(portableReady ? "yes" : "no")}",
+            $"9. MSIX package ready: {(msixReady ? "yes" : "no")}",
             "",
             "Recommended order:",
+            "Download Native App",
             "Step 1. Open Repository",
             "Step 2. Run First-Run",
             "Step 3. Open Shell UI",

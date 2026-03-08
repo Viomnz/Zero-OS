@@ -60,19 +60,60 @@ public sealed class NativeBackend
     public string LoadReleaseData(string repoUrl, string releasesUrl)
     {
         var entries = ArtifactEntries();
-        if (entries.Count == 0)
-        {
-            return "No share bundles yet.\n\nCreate a share zip to populate this panel.";
-        }
+        var installersDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "installers");
+        var portableInstallers = Directory.Exists(installersDir)
+            ? Directory.GetFiles(installersDir, "*.zip").OrderByDescending(File.GetLastWriteTime).ToList()
+            : new List<string>();
+        var msixDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "msix");
+        var msixPackages = Directory.Exists(msixDir)
+            ? Directory.GetFiles(msixDir, "*.msix").OrderByDescending(File.GetLastWriteTime).ToList()
+            : new List<string>();
 
         var lines = new List<string>
         {
             $"Repository: {repoUrl}",
             $"Releases: {releasesUrl}",
             "",
-            "Latest artifacts:"
+            "Download paths:",
+            $"- Portable installers ready: {portableInstallers.Count}",
+            $"- MSIX packages ready: {msixPackages.Count}",
+            $"- Share artifacts ready: {entries.Count}",
+            "",
+            "Latest native installers:"
         };
 
+        if (portableInstallers.Count == 0)
+        {
+            lines.Add("- none yet");
+        }
+        else
+        {
+            foreach (var item in portableInstallers.Take(5))
+            {
+                lines.Add($"[PORTABLE] {Path.GetFileName(item)}");
+            }
+        }
+
+        lines.Add("");
+        lines.Add("Latest MSIX packages:");
+        if (msixPackages.Count == 0)
+        {
+            lines.Add("- none yet");
+        }
+        else
+        {
+            foreach (var item in msixPackages.Take(5))
+            {
+                lines.Add($"[MSIX] {Path.GetFileName(item)}");
+            }
+        }
+
+        lines.Add("");
+        lines.Add("Latest Zero OS share artifacts:");
+        if (entries.Count == 0)
+        {
+            lines.Add("- none yet");
+        }
         foreach (var item in entries.Take(10))
         {
             var kind = item.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? "ZIP" : "DIR";
@@ -80,9 +121,10 @@ public sealed class NativeBackend
         }
 
         lines.Add("");
-        lines.Add("Tag workflow:");
+        lines.Add("Release workflow:");
         lines.Add("git tag v1.0.0");
         lines.Add("git push origin v1.0.0");
+        lines.Add("Tagged releases upload native publish output, portable installers, and MSIX packages.");
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -119,14 +161,20 @@ public sealed class NativeBackend
 
         var publishScript = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "publish.ps1");
         var msixScript = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "package_msix.ps1");
+        var portableScript = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "package_portable.ps1");
         var publishDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "publish");
         var msixDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "msix");
+        var installersDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "installers");
         var manifestPath = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "Package.appxmanifest");
         var assetsDir = Path.Combine(RepoRoot, "native_ui", "ZeroOS.NativeShell", "assets");
         lines.Add($"Publish script: {(File.Exists(publishScript) ? "present" : "missing")}");
         lines.Add($"MSIX script: {(File.Exists(msixScript) ? "present" : "missing")}");
+        lines.Add($"Portable package script: {(File.Exists(portableScript) ? "present" : "missing")}");
         lines.Add($"Publish output: {(Directory.Exists(publishDir) ? "present" : "missing")}");
         lines.Add($"MSIX scaffold: {(Directory.Exists(msixDir) ? "present" : "missing")}");
+        lines.Add($"Portable installers: {(Directory.Exists(installersDir) ? "present" : "missing")}");
+        var latestInstaller = FindLatestPortableInstaller(installersDir);
+        lines.Add($"Latest portable installer: {(string.IsNullOrWhiteSpace(latestInstaller) ? "none yet" : latestInstaller)}");
         lines.Add("");
         lines.Add("MSIX readiness:");
         lines.Add($"- Manifest: {(File.Exists(manifestPath) ? "present" : "missing")}");
@@ -289,6 +337,19 @@ public sealed class NativeBackend
             Path.Combine(repoRoot, "native_ui", "ZeroOS.NativeShell", "signing.json"),
         };
         return paths.All(File.Exists);
+    }
+
+    private static string? FindLatestPortableInstaller(string installersDir)
+    {
+        if (!Directory.Exists(installersDir))
+        {
+            return null;
+        }
+
+        var latest = Directory.GetFiles(installersDir, "*.zip")
+            .OrderByDescending(File.GetLastWriteTime)
+            .FirstOrDefault();
+        return latest == null ? null : Path.GetFileName(latest);
     }
 }
 

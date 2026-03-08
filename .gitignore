@@ -16,3 +16,14 @@ ai_from_scratch/checkpoint.json
 .zero_os/audit.log
 .zero_os/revocations.json
 .zero_os/net_policy.json
+
+# Generated native launcher/build outputs
+*.exe
+*.msix
+dist/
+publish/
+native_ui/**/bin/
+native_ui/**/obj/
+native_ui/**/publish/
+native_ui/**/installers/
+native_ui/**/msix/
