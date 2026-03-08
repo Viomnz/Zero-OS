@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from zero_os.runtime_smart_logic import abuse_throttle_decision
 
 
 def _runtime(cwd: str) -> Path:
@@ -41,12 +42,14 @@ def check_and_record(cwd: str, channel: str, limit: int, window_seconds: int) ->
     events = [ts for ts in events if now - ts <= window]
     if len(events) >= cap:
         retry_after = max(1, int(window - (now - min(events))))
+        logic = abuse_throttle_decision(cwd, len(events), cap, retry_after)
         state = {
             "channel": key,
             "limit": cap,
             "window_seconds": window,
             "used": len(events),
             "retry_after_seconds": retry_after,
+            "smart_logic": logic,
         }
         return (False, state)
 
@@ -59,5 +62,6 @@ def check_and_record(cwd: str, channel: str, limit: int, window_seconds: int) ->
         "window_seconds": window,
         "used": len(events),
         "retry_after_seconds": 0,
+        "smart_logic": abuse_throttle_decision(cwd, len(events), cap, 0),
     }
     return (True, state)

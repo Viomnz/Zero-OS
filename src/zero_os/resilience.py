@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from zero_os.enterprise_security import edr_probe, integration_probe, integration_status
+from zero_os.runtime_smart_logic import recovery_decision, rollout_decision
 from zero_os.security_hardening import harden_apply
 
 
@@ -143,6 +144,7 @@ def external_outage_status(cwd: str) -> dict:
 
 def external_outage_failover_apply(cwd: str) -> dict:
     status = external_outage_status(cwd)
+    logic = rollout_decision(cwd, "prod", True, int(status.get("outage_count", 0)))
     mode = {
         "enabled": True,
         "time_utc": _utc_now(),
@@ -154,7 +156,7 @@ def external_outage_failover_apply(cwd: str) -> dict:
         },
     }
     _save(_root(cwd) / "external_failover_mode.json", mode)
-    return {"ok": True, "status": status, "failover": mode}
+    return {"ok": True, "status": status, "failover": mode, "smart_logic": logic}
 
 
 def immutable_trust_backup_create(cwd: str) -> dict:
@@ -205,7 +207,9 @@ def immutable_trust_recover(cwd: str, backup_id: str = "latest") -> dict:
     chosen = status["latest"] if backup_id == "latest" and status["latest"] else backup_id
     src = _root(cwd) / "immutable_trust" / chosen
     if not src.exists():
-        return {"ok": False, "reason": f"backup not found: {chosen}"}
+        logic = recovery_decision(cwd, False, False, "system")
+        return {"ok": False, "reason": f"backup not found: {chosen}", "smart_logic": logic}
+    logic = recovery_decision(cwd, True, True, "system")
     manifest = _load(src / "manifest.json", {})
     files = manifest.get("files", []) if isinstance(manifest, dict) else []
     base = Path(cwd).resolve()
@@ -221,6 +225,6 @@ def immutable_trust_recover(cwd: str, backup_id: str = "latest") -> dict:
         to_p.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(from_p, to_p)
         restored.append(rel)
-    out = {"ok": True, "backup_id": chosen, "restored_count": len(restored), "restored": restored}
+    out = {"ok": True, "backup_id": chosen, "restored_count": len(restored), "restored": restored, "smart_logic": logic}
     _save(_root(cwd) / "immutable_trust_recovery.json", out)
     return out

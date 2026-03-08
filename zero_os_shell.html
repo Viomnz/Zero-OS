@@ -209,7 +209,8 @@
       .taskbar { grid-template-columns: 1fr auto; }
       .task-center { display: none; }
     }
-  </style>
+</style>
+  <script src="zero_os_shell_bridge_config.js"></script>
 </head>
 <body>
   <div class="desktop">
@@ -228,6 +229,11 @@
       <div class="status-item"><div class="status-key">Recovery</div><div class="status-val" id="v-rec">Loading...</div></div>
       <div class="status-item"><div class="status-key">Data Feed</div><div class="status-val" id="v-hint">Checking runtime files...</div></div>
       <button class="btn" id="refreshBtn">Refresh Layers</button>
+      <button class="btn" id="bridgeBtn">Run Platform Status</button>
+      <button class="btn" id="platformMaxBtn">Platform Maximize</button>
+      <button class="btn" id="openFilesBtn">Open Zero Files</button>
+      <button class="btn" id="maxFilesBtn">Maximize Zero Files</button>
+      <button class="btn" id="closeFilesBtn">Close Zero Files</button>
     </aside>
 
     <main class="canvas" id="canvas">
@@ -248,7 +254,7 @@
 
   <div class="start-menu" id="startMenu">
     <input class="search" placeholder="Search apps, commands, settings" />
-    <div class="menu-grid">
+    <div class="menu-grid" id="menuGrid">
       <div class="tile"><strong>Fix All</strong><br/>Run `fix all now`</div>
       <div class="tile"><strong>Resilience</strong><br/>Run `resilience status`</div>
       <div class="tile"><strong>Security</strong><br/>Run `security overview`</div>
@@ -271,6 +277,14 @@
       <div class="tile"><strong>Desktop Shell</strong><br/>Run `.\zero_os_launcher.ps1 native-store-desktop`</div>
       <div class="tile"><strong>Windows Build</strong><br/>Run `.\zero_os_launcher.ps1 native-store-build-windows:ZeroStore,1.0`</div>
       <div class="tile"><strong>Linux Build</strong><br/>Run `.\zero_os_launcher.ps1 native-store-build-linux:ZeroStore,1.0`</div>
+      <div class="tile"><strong>Platform Status</strong><br/>Run `.\zero_os_launcher.ps1 native-platform-status`</div>
+      <div class="tile"><strong>Platform Max</strong><br/>Run `.\zero_os_launcher.ps1 native-platform-max`</div>
+      <div class="tile"><strong>Desktop Status</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-status`</div>
+      <div class="tile"><strong>Open Zero Files</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-window:Zero Files,top`</div>
+      <div class="tile"><strong>Maximize Window</strong><br/>Run `.\zero_os_launcher.ps1 native-desktop-action:Zero Files,maximize`</div>
+      <div class="tile"><strong>Compositor</strong><br/>Run `.\zero_os_launcher.ps1 native-compositor:layer-compositor,snap,stack,blur`</div>
+      <div class="tile"><strong>Kernel Process</strong><br/>Run `.\zero_os_launcher.ps1 kernel-process-spawn:init,user`</div>
+      <div class="tile"><strong>Kernel Isolation</strong><br/>Run `.\zero_os_launcher.ps1 kernel-isolation-max`</div>
       <div class="tile"><strong>Kernel Stack</strong><br/>Run `kernel stack status`</div>
       <div class="tile"><strong>Trust Backup</strong><br/>Run `resilience trust backup create`</div>
       <div class="tile"><strong>Outage Failover</strong><br/>Run `resilience outage failover`</div>
@@ -285,8 +299,8 @@
     </div>
     <div class="task-center">
       <button class="btn">Zero Shell</button>
-      <button class="btn">Zero Security</button>
-      <button class="btn">Zero Runtime</button>
+      <button class="btn" id="btnSecurity">Zero Security</button>
+      <button class="btn" id="btnRuntime">Zero Runtime</button>
     </div>
     <div class="task-right">
       <span id="clock" class="btn"></span>
@@ -311,6 +325,31 @@
       }
     }
 
+    async function bridgeCommand(command) {
+      try {
+        const res = await fetch("http://127.0.0.1:8766/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Zero-Token": window.ZERO_SHELL_BRIDGE_TOKEN || "" },
+          body: JSON.stringify({ command }),
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    const menuActions = [
+      { label: "Platform Status", command: "native platform status" },
+      { label: "Platform Maximize", command: "native platform maximize" },
+      { label: "Open Zero Files", command: "native desktop window open app=Zero Files layer=top" },
+      { label: "Maximize Zero Files", command: "native desktop window action app=Zero Files action=maximize" },
+      { label: "Close Zero Files", command: "native desktop window action app=Zero Files action=close" },
+      { label: "Security Status", command: "zero ai security status" },
+      { label: "Kernel Stack", command: "kernel stack status" },
+      { label: "Kernel Isolation", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" },
+    ];
+
     function pickSecurityBadge(sec) {
       if (!sec) return { cls: "warn", txt: "Unknown" };
       if (sec.hardened || sec.mark_strict) return { cls: "ok", txt: "Hardened" };
@@ -325,8 +364,13 @@
         loadJson(".zero_os/runtime/zero_ai_security_status.json"),
         loadJson(".zero_os/resilience/kernel_driver_status.json"),
       ]);
+      const [platform, desktop, kernel] = await Promise.all([
+        loadJson(".zero_os/native_platform/maximize_report.json"),
+        loadJson(".zero_os/desktop/session.json"),
+        loadJson(".zero_os/runtime/kernel_stack_state.json"),
+      ]);
 
-      $("v-core").textContent = resilience && resilience.ok ? "Trusted" : "Check required";
+      $("v-core").textContent = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
       $("v-triad").textContent = triad && triad.balanced ? "Balanced" : "Degraded";
       $("v-sec").textContent = sec && sec.hardened ? "Hardened" : "Baseline";
       $("v-rec").textContent = backup && backup.ok ? "Recoverable" : "No report";
@@ -335,13 +379,14 @@
         : "No runtime JSON yet. Run first-run, then open-dashboard.";
 
       $("startLayer").textContent = JSON.stringify({
-        start_menu: "enabled",
+        platform: platform && platform.status ? platform.status.categories : {},
+        desktop: desktop || {},
         shell_mode: "windows-like",
-        top_actions: ["fix all now", "resilience status", "security overview"],
       }, null, 2);
 
       $("securityLayer").textContent = JSON.stringify(sec || { hint: "run: .\\zero_os_launcher.ps1 first-run" }, null, 2);
       $("runtimeLayer").textContent = JSON.stringify({
+        kernel: kernel || {},
         triad: triad || {},
         runtime: runtime || {},
         recovery: backup || {},
@@ -356,10 +401,35 @@
     function setupStartMenu() {
       const startBtn = $("startBtn");
       const menu = $("startMenu");
+      const search = menu.querySelector(".search");
+      const grid = $("menuGrid");
       startBtn.addEventListener("click", () => menu.classList.toggle("show"));
       document.addEventListener("click", (e) => {
         if (!menu.contains(e.target) && e.target !== startBtn) menu.classList.remove("show");
       });
+      const originalTiles = Array.from(grid.children).map((node) => node.cloneNode(true));
+      async function runMenuAction(command) {
+        await bridgeCommand(command);
+        await refreshLayers();
+      }
+      function renderSearch(query) {
+        const q = (query || "").trim().toLowerCase();
+        grid.innerHTML = "";
+        if (!q) {
+          originalTiles.forEach((node) => grid.appendChild(node.cloneNode(true)));
+          return;
+        }
+        const matches = menuActions.filter((item) => item.label.toLowerCase().includes(q) || item.command.toLowerCase().includes(q));
+        matches.forEach((item) => {
+          const tile = document.createElement("button");
+          tile.className = "tile";
+          tile.innerHTML = `<strong>${item.label}</strong><br/>Run \`${item.command}\``;
+          tile.addEventListener("click", async () => runMenuAction(item.command));
+          grid.appendChild(tile);
+        });
+      }
+      search.addEventListener("input", (e) => renderSearch(e.target.value));
+      renderSearch("");
     }
 
     function setupWindows() {
@@ -390,6 +460,34 @@
 
     $("refreshBtn").addEventListener("click", refreshLayers);
     $("layersBtn").addEventListener("click", refreshLayers);
+    $("bridgeBtn").addEventListener("click", async () => {
+      await bridgeCommand("native platform status");
+      refreshLayers();
+    });
+    $("platformMaxBtn").addEventListener("click", async () => {
+      await bridgeCommand("native platform maximize");
+      refreshLayers();
+    });
+    $("openFilesBtn").addEventListener("click", async () => {
+      await bridgeCommand("native desktop window open app=Zero Files layer=top");
+      refreshLayers();
+    });
+    $("maxFilesBtn").addEventListener("click", async () => {
+      await bridgeCommand("native desktop window action app=Zero Files action=maximize");
+      refreshLayers();
+    });
+    $("closeFilesBtn").addEventListener("click", async () => {
+      await bridgeCommand("native desktop window action app=Zero Files action=close");
+      refreshLayers();
+    });
+    $("btnSecurity").addEventListener("click", async () => {
+      await bridgeCommand("zero ai security status");
+      refreshLayers();
+    });
+    $("btnRuntime").addEventListener("click", async () => {
+      await bridgeCommand("kernel stack status");
+      refreshLayers();
+    });
 
     tickClock();
     setInterval(tickClock, 1000);

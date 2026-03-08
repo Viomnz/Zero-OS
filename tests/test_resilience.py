@@ -55,6 +55,7 @@ class ResilienceTests(unittest.TestCase):
         self.assertIn("outage_count", st)
         ap = external_outage_failover_apply(str(self.base))
         self.assertTrue(ap["ok"])
+        self.assertIn("smart_logic", ap)
 
     def test_immutable_trust_backup_and_recover(self) -> None:
         create = immutable_trust_backup_create(str(self.base))
@@ -65,6 +66,7 @@ class ResilienceTests(unittest.TestCase):
         self.assertGreaterEqual(status["count"], 1)
         rec = immutable_trust_recover(str(self.base), "latest")
         self.assertTrue(rec["ok"])
+        self.assertIn("smart_logic", rec)
 
 
 if __name__ == "__main__":

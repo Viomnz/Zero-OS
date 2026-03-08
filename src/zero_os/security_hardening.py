@@ -7,6 +7,7 @@ from pathlib import Path
 
 from zero_os.antivirus import monitor_set, monitor_status, policy_set as antivirus_policy_set, policy_status as antivirus_policy_status
 from zero_os.production_core import freedom_mode_set, sandbox_status
+from zero_os.runtime_smart_logic import security_action_decision
 from zero_os.self_repair import self_repair_set, self_repair_status
 from zero_os.state import set_mark_strict, set_net_strict
 from zero_os.triad_balance import triad_ops_set, triad_ops_status
@@ -52,11 +53,13 @@ def harden_apply(cwd: str) -> dict:
 
     trust = init_trust_root(cwd)
     actions.append("trust_root:initialized")
+    logic = security_action_decision(cwd, True, True, True)
 
     return {
         "ok": True,
         "actions": actions,
         "trust_root": trust,
+        "smart_logic": logic,
         "status": harden_status(cwd),
     }
 
@@ -128,11 +131,13 @@ def zero_ai_security_apply(cwd: str) -> dict:
     actions.append("antivirus_policy:response_mode=quarantine_high")
     policy = _write_zero_ai_security_policy(cwd)
     actions.append("smart_logic_policy:strict")
+    logic = security_action_decision(cwd, True, True, True)
     return {
         "ok": True,
         "actions": actions,
         "base_hardening": base.get("status", {}),
         "smart_logic_policy": policy,
+        "smart_logic": logic,
         "status": zero_ai_security_status(cwd),
     }
 

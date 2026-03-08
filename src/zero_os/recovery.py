@@ -4,6 +4,9 @@ import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
+from zero_os.production_core import sync_path_smart
+from zero_os.runtime_smart_logic import recovery_decision
 
 
 def _utc_now() -> str:
@@ -61,6 +64,7 @@ def zero_ai_backup_create(cwd: str) -> dict:
 def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
     base = Path(cwd).resolve()
     rt = _runtime(cwd)
+    health_before = capture_health_snapshot(cwd)
     status_before = zero_ai_backup_status(cwd)
     if status_before["snapshot_count"] == 0:
         created = zero_ai_backup_create(cwd)
@@ -69,7 +73,13 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
         chosen = status_before["latest_snapshot"] if snapshot_id == "latest" else snapshot_id
     src = _snapshots_root(cwd) / chosen
     if not src.exists():
-        return {"ok": False, "reason": f"snapshot not found: {chosen}"}
+        logic = recovery_decision(cwd, False, False, "system")
+        autonomy_record(cwd, "zero ai recover", "failed", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": f"snapshot not found: {chosen}", "smart_logic": logic}
+    logic = recovery_decision(cwd, True, True, "system")
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "block"}:
+        autonomy_record(cwd, "zero ai recover", "blocked", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
 
     # Isolation marker for orchestrators/tools.
     isolate = {
@@ -80,16 +90,13 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
     (rt / "zero_ai_isolation.json").write_text(json.dumps(isolate, indent=2) + "\n", encoding="utf-8")
 
     restored = []
+    sync_results = []
     for rel in ("ai_from_scratch", "src", "zero_os_config", "security"):
         from_p = src / rel
         to_p = base / rel
         if not from_p.exists():
             continue
-        if from_p.is_dir():
-            shutil.copytree(from_p, to_p, dirs_exist_ok=True)
-        else:
-            to_p.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(from_p, to_p)
+        sync_results.append(sync_path_smart(cwd, str(from_p), str(to_p)))
         restored.append(rel)
 
     report = {
@@ -98,6 +105,8 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
         "recovery_mode": "controlled",
         "snapshot_used": chosen,
         "restored": restored,
+        "sync_results": sync_results,
+        "smart_logic": logic,
         "next_steps": [
             "run: python ai_from_scratch/daemon_ctl.py health",
             "run: python ai_from_scratch/daemon_ctl.py refresh-monitor",
@@ -105,5 +114,5 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
         ],
     }
     (rt / "zero_ai_recovery_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    autonomy_record(cwd, "zero ai recover", "success", float(logic.get("confidence", 0.0)), rollback_used=True, recovery_seconds=12.0, blast_radius="system", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
     return report
-

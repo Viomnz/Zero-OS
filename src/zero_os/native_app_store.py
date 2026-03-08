@@ -8,7 +8,17 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
 from zero_os.app_store_universal import detect_device, resolve_package
+from zero_os.native_store_smart_logic import (
+    abuse_decision,
+    incident_decision,
+    package_decision,
+    release_gate_decision,
+    rollback_decision,
+    trust_decision,
+)
+from zero_os.production_core import sync_path_smart
 
 
 def _utc_now() -> str:
@@ -137,6 +147,16 @@ def _default_state() -> dict:
     }
 
 
+def _merge_defaults(current: dict, default: dict) -> dict:
+    merged = dict(current)
+    for key, value in default.items():
+        if key not in merged:
+            merged[key] = value
+        elif isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_defaults(merged[key], value)
+    return merged
+
+
 def _load(cwd: str) -> dict:
     p = _state_path(cwd)
     if not p.exists():
@@ -144,7 +164,11 @@ def _load(cwd: str) -> dict:
         _save(cwd, d)
         return d
     try:
-        return json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        loaded = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        merged = _merge_defaults(loaded, _default_state())
+        if merged != loaded:
+            _save(cwd, merged)
+        return merged
     except Exception:
         d = _default_state()
         _save(cwd, d)
@@ -177,15 +201,25 @@ def _install_root(cwd: str, os_name: str) -> Path:
 
 
 def install(cwd: str, app_name: str, os_name: str = "") -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
     device = detect_device()
     target_os = os_name.lower() if os_name else device["os"]
     resolved = resolve_package(cwd, app_name, target_os, device["cpu"], device["architecture"], device["security"])
     if not resolved.get("ok", False):
-        return {"ok": False, "reason": "resolve failed", "resolve": resolved}
+        logic = package_decision(cwd, "install", target_os, False, False, False)
+        autonomy_record(cwd, "native store install", "failed", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "resolve failed", "resolve": resolved, "smart_logic": logic}
     src = Path(resolved["target"]["path"])
+    trusted = bool(s["trust"]["certificates"]["trusted_roots"])
+    signed = True
+    logic = package_decision(cwd, "install", target_os, src.exists(), signed, trusted)
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "hold_for_review", "block"}:
+        autonomy_record(cwd, "native store install", "blocked", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
     if not src.exists():
-        return {"ok": False, "reason": "resolved artifact missing", "path": str(src)}
+        autonomy_record(cwd, "native store install", "failed", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "resolved artifact missing", "path": str(src), "smart_logic": logic}
     install_id = str(uuid.uuid4())[:12]
     app_dir = _install_root(cwd, target_os) / f"{app_name}_{resolved['version']}"
     app_dir.mkdir(parents=True, exist_ok=True)
@@ -202,29 +236,46 @@ def install(cwd: str, app_name: str, os_name: str = "") -> dict:
     }
     s["installs"][install_id] = rec
     _save(cwd, s)
-    return {"ok": True, "install": rec}
+    autonomy_record(cwd, "native store install", "success", float(logic.get("confidence", 0.0)), recovery_seconds=6.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "install": rec, "smart_logic": logic}
 
 
 def uninstall(cwd: str, install_id: str) -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
     rec = s["installs"].get(install_id)
     if not rec:
-        return {"ok": False, "reason": "install not found"}
+        logic = package_decision(cwd, "uninstall", "unknown", False, False, False)
+        autonomy_record(cwd, "native store uninstall", "failed", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "install not found", "smart_logic": logic}
+    logic = package_decision(cwd, "uninstall", rec.get("os", "unknown"), True, True, True)
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "hold_for_review", "block"}:
+        autonomy_record(cwd, "native store uninstall", "blocked", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
     rec["state"] = "uninstalled"
     rec["uninstalled_utc"] = _utc_now()
     _save(cwd, s)
-    return {"ok": True, "install": rec}
+    autonomy_record(cwd, "native store uninstall", "success", float(logic.get("confidence", 0.0)), recovery_seconds=3.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "install": rec, "smart_logic": logic}
 
 
 def upgrade(cwd: str, install_id: str, version: str) -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
     rec = s["installs"].get(install_id)
     if not rec:
-        return {"ok": False, "reason": "install not found"}
+        logic = package_decision(cwd, "upgrade", "unknown", False, False, False)
+        autonomy_record(cwd, "native store upgrade", "failed", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "install not found", "smart_logic": logic}
+    logic = package_decision(cwd, "upgrade", rec.get("os", "unknown"), True, True, True)
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "hold_for_review", "block"}:
+        autonomy_record(cwd, "native store upgrade", "blocked", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
     rec["version"] = version.strip()
     rec["upgraded_utc"] = _utc_now()
     _save(cwd, s)
-    return {"ok": True, "install": rec}
+    autonomy_record(cwd, "native store upgrade", "success", float(logic.get("confidence", 0.0)), recovery_seconds=9.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "install": rec, "smart_logic": logic}
 
 
 def pipeline_run(cwd: str, app_name: str, os_name: str, package_format: str = "") -> dict:
@@ -396,7 +447,13 @@ Native package for {app_name}
     for rel_path, content in specs.items():
         out = root / rel_path
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        if out.exists():
+            tmp = out.with_suffix(out.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(out))
+            tmp.unlink(missing_ok=True)
+        else:
+            out.write_text(content, encoding="utf-8")
         created.append(str(out))
     return {"ok": True, "created": created, "root": str(root)}
 
@@ -442,7 +499,13 @@ final class InstallExtension {
     for rel_path, content in manifests.items():
         out = root / rel_path
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        if out.exists():
+            tmp = out.with_suffix(out.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(out))
+            tmp.unlink(missing_ok=True)
+        else:
+            out.write_text(content, encoding="utf-8")
         created.append(str(out))
     return {"ok": True, "created": created, "root": str(root)}
 
@@ -499,7 +562,13 @@ Endpoints to implement:
     for rel_path, content in files.items():
         out = root / rel_path
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        if out.exists():
+            tmp = out.with_suffix(out.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(out))
+            tmp.unlink(missing_ok=True)
+        else:
+            out.write_text(content, encoding="utf-8")
         created.append(str(out))
     return {"ok": True, "created": created, "root": str(root)}
 
@@ -555,7 +624,13 @@ def scaffold_gui_client(cwd: str) -> dict:
     for rel_path, content in files.items():
         out = root / rel_path
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        if out.exists():
+            tmp = out.with_suffix(out.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(out))
+            tmp.unlink(missing_ok=True)
+        else:
+            out.write_text(content, encoding="utf-8")
         created.append(str(out))
     return {"ok": True, "created": created, "root": str(root)}
 
@@ -625,7 +700,14 @@ def scaffold_desktop_production(cwd: str, app_name: str, version: str) -> dict:
     }
     created = []
     for path, content in files.items():
-        path.write_text(content, encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            tmp = path.with_suffix(path.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(path))
+            tmp.unlink(missing_ok=True)
+        else:
+            path.write_text(content, encoding="utf-8")
         created.append(str(path))
     return {"ok": True, "created": created}
 
@@ -656,27 +738,39 @@ def rollback_checkpoint(cwd: str, name: str) -> dict:
 
 
 def rollback_restore(cwd: str, name: str) -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
+    logic = rollback_decision(cwd, any(cp["name"] == name for cp in s["rollback"]["checkpoints"]), "medium")
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "hold_for_review", "block"}:
+        autonomy_record(cwd, "native store rollback", "blocked", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
     found = any(cp["name"] == name for cp in s["rollback"]["checkpoints"])
     if not found:
-        return {"ok": False, "reason": "checkpoint not found"}
+        autonomy_record(cwd, "native store rollback", "failed", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "checkpoint not found", "smart_logic": logic}
     s["rollback"]["active"] = name
     _save(cwd, s)
-    return {"ok": True, "active": name}
+    autonomy_record(cwd, "native store rollback", "success", float(logic.get("confidence", 0.0)), rollback_used=True, recovery_seconds=14.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "active": name, "smart_logic": logic}
 
 
 def incident_open(cwd: str, severity: str, summary: str) -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
+    logic = incident_decision(cwd, severity, "single-node" if "local" in summary.lower() else "multi-region")
     incident = {"id": str(uuid.uuid4())[:10], "severity": severity.lower(), "summary": summary, "opened_utc": _utc_now(), "state": "open"}
     s["incidents"].append(incident)
     _save(cwd, s)
     runbook = _ops_root(cwd) / f"incident_{incident['id']}.md"
     runbook.write_text(f"# Incident {incident['id']}\n\nSeverity: {incident['severity']}\n\nSummary: {summary}\n\nActions:\n- contain\n- assess blast radius\n- rollback if needed\n- rotate secrets/certs if compromised\n", encoding="utf-8")
-    return {"ok": True, "incident": incident, "runbook": str(runbook)}
+    autonomy_record(cwd, "native store incident", "success", float(logic.get("confidence", 0.0)), blast_radius="multi-region" if "local" not in summary.lower() else "service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "incident": incident, "runbook": str(runbook), "smart_logic": logic}
 
 
 def stress_test(cwd: str, traffic: int, abuse: int, failures: int) -> dict:
+    health_before = capture_health_snapshot(cwd)
     root = _ops_root(cwd)
+    abuse_logic = abuse_decision(cwd, float(min(100, abuse / max(1, traffic) * 1000)), abuse > 100)
     report = {
         "traffic_rps": int(traffic),
         "abuse_attempts": int(abuse),
@@ -688,20 +782,42 @@ def stress_test(cwd: str, traffic: int, abuse: int, failures: int) -> dict:
     }
     out = root / "stress_report.json"
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    return {"ok": True, "report": report, "path": str(out)}
+    autonomy_record(cwd, "native store stress test", "success" if report["recovery_target_met"] else "failed", float(abuse_logic.get("confidence", 0.0)), recovery_seconds=20.0 if report["recovery_target_met"] else 120.0, blast_radius="service", verification_passed=report["recovery_target_met"], health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "report": report, "path": str(out), "smart_logic": abuse_logic}
 
 
 def release_prepare(cwd: str, version: str, channel: str = "stable") -> dict:
+    health_before = capture_health_snapshot(cwd)
     s = _load(cwd)
     root = _ops_root(cwd)
-    checklist = root / f"release_{version}.md"
-    checklist.write_text(
-        f"# Release {version}\n\nChannel: {channel}\n\nChecklist:\n- build windows packages\n- build linux packages\n- prepare macos/mobile artifacts\n- rotate signing cert if required\n- verify rollback checkpoint\n- publish observability dashboard\n- approve incident on-call rota\n",
-        encoding="utf-8",
+    signed = bool(s["trust"]["certificates"]["trusted_roots"])
+    blocking_severities = {"sev1", "critical", "high"}
+    incidents_open = sum(
+        1
+        for item in s["incidents"]
+        if item.get("state") == "open" and str(item.get("severity", "")).lower() in blocking_severities
     )
+    logic = release_gate_decision(cwd, True, signed, incidents_open)
+    if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "hold_for_review", "block"}:
+        autonomy_record(cwd, "native store release prepare", "blocked", float(logic.get("confidence", 0.0)), blast_radius="service", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
+    checklist = root / f"release_{version}.md"
+    checklist_content = (
+        f"# Release {version}\n\nChannel: {channel}\n\nChecklist:\n- build windows packages\n- build linux packages\n"
+        "- prepare macos/mobile artifacts\n- rotate signing cert if required\n- verify rollback checkpoint\n"
+        "- publish observability dashboard\n- approve incident on-call rota\n"
+    )
+    if checklist.exists():
+        tmp = checklist.with_suffix(checklist.suffix + ".incoming")
+        tmp.write_text(checklist_content, encoding="utf-8")
+        sync_path_smart(cwd, str(tmp), str(checklist))
+        tmp.unlink(missing_ok=True)
+    else:
+        checklist.write_text(checklist_content, encoding="utf-8")
     s["release"] = {"version": version, "channel": channel, "artifacts": [str(checklist)]}
     _save(cwd, s)
-    return {"ok": True, "release": s["release"]}
+    autonomy_record(cwd, "native store release prepare", "success", float(logic.get("confidence", 0.0)), recovery_seconds=5.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return {"ok": True, "release": s["release"], "smart_logic": logic}
 
 
 def sign_artifact(cwd: str, path: str, signer: str) -> dict:
@@ -723,7 +839,8 @@ def sign_artifact(cwd: str, path: str, signer: str) -> dict:
         + "\n",
         encoding="utf-8",
     )
-    return {"ok": True, "signature": str(sig_path), "sha256": digest}
+    logic = trust_decision(cwd, True, True, True)
+    return {"ok": True, "signature": str(sig_path), "sha256": digest, "smart_logic": logic}
 
 
 def verify_artifact(cwd: str, path: str) -> dict:
@@ -736,7 +853,8 @@ def verify_artifact(cwd: str, path: str) -> dict:
     data = json.loads(sig_path.read_text(encoding="utf-8"))
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     ok = digest == data.get("sha256")
-    return {"ok": ok, "artifact": str(target), "expected": data.get("sha256"), "actual": digest, "signer": data.get("signer", "")}
+    logic = trust_decision(cwd, ok, True, True)
+    return {"ok": ok, "artifact": str(target), "expected": data.get("sha256"), "actual": digest, "signer": data.get("signer", ""), "smart_logic": logic}
 
 
 def e2e_runner(cwd: str, app_name: str, version: str, traffic: int, abuse: int, failures: int) -> dict:

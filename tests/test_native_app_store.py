@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.highway import Highway
+from zero_os.autonomous_fix_gate import autonomy_status
 from zero_os.native_store_backend import issue_token, validate_token
 
 
@@ -44,12 +45,17 @@ class NativeAppStoreTests(unittest.TestCase):
         i = self.highway.dispatch("native store install app=NativeCalc os=linux", cwd=str(self.base))
         idata = json.loads(i.summary)
         self.assertTrue(idata["ok"])
+        self.assertIn("smart_logic", idata)
         iid = idata["install"]["install_id"]
 
         u = self.highway.dispatch(f"native store upgrade id={iid} version=1.1", cwd=str(self.base))
-        self.assertTrue(json.loads(u.summary)["ok"])
+        udata = json.loads(u.summary)
+        self.assertTrue(udata["ok"])
+        self.assertIn("smart_logic", udata)
         rm = self.highway.dispatch(f"native store uninstall id={iid}", cwd=str(self.base))
-        self.assertTrue(json.loads(rm.summary)["ok"])
+        rdata = json.loads(rm.summary)
+        self.assertTrue(rdata["ok"])
+        self.assertIn("smart_logic", rdata)
 
     def test_native_store_enterprise_integrations(self) -> None:
         vendor = self.highway.dispatch(
@@ -163,6 +169,7 @@ class NativeAppStoreTests(unittest.TestCase):
         )
         verify_data = json.loads(verify.summary)
         self.assertTrue(verify_data["ok"])
+        self.assertIn("smart_logic", verify_data)
 
         p = self.highway.dispatch("native store pipeline run app=NativeCalc os=linux format=deb", cwd=str(self.base))
         pdata = json.loads(p.summary)
@@ -227,7 +234,9 @@ class NativeAppStoreTests(unittest.TestCase):
             "native store incident open severity=sev2 summary=package pipeline regression",
             cwd=str(self.base),
         )
-        self.assertTrue(json.loads(incident.summary)["ok"])
+        incident_data = json.loads(incident.summary)
+        self.assertTrue(incident_data["ok"])
+        self.assertIn("smart_logic", incident_data)
 
         stress = self.highway.dispatch(
             "native store stress test traffic=1000 abuse=200 failures=40",
@@ -236,6 +245,7 @@ class NativeAppStoreTests(unittest.TestCase):
         stress_data = json.loads(stress.summary)
         self.assertTrue(stress_data["ok"])
         self.assertIn("report", stress_data)
+        self.assertIn("smart_logic", stress_data)
 
         release = self.highway.dispatch(
             "native store release prepare version=1.0.0 channel=stable",
@@ -243,6 +253,7 @@ class NativeAppStoreTests(unittest.TestCase):
         )
         release_data = json.loads(release.summary)
         self.assertEqual(release_data["release"]["version"], "1.0.0")
+        self.assertIn("smart_logic", release_data)
 
         e2e = self.highway.dispatch(
             "native store e2e run app=NativeCalc version=1.0 traffic=1000 abuse=200 failures=40",
@@ -325,6 +336,35 @@ class NativeAppStoreTests(unittest.TestCase):
         ent1 = self.highway.dispatch("native store enterprise status", cwd=str(self.base))
         ent1_data = json.loads(ent1.summary)
         self.assertTrue(all(ent1_data["readiness"].values()))
+
+    def test_native_store_scaffolds_merge_existing_manifest_content(self) -> None:
+        vendor_root = self.base / "build" / "native_store_prod" / "windows"
+        vendor_root.mkdir(parents=True, exist_ok=True)
+        manifest = vendor_root / "ZeroStore.msixmanifest"
+        manifest.write_text(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Package>\n  <Identity Name=\"NativeCalc\" />\n  <!-- local customization -->\n</Package>\n",
+            encoding="utf-8",
+        )
+
+        out = self.highway.dispatch(
+            "native store scaffold vendor app=NativeCalc version=1.0",
+            cwd=str(self.base),
+        )
+        data = json.loads(out.summary)
+        self.assertTrue(data["ok"])
+        merged = manifest.read_text(encoding="utf-8")
+        self.assertIn("local customization", merged)
+        self.assertIn("Publisher=\"CN=ZeroStore\"", merged)
+
+    def test_native_store_actions_record_autonomy_history(self) -> None:
+        install = self.highway.dispatch("native store install app=NativeCalc os=linux", cwd=str(self.base))
+        install_id = json.loads(install.summary)["install"]["install_id"]
+        self.highway.dispatch(f"native store upgrade id={install_id} version=1.1", cwd=str(self.base))
+        self.highway.dispatch("native store rollback checkpoint name=pre-autonomy", cwd=str(self.base))
+        self.highway.dispatch("native store rollback restore name=pre-autonomy", cwd=str(self.base))
+        self.highway.dispatch("native store release prepare version=2.0.0 channel=stable", cwd=str(self.base))
+        status = autonomy_status(str(self.base))
+        self.assertGreaterEqual(status["history_events"], 4)
 
 
 if __name__ == "__main__":

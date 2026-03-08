@@ -46,6 +46,9 @@ from zero_os.production_core import (
     memory_status,
     memory_smart_optimize,
     memory_smart_status,
+    merge_files_smart,
+    smart_merge_policy_decide,
+    smart_merge_policy_status,
     observability_report,
     process_kill,
     process_list,
@@ -236,8 +239,12 @@ from zero_os.kernel_rnd.runtime_stack import (
     nic_driver_set,
     net_route_add,
     platform_topology_set,
+    process_exit,
+    process_isolation_set,
+    process_spawn,
     scheduler_enqueue,
     scheduler_tick,
+    syscall_allowlist_set,
 )
 from zero_os.kernel_rnd.native_boot_ops import (
     boot_verify,
@@ -399,8 +406,31 @@ from zero_os.native_store_backend import (
     status as nsb_status,
 )
 from zero_os.native_store_desktop import (
+    compositor_set as nsd_compositor_set,
+    desktop_session_set as nsd_desktop_session_set,
+    desktop_status as nsd_desktop_status,
+    window_action as nsd_window_action,
+    desktop_window_open as nsd_desktop_window_open,
+    window_layer_set as nsd_window_layer_set,
     launch as nsd_launch,
     scaffold as nsd_scaffold,
+)
+from zero_os.native_platform import maximize as np_maximize, status as np_status
+from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, autonomy_status
+from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
+from zero_os.approval_workflow import decide as zero_ai_approval_decide, status as zero_ai_approval_status
+from zero_os.assistant_job_runner import schedule as zero_ai_job_schedule, status as zero_ai_job_status, tick as zero_ai_job_tick
+from zero_os.browser_session_connector import browser_session_status as zero_ai_browser_session_status
+from zero_os.observation_layer import collect_observations
+from zero_os.playbook_memory import status as zero_ai_playbook_status
+from zero_os.production_platform_ops import (
+    adversarial_deployed_drill as ppo_adversarial_deployed_drill,
+    backend_deploy_posture as ppo_backend_deploy_posture,
+    compatibility_daily_use as ppo_compatibility_daily_use,
+    desktop_ux_loop as ppo_desktop_ux_loop,
+    kernel_runtime_depth as ppo_kernel_runtime_depth,
+    maximize as ppo_maximize,
+    signed_native_lane as ppo_signed_native_lane,
 )
 from zero_os.native_store_enterprise_ops import (
     backend_prod_set as nseo_backend_prod_set,
@@ -444,6 +474,9 @@ from zero_os.native_app_store import (
     upgrade as nas_upgrade,
     verify_artifact as nas_verify_artifact,
 )
+from zero_os.task_executor import run_task as zero_ai_run_task, run_task_resume as zero_ai_run_task_resume
+from zero_os.task_memory import status as zero_ai_task_memory_status
+from zero_os.tool_capability_registry import registry_status as zero_ai_registry_status
 
 
 class SystemCapability:
@@ -456,6 +489,7 @@ class SystemCapability:
             "system optimize all",
             "auto optimize",
             "auto merge",
+            "smart merge",
             "ai files smart",
             "list files",
             "show files",
@@ -538,6 +572,7 @@ class SystemCapability:
             "zero ai security",
             "zero ai brain awareness",
             "zero ai fix all",
+            "zero ai autonomy",
             "go fix all",
             "fix all now",
             "zero ai identity",
@@ -551,6 +586,15 @@ class SystemCapability:
             "silicon awareness machine",
             "strong persistent long-term memory",
             "zero ai gap",
+            "zero ai ask",
+            "zero ai api",
+            "zero ai approvals",
+            "zero ai browser",
+            "zero ai jobs",
+            "zero ai playbooks",
+            "zero ai tasks",
+            "zero ai tools",
+            "zero ai observe",
             "cover gap",
             "enterprise key",
             "immutable audit",
@@ -588,6 +632,9 @@ class SystemCapability:
             "kernel net protocol",
             "kernel input",
             "kernel display",
+            "kernel process isolation",
+            "kernel process",
+            "kernel syscall",
             "kernel acpi",
             "kernel apic",
             "kernel smp",
@@ -621,6 +668,10 @@ class SystemCapability:
             "platform blueprint",
             "idea to platform",
             "native store",
+            "native platform",
+            "native desktop",
+            "native compositor",
+            "production platform",
         )
         text = task.text.lower()
         return any(k in text for k in keys)
@@ -656,6 +707,38 @@ class SystemCapability:
             return Result(self.name, json.dumps(kernel_foundation_status(task.cwd), indent=2))
         if text.strip() in {"real os status", "os reality status"}:
             return Result(self.name, json.dumps(real_os_status(task.cwd), indent=2))
+        if text.strip() == "native platform status":
+            return Result(self.name, json.dumps(np_status(task.cwd), indent=2))
+        if text.strip() == "native platform maximize":
+            return Result(self.name, json.dumps(np_maximize(task.cwd), indent=2))
+        ppos = re.match(r"^production platform signed lane\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if ppos:
+            return Result(self.name, json.dumps(ppo_signed_native_lane(task.cwd, ppos.group(1), ppos.group(2)), indent=2))
+        if text.strip() == "production platform backend deploy":
+            return Result(self.name, json.dumps(ppo_backend_deploy_posture(task.cwd), indent=2))
+        if text.strip() == "production platform desktop ux":
+            return Result(self.name, json.dumps(ppo_desktop_ux_loop(task.cwd), indent=2))
+        if text.strip() == "production platform kernel depth":
+            return Result(self.name, json.dumps(ppo_kernel_runtime_depth(task.cwd), indent=2))
+        ppoc = re.match(r"^production platform compatibility\s+app=([A-Za-z0-9._-]+)(?:\s+os=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ppoc:
+            return Result(self.name, json.dumps(ppo_compatibility_daily_use(task.cwd, ppoc.group(1), ppoc.group(2) or ""), indent=2))
+        ppoa = re.match(
+            r"^production platform adversarial drill\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)\s+traffic=(\d+)\s+abuse=(\d+)\s+failures=(\d+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if ppoa:
+            return Result(
+                self.name,
+                json.dumps(
+                    ppo_adversarial_deployed_drill(task.cwd, ppoa.group(1), ppoa.group(2), int(ppoa.group(3)), int(ppoa.group(4)), int(ppoa.group(5))),
+                    indent=2,
+                ),
+            )
+        ppom = re.match(r"^production platform maximize(?:\s+app=([A-Za-z0-9._-]+))?(?:\s+version=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if ppom:
+            return Result(self.name, json.dumps(ppo_maximize(task.cwd, ppom.group(1) or "ZeroFiles", ppom.group(2) or "1.0.0"), indent=2))
         if text.strip() in {"kernel stack status", "kernel runtime status"}:
             return Result(self.name, json.dumps(kernel_stack_status(task.cwd), indent=2))
         ks_enq = re.match(
@@ -736,6 +819,34 @@ class SystemCapability:
             smp = None if not ktop.group(3) else (ktop.group(3).lower() == "on")
             cpus = None if not ktop.group(4) else int(ktop.group(4))
             return Result(self.name, json.dumps(platform_topology_set(task.cwd, acpi, apic, smp, cpus), indent=2))
+        kproc = re.match(r"^kernel process spawn\s+name=(.+?)(?:\s+priv=(user|kernel))?$", raw.strip(), flags=re.IGNORECASE)
+        if kproc:
+            return Result(self.name, json.dumps(process_spawn(task.cwd, kproc.group(1), kproc.group(2) or "user"), indent=2))
+        kpexit = re.match(r"^kernel process exit\s+pid=(\d+)$", text.strip(), flags=re.IGNORECASE)
+        if kpexit:
+            return Result(self.name, json.dumps(process_exit(task.cwd, int(kpexit.group(1))), indent=2))
+        kiso = re.match(
+            r"^kernel process isolation set\s+mode=(shared|isolated|sandboxed)\s+split=(on|off)\s+syscalls=(on|off)$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if kiso:
+            return Result(
+                self.name,
+                json.dumps(
+                    process_isolation_set(
+                        task.cwd,
+                        kiso.group(1),
+                        kiso.group(2).lower() == "on",
+                        kiso.group(3).lower() == "on",
+                    ),
+                    indent=2,
+                ),
+            )
+        kall = re.match(r"^kernel syscall allowlist set\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if kall:
+            names = [item.strip() for item in kall.group(1).split(",") if item.strip()]
+            return Result(self.name, json.dumps(syscall_allowlist_set(task.cwd, names), indent=2))
         if text.strip() == "kernel uefi status":
             return Result(self.name, json.dumps(uefi_status(task.cwd), indent=2))
         if text.strip() == "kernel uefi scaffold":
@@ -1270,6 +1381,28 @@ class SystemCapability:
             return Result(self.name, json.dumps(nsb_record_event(task.cwd, nsbe.group(1), payload), indent=2))
         if text.strip() == "native store desktop scaffold":
             return Result(self.name, json.dumps(nsd_scaffold(task.cwd), indent=2))
+        if text.strip() == "native desktop status":
+            return Result(self.name, json.dumps(nsd_desktop_status(task.cwd), indent=2))
+        nsds = re.match(
+            r"^native desktop session set\s+session=(\S+)\s+wm=(\S+)\s+start=(\S+)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if nsds:
+            return Result(self.name, json.dumps(nsd_desktop_session_set(task.cwd, nsds.group(1), nsds.group(2), nsds.group(3)), indent=2))
+        nsdw = re.match(r"^native desktop window open\s+app=(.+?)(?:\s+layer=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if nsdw:
+            return Result(self.name, json.dumps(nsd_desktop_window_open(task.cwd, nsdw.group(1), nsdw.group(2) or "normal"), indent=2))
+        nsdc = re.match(r"^native compositor set\s+mode=(\S+)\s+effects=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsdc:
+            effects = [item.strip() for item in nsdc.group(2).split(",") if item.strip()]
+            return Result(self.name, json.dumps(nsd_compositor_set(task.cwd, nsdc.group(1), effects), indent=2))
+        nsdl = re.match(r"^native desktop window layer\s+app=(.+?)\s+layer=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if nsdl:
+            return Result(self.name, json.dumps(nsd_window_layer_set(task.cwd, nsdl.group(1), nsdl.group(2)), indent=2))
+        nsda = re.match(r"^native desktop window action\s+app=(.+?)\s+action=(minimize|maximize|snap|close)$", raw.strip(), flags=re.IGNORECASE)
+        if nsda:
+            return Result(self.name, json.dumps(nsd_window_action(task.cwd, nsda.group(1), nsda.group(2)), indent=2))
         if text.strip() == "native store desktop launch":
             return Result(self.name, json.dumps(nsd_launch(task.cwd), indent=2))
         nsw = re.match(r"^native store build windows\s+app=([A-Za-z0-9._-]+)\s+version=(\S+)$", raw.strip(), flags=re.IGNORECASE)
@@ -1484,7 +1617,122 @@ class SystemCapability:
             prompt = (ctick.group(1) or "").strip()
             return Result(self.name, json.dumps(consciousness_tick(task.cwd, prompt=prompt), indent=2))
         if text.strip() in {"zero ai fix all", "go fix all", "fix all now"}:
-            return Result(self.name, json.dumps(zero_ai_sync_all(task.cwd), indent=2))
+            rollback_present = (Path(task.cwd).resolve() / ".zero_os" / "production" / "snapshots").exists()
+            gate = autonomy_evaluate(
+                task.cwd,
+                action="fix all now",
+                blast_radius="system",
+                reversible=True,
+                evidence_count=12 if rollback_present else 8,
+                contradictory_signals=0,
+                independent_verifiers=4 if rollback_present else 3,
+                checks={
+                    "security_ready": True,
+                    "backup_present": rollback_present,
+                    "simulation_ready": True,
+                },
+            )
+            if gate["decision"] != "allow":
+                return Result(self.name, json.dumps({"ok": False, "reason": "autonomy_gate", "gate": gate}, indent=2))
+            result = zero_ai_sync_all(task.cwd)
+            autonomy_record(task.cwd, "fix all now", "success" if result.get("ok") else "failed", gate["confidence"]["confidence"])
+            return Result(self.name, json.dumps({"ok": bool(result.get("ok", False)), "gate": gate, "result": result}, indent=2))
+        if text.strip() == "zero ai autonomy status":
+            return Result(self.name, json.dumps(autonomy_status(task.cwd), indent=2))
+        if text.strip() == "zero ai tools status":
+            return Result(self.name, json.dumps(zero_ai_registry_status(), indent=2))
+        if text.strip() == "zero ai observe":
+            return Result(self.name, json.dumps(collect_observations(task.cwd), indent=2))
+        if text.strip() == "zero ai browser status":
+            return Result(self.name, json.dumps(zero_ai_browser_session_status(task.cwd), indent=2))
+        if text.strip() == "zero ai tasks status":
+            return Result(self.name, json.dumps(zero_ai_task_memory_status(task.cwd), indent=2))
+        if text.strip() == "zero ai approvals status":
+            return Result(self.name, json.dumps(zero_ai_approval_status(task.cwd), indent=2))
+        if text.strip() == "zero ai playbooks status":
+            return Result(self.name, json.dumps(zero_ai_playbook_status(task.cwd), indent=2))
+        if text.strip() == "zero ai jobs status":
+            return Result(self.name, json.dumps(zero_ai_job_status(task.cwd), indent=2))
+        if text.strip() == "zero ai jobs tick":
+            return Result(self.name, json.dumps(zero_ai_job_tick(task.cwd), indent=2))
+        if text.strip() == "zero ai api profile status":
+            return Result(self.name, json.dumps(zero_ai_api_profile_status(task.cwd), indent=2))
+        zero_ai_api_set = re.match(
+            r"^zero ai api profile set\s+name=(.+?)\s+base=(.+?)(?:\s+token=(.+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if zero_ai_api_set:
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_api_profile_set(
+                        task.cwd,
+                        zero_ai_api_set.group(1).strip(),
+                        zero_ai_api_set.group(2).strip(),
+                        (zero_ai_api_set.group(3) or "").strip(),
+                    ),
+                    indent=2,
+                ),
+            )
+        zero_ai_approval = re.match(
+            r"^zero ai approval decide\s+id=(.+?)\s+state=(approve|reject)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if zero_ai_approval:
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_approval_decide(
+                        task.cwd,
+                        zero_ai_approval.group(1).strip(),
+                        zero_ai_approval.group(2).strip().lower() == "approve",
+                    ),
+                    indent=2,
+                ),
+            )
+        zero_ai_job_add = re.match(r"^zero ai job add\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if zero_ai_job_add:
+            return Result(self.name, json.dumps(zero_ai_job_schedule(task.cwd, zero_ai_job_add.group(1).strip()), indent=2))
+        if text.strip() == "zero ai ask resume":
+            return Result(self.name, json.dumps(zero_ai_run_task_resume(task.cwd), indent=2))
+        zero_ai_ask = re.match(r"^zero ai ask\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if zero_ai_ask:
+            return Result(self.name, json.dumps(zero_ai_run_task(task.cwd, zero_ai_ask.group(1).strip()), indent=2))
+        autonomy_eval = re.match(
+            r"^zero ai autonomy evaluate\s+action=(.+?)\s+radius=(.+?)\s+reversible=(on|off)\s+evidence=(\d+)\s+contradictions=(\d+)\s+verifiers=(\d+)$",
+            text.strip(),
+            flags=re.IGNORECASE,
+        )
+        if autonomy_eval:
+            action = autonomy_eval.group(1).strip()
+            radius = autonomy_eval.group(2).strip()
+            reversible = autonomy_eval.group(3).strip().lower() == "on"
+            evidence = int(autonomy_eval.group(4))
+            contradictions = int(autonomy_eval.group(5))
+            verifiers = int(autonomy_eval.group(6))
+            checks = {
+                "simulation_ready": evidence > 0,
+                "policy_clear": contradictions == 0,
+                "verifiers_ready": verifiers > 0,
+            }
+            return Result(
+                self.name,
+                json.dumps(
+                    autonomy_evaluate(
+                        task.cwd,
+                        action=action,
+                        blast_radius=radius,
+                        reversible=reversible,
+                        evidence_count=evidence,
+                        contradictory_signals=contradictions,
+                        independent_verifiers=verifiers,
+                        checks=checks,
+                    ),
+                    indent=2,
+                ),
+            )
         if text.strip() in {"zero ai gap status", "zero ai cover gap status"}:
             return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
         if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
@@ -1756,6 +2004,38 @@ class SystemCapability:
             return Result(self.name, json.dumps(auto_merge_set(task.cwd, False), indent=2))
         if text.strip() == "auto merge run":
             return Result(self.name, json.dumps(auto_merge_queue_run(task.cwd), indent=2))
+        if text.strip() == "smart merge policy status":
+            return Result(self.name, json.dumps(smart_merge_policy_status(task.cwd), indent=2))
+        smart_merge_decide = re.match(
+            r"^smart merge policy decide\s+left=(.+?)\s+right=(.+?)$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if smart_merge_decide:
+            return Result(
+                self.name,
+                json.dumps(
+                    smart_merge_policy_decide(
+                        task.cwd,
+                        smart_merge_decide.group(1).strip(),
+                        smart_merge_decide.group(2).strip(),
+                    ),
+                    indent=2,
+                ),
+            )
+        smart_merge = re.match(
+            r"^smart merge files\s+left=(.+?)\s+right=(.+?)(?:\s+out=(.+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if smart_merge:
+            return Result(
+                self.name,
+                json.dumps(
+                    merge_files_smart(task.cwd, smart_merge.group(1).strip(), smart_merge.group(2).strip(), (smart_merge.group(3) or "").strip()),
+                    indent=2,
+                ),
+            )
         if text.strip() == "ai files smart status":
             return Result(self.name, json.dumps(ai_files_smart_status(task.cwd), indent=2))
         ai_files_on_m = re.match(r"^ai files smart on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
@@ -2250,6 +2530,9 @@ class SystemCapability:
             "- auto merge on [threshold=<0.50..0.99>]\n"
             "- auto merge off\n"
             "- auto merge run\n"
+            "- smart merge policy status\n"
+            "- smart merge policy decide left=<path> right=<path>\n"
+            "- smart merge files left=<path> right=<path> [out=<path>]\n"
             "- ai files smart status\n"
             "- ai files smart on [interval=<minutes>]\n"
             "- ai files smart off\n"
@@ -2542,6 +2825,22 @@ class SystemCapability:
             "- architecture measure\n"
             "- architecture explain\n"
             "- zero ai fix all\n"
+            "- zero ai autonomy status\n"
+            "- zero ai autonomy evaluate action=<text> radius=<scope> reversible=<on|off> evidence=<n> contradictions=<n> verifiers=<n>\n"
+            "- zero ai tools status\n"
+            "- zero ai observe\n"
+            "- zero ai browser status\n"
+            "- zero ai api profile status\n"
+            "- zero ai api profile set name=<name> base=<url> [token=<token>]\n"
+            "- zero ai approvals status\n"
+            "- zero ai approval decide id=<id> state=<approve|reject>\n"
+            "- zero ai jobs status\n"
+            "- zero ai jobs tick\n"
+            "- zero ai job add <request>\n"
+            "- zero ai playbooks status\n"
+            "- zero ai tasks status\n"
+            "- zero ai ask resume\n"
+            "- zero ai ask <request>\n"
             "- fix all now\n"
             "- security trust init\n"
             "- enterprise security status\n"

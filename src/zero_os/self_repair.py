@@ -4,9 +4,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
 from zero_os.antivirus import monitor_set
 from zero_os.cure_firewall_agent import run_cure_firewall_agent
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, os_readiness
+from zero_os.runtime_smart_logic import recovery_decision
 from zero_os.triad_balance import triad_ops_set, triad_ops_status, triad_ops_tick
 
 
@@ -52,8 +54,10 @@ def self_repair_set(cwd: str, enabled: bool, interval_seconds: int | None = None
 
 
 def self_repair_run(cwd: str) -> dict:
+    health_before = capture_health_snapshot(cwd)
     actions: list[str] = []
     readiness_before = os_readiness(cwd)
+    logic = recovery_decision(cwd, True, readiness_before.get("score", 0) >= 40, "system")
 
     if readiness_before.get("score", 0) < 100:
         r = apply_missing_fix(cwd)
@@ -84,6 +88,18 @@ def self_repair_run(cwd: str) -> dict:
     st["last_ok"] = ok
     st["last_actions"] = actions
     _state_path(cwd).write_text(json.dumps(st, indent=2) + "\n", encoding="utf-8")
+    autonomy_record(
+        cwd,
+        "self repair run",
+        "success" if ok else "failed",
+        float(logic.get("confidence", 0.0)),
+        rollback_used=False,
+        recovery_seconds=8.0 if ok else 45.0,
+        blast_radius="system",
+        verification_passed=ok,
+        health_before=health_before,
+        health_after=capture_health_snapshot(cwd),
+    )
 
     return {
         "ok": ok,
@@ -92,6 +108,7 @@ def self_repair_run(cwd: str) -> dict:
         "readiness_after": readiness_after.get("score", 0),
         "triad_ok": triad.get("ok", False),
         "triad_balanced": triad.get("report", {}).get("balanced", False),
+        "smart_logic": logic,
     }
 
 

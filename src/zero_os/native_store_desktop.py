@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
+
+from zero_os.kernel_rnd.runtime_stack import process_exit, process_spawn
 
 
 HTML = """<!doctype html>
@@ -43,15 +46,59 @@ HTML = """<!doctype html>
 """
 
 
+def _state_root(cwd: str) -> Path:
+    p = Path(cwd).resolve() / ".zero_os" / "desktop"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _state_path(cwd: str) -> Path:
+    return _state_root(cwd) / "session.json"
+
+
+def _default_state() -> dict:
+    return {
+        "session_manager": "zero-desktop-session",
+        "window_manager": "stacked-shell",
+        "compositor": {"enabled": True, "mode": "layer-compositor", "effects": ["snap", "stack", "blur"]},
+        "start_menu": {"style": "layered", "search": True, "pins": ["Zero Files", "Zero Terminal", "Zero Store"]},
+        "windows": [],
+        "updated_utc": "",
+    }
+
+
+def _load_state(cwd: str) -> dict:
+    p = _state_path(cwd)
+    if not p.exists():
+        data = _default_state()
+        p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return data
+    try:
+        data = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        data = _default_state()
+    for k, v in _default_state().items():
+        data.setdefault(k, v)
+    p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return data
+
+
+def _save_state(cwd: str, state: dict) -> None:
+    state["updated_utc"] = datetime.now(timezone.utc).isoformat()
+    _state_path(cwd).write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
 def scaffold(cwd: str) -> dict:
     root = Path(cwd).resolve() / "build" / "native_store_prod" / "desktop_shell"
     root.mkdir(parents=True, exist_ok=True)
+    state = _load_state(cwd)
     files = {
         root / "index.html": HTML,
         root / "app.json": json.dumps(
             {
                 "window": {"width": 1280, "height": 820, "title": "Zero Native Store"},
                 "integrations": {"protocol_handlers": ["zero-store://"], "notifications": True, "tray": True},
+                "desktop": state,
             },
             indent=2,
         )
@@ -62,6 +109,86 @@ def scaffold(cwd: str) -> dict:
         path.write_text(content, encoding="utf-8")
         created.append(str(path))
     return {"ok": True, "root": str(root), "created": created}
+
+
+def desktop_session_set(cwd: str, session_manager: str, window_manager: str, start_menu_style: str) -> dict:
+    state = _load_state(cwd)
+    state["session_manager"] = session_manager.strip()
+    state["window_manager"] = window_manager.strip()
+    state["start_menu"]["style"] = start_menu_style.strip()
+    _save_state(cwd, state)
+    return {"ok": True, "desktop": state}
+
+
+def desktop_window_open(cwd: str, app: str, layer: str = "normal") -> dict:
+    state = _load_state(cwd)
+    proc = process_spawn(cwd, app.strip(), "user")
+    rec = {
+        "app": app.strip(),
+        "layer": layer.strip(),
+        "state": "open",
+        "z": len(state["windows"]) + 1,
+        "snapped": False,
+        "pid": proc.get("process", {}).get("pid"),
+    }
+    state["windows"].append(rec)
+    _save_state(cwd, state)
+    return {"ok": True, "window": rec, "count": len(state["windows"]), "process": proc.get("process", {})}
+
+
+def window_action(cwd: str, app: str, action: str) -> dict:
+    state = _load_state(cwd)
+    name = app.strip().lower()
+    action_n = action.strip().lower()
+    if action_n not in {"minimize", "maximize", "snap", "close"}:
+        return {"ok": False, "reason": "action must be minimize|maximize|snap|close"}
+    for rec in reversed(state["windows"]):
+        if str(rec.get("app", "")).lower() == name:
+            if action_n == "close":
+                rec["state"] = "closed"
+                if rec.get("pid") is not None:
+                    process_exit(cwd, int(rec["pid"]))
+            elif action_n == "minimize":
+                rec["state"] = "minimized"
+            elif action_n == "maximize":
+                rec["state"] = "maximized"
+                rec["layer"] = "foreground"
+            elif action_n == "snap":
+                rec["snapped"] = True
+                rec["state"] = "open"
+            rec["last_action"] = action_n
+            rec["z"] = max([int(w.get("z", 0)) for w in state["windows"]] + [0]) + 1
+            _save_state(cwd, state)
+            return {"ok": True, "window": rec}
+    return {"ok": False, "reason": "window not found"}
+
+
+def compositor_set(cwd: str, mode: str, effects: list[str]) -> dict:
+    state = _load_state(cwd)
+    state["compositor"] = {
+        "enabled": True,
+        "mode": mode.strip(),
+        "effects": [effect.strip() for effect in effects if effect.strip()],
+    }
+    _save_state(cwd, state)
+    return {"ok": True, "desktop": state}
+
+
+def window_layer_set(cwd: str, app: str, layer: str) -> dict:
+    state = _load_state(cwd)
+    name = app.strip().lower()
+    for rec in reversed(state["windows"]):
+        if str(rec.get("app", "")).lower() == name:
+            rec["layer"] = layer.strip()
+            rec["z"] = max([int(w.get("z", 0)) for w in state["windows"]] + [0]) + 1
+            _save_state(cwd, state)
+            return {"ok": True, "window": rec}
+    return {"ok": False, "reason": "window not found"}
+
+
+def desktop_status(cwd: str) -> dict:
+    state = _load_state(cwd)
+    return {"ok": True, "desktop": state, "window_count": len(state["windows"])}
 
 
 def launch(cwd: str, backend_url: str = "http://127.0.0.1:8088/health") -> dict:

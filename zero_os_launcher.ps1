@@ -246,6 +246,65 @@ function Native-StoreBuildLinux {
   if ($parts.Length -lt 2) { throw "Use native-store-build-linux:<app>,<version>" }
   python src/main.py "native store build linux app=$($parts[0]) version=$($parts[1])"
 }
+function Start-ShellBridge {
+  $running = Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue
+  if ($running) {
+    Write-Output "Shell bridge already running on :8766"
+    return
+  }
+  python -c "from zero_os.native_shell_bridge import init_shell_bridge_auth; print(init_shell_bridge_auth(r'$Base')['config_js'])" | Out-Null
+  Start-Process -FilePath python -ArgumentList "-c","from zero_os.native_shell_bridge import run_shell_bridge; run_shell_bridge(r'$Base')" -WorkingDirectory $Base | Out-Null
+  Start-Sleep -Seconds 1
+  Write-Output "Shell bridge started on :8766"
+}
+function Stop-ShellBridge {
+  $conns = Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue
+  if (-not $conns) {
+    Write-Output "Shell bridge not running"
+    return
+  }
+  $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($procId in $procIds) {
+    try { Stop-Process -Id $procId -Force -ErrorAction Stop } catch {}
+  }
+  Write-Output "Shell bridge stopped"
+}
+function Native-PlatformStatus { python src/main.py "native platform status" }
+function Native-PlatformMaximize { python src/main.py "native platform maximize" }
+function Native-DesktopStatus { python src/main.py "native desktop status" }
+function Native-DesktopWindow {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-desktop-window:<app>[,<layer>]" }
+  $parts = $ArgsText.Split(",")
+  $app = $parts[0]
+  $layer = if ($parts.Length -ge 2 -and $parts[1]) { $parts[1] } else { "normal" }
+  python src/main.py "native desktop window open app=$app layer=$layer"
+}
+function Native-DesktopAction {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-desktop-action:<app>,<minimize|maximize|snap|close>" }
+  $parts = $ArgsText.Split(",")
+  if ($parts.Length -lt 2) { throw "Use native-desktop-action:<app>,<minimize|maximize|snap|close>" }
+  python src/main.py "native desktop window action app=$($parts[0]) action=$($parts[1])"
+}
+function Native-Compositor {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use native-compositor:<mode>,<effect1|effect2|...>" }
+  $parts = $ArgsText.Split(",")
+  if ($parts.Length -lt 2) { throw "Use native-compositor:<mode>,<effect1|effect2|...>" }
+  $mode = $parts[0]
+  $effects = ($parts[1..($parts.Length-1)] -join ",")
+  python src/main.py "native compositor set mode=$mode effects=$effects"
+}
+function Kernel-ProcessSpawn {
+  param([string]$ArgsText)
+  if (-not $ArgsText) { throw "Use kernel-process-spawn:<name>[,<user|kernel>]" }
+  $parts = $ArgsText.Split(",")
+  $name = $parts[0]
+  $priv = if ($parts.Length -ge 2 -and $parts[1]) { $parts[1] } else { "user" }
+  python src/main.py "kernel process spawn name=$name priv=$priv"
+}
+function Kernel-IsolationMax { python src/main.py "kernel process isolation set mode=sandboxed split=on syscalls=on" }
 
 function Show-Menu {
   @"
@@ -274,11 +333,21 @@ Actions:
   native-store-desktop      Generate desktop client shell
   native-store-build-windows:<a,v> Invoke Windows MSIX/MSI build path
   native-store-build-linux:<a,v> Invoke Linux DEB/RPM build path
+  native-platform-status    Show integrated native-platform status
+  native-platform-max       Maximize integrated native-platform state
+  native-desktop-status     Show native desktop session/compositor state
+  native-desktop-window:<a,l> Open a desktop window for app/layer
+  native-desktop-action:<a,x> Apply minimize/maximize/snap/close
+  native-compositor:<m,e>   Set compositor mode and effects
+  kernel-process-spawn:<n,p> Spawn kernel runtime process entry
+  kernel-isolation-max      Enable sandboxed process isolation + syscall filter
   suggest:<goal>            Suggest up to 9 best actions for user goal
 
   open-dashboard            Start local dashboard server and print URL
   start-dashboard           Start local dashboard server only
   stop-dashboard            Stop local dashboard server
+  start-shell-bridge        Start local shell action bridge
+  stop-shell-bridge         Stop local shell action bridge
 
   start-daemon              Start Zero-AI daemon
   stop-daemon               Stop Zero-AI daemon
@@ -346,11 +415,21 @@ switch -Regex ($Action) {
   "^native-store-desktop$" { Native-StoreDesktop; break }
   "^native-store-build-windows:(.+)$" { Native-StoreBuildWindows -ArgsText $Matches[1]; break }
   "^native-store-build-linux:(.+)$" { Native-StoreBuildLinux -ArgsText $Matches[1]; break }
+  "^native-platform-status$" { Native-PlatformStatus; break }
+  "^native-platform-max$" { Native-PlatformMaximize; break }
+  "^native-desktop-status$" { Native-DesktopStatus; break }
+  "^native-desktop-window:(.+)$" { Native-DesktopWindow -ArgsText $Matches[1]; break }
+  "^native-desktop-action:(.+)$" { Native-DesktopAction -ArgsText $Matches[1]; break }
+  "^native-compositor:(.+)$" { Native-Compositor -ArgsText $Matches[1]; break }
+  "^kernel-process-spawn:(.+)$" { Kernel-ProcessSpawn -ArgsText $Matches[1]; break }
+  "^kernel-isolation-max$" { Kernel-IsolationMax; break }
   "^suggest:(.+)$" { Suggest-Actions -Goal $Matches[1]; break }
 
   "^open-dashboard$" { Open-Dashboard; break }
   "^start-dashboard$" { Start-DashboardServer; break }
   "^stop-dashboard$" { Stop-DashboardServer; break }
+  "^start-shell-bridge$" { Start-ShellBridge; break }
+  "^stop-shell-bridge$" { Stop-ShellBridge; break }
 
   "^start-daemon$" { Daemon-Start; break }
   "^stop-daemon$" { Daemon-Stop; break }

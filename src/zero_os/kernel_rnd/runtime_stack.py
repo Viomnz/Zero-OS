@@ -19,6 +19,14 @@ def _default_state() -> dict:
     return {
         "scheduler": {"queue": [], "last_tid": 0, "tick_count": 0, "current": None},
         "memory": {"total_pages": 4096, "allocations": {}},
+        "processes": {
+            "last_pid": 0,
+            "table": [],
+            "isolation_mode": "shared",
+            "user_kernel_split": False,
+            "syscall_filtering": False,
+            "syscall_allowlist": ["proc_spawn", "proc_exit", "file_open", "file_read", "file_write"],
+        },
         "drivers": {"loaded": {}},
         "filesystem": {"mounts": {}},
         "network": {"interfaces": {}, "routes": []},
@@ -80,6 +88,7 @@ def kernel_stack_status(cwd: str) -> dict:
             "tick_count": int(s["scheduler"]["tick_count"]),
             "current": s["scheduler"]["current"],
         },
+        "processes": s["processes"],
         "memory": {
             "total_pages": total,
             "used_pages": used,
@@ -114,10 +123,30 @@ def scheduler_enqueue(cwd: str, name: str, priority: int = 0, timeslice_ms: int 
     return {"ok": True, "enqueued": s["scheduler"]["queue"][-1], "queue_depth": len(s["scheduler"]["queue"])}
 
 
+def _scheduler_enqueue_for_process(state: dict, name: str, pid: int, priority: int = 0, timeslice_ms: int = 10) -> dict:
+    tid = int(state["scheduler"]["last_tid"]) + 1
+    state["scheduler"]["last_tid"] = tid
+    rec = {
+        "tid": tid,
+        "pid": int(pid),
+        "name": name.strip(),
+        "priority": int(priority),
+        "timeslice_ms": int(timeslice_ms),
+    }
+    state["scheduler"]["queue"].append(rec)
+    return rec
+
+
 def scheduler_tick(cwd: str) -> dict:
     s = _load(cwd)
     q = s["scheduler"]["queue"]
     if not q:
+        return {"ok": False, "reason": "queue empty"}
+    active = {int(proc.get("pid", -1)) for proc in s["processes"]["table"] if proc.get("state") == "running"}
+    q[:] = [item for item in q if int(item.get("pid", -1)) in {-1, 0} or int(item.get("pid", -1)) in active]
+    if not q:
+        s["scheduler"]["current"] = None
+        _save(cwd, s)
         return {"ok": False, "reason": "queue empty"}
     current = q.pop(0)
     q.append(current)
@@ -148,6 +177,56 @@ def memory_free(cwd: str, owner: str) -> dict:
     released = int(allocs.pop(owner.strip()))
     _save(cwd, s)
     return {"ok": True, "owner": owner.strip(), "released_pages": released}
+
+
+def process_isolation_set(cwd: str, mode: str, user_kernel_split: bool, syscall_filtering: bool) -> dict:
+    s = _load(cwd)
+    mode_n = mode.strip().lower()
+    if mode_n not in {"shared", "isolated", "sandboxed"}:
+        return {"ok": False, "reason": "mode must be shared|isolated|sandboxed"}
+    s["processes"]["isolation_mode"] = mode_n
+    s["processes"]["user_kernel_split"] = bool(user_kernel_split)
+    s["processes"]["syscall_filtering"] = bool(syscall_filtering)
+    _save(cwd, s)
+    return {"ok": True, "processes": s["processes"]}
+
+
+def syscall_allowlist_set(cwd: str, names: list[str]) -> dict:
+    s = _load(cwd)
+    cleaned = [str(name).strip() for name in names if str(name).strip()]
+    if not cleaned:
+        return {"ok": False, "reason": "allowlist cannot be empty"}
+    s["processes"]["syscall_allowlist"] = cleaned
+    _save(cwd, s)
+    return {"ok": True, "processes": s["processes"]}
+
+
+def process_spawn(cwd: str, name: str, privilege: str = "user") -> dict:
+    s = _load(cwd)
+    priv = privilege.strip().lower()
+    if priv not in {"user", "kernel"}:
+        return {"ok": False, "reason": "privilege must be user|kernel"}
+    pid = int(s["processes"]["last_pid"]) + 1
+    s["processes"]["last_pid"] = pid
+    rec = {"pid": pid, "name": name.strip(), "state": "running", "privilege": priv}
+    s["processes"]["table"].append(rec)
+    sched = _scheduler_enqueue_for_process(s, rec["name"], pid)
+    _save(cwd, s)
+    return {"ok": True, "process": rec, "scheduled": sched}
+
+
+def process_exit(cwd: str, pid: int) -> dict:
+    s = _load(cwd)
+    for rec in s["processes"]["table"]:
+        if int(rec.get("pid", -1)) == int(pid):
+            rec["state"] = "exited"
+            s["scheduler"]["queue"] = [item for item in s["scheduler"]["queue"] if int(item.get("pid", -1)) != int(pid)]
+            current = s["scheduler"].get("current")
+            if isinstance(current, dict) and current.get("pid") == int(pid):
+                s["scheduler"]["current"] = None
+            _save(cwd, s)
+            return {"ok": True, "process": rec}
+    return {"ok": False, "reason": "pid not found"}
 
 
 def driver_load(cwd: str, name: str, version: str = "dev") -> dict:

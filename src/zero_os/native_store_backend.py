@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from zero_os.production_core import sync_path_smart
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -174,7 +176,14 @@ WantedBy=multi-user.target
     }
     created = []
     for path, content in files.items():
-        path.write_text(content, encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            tmp = path.with_suffix(path.suffix + ".incoming")
+            tmp.write_text(content, encoding="utf-8")
+            sync_path_smart(cwd, str(tmp), str(path))
+            tmp.unlink(missing_ok=True)
+        else:
+            path.write_text(content, encoding="utf-8")
         created.append(str(path))
     return {"ok": True, "created": created, "root": str(root)}
 
@@ -192,8 +201,8 @@ def restore_db(cwd: str, path: str) -> dict:
     src = Path(path).resolve()
     if not src.exists():
         return {"ok": False, "reason": "backup not found"}
-    shutil.copy2(src, _db_path(cwd))
-    return {"ok": True, "restored_from": str(src), "db": str(_db_path(cwd))}
+    sync = sync_path_smart(cwd, str(src), str(_db_path(cwd)))
+    return {"ok": bool(sync.get("ok", False)), "restored_from": str(src), "db": str(_db_path(cwd)), "sync": sync}
 
 
 def run_server(cwd: str, host: str = "127.0.0.1", port: int = 8088) -> dict:

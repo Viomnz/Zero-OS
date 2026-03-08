@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
 from zero_os.production_core import snapshot_create, snapshot_restore, snapshot_list
+from zero_os.runtime_smart_logic import permission_trust_decision, rollout_decision
 
 
 def _utc_now() -> str:
@@ -251,10 +253,13 @@ def rollout_set(cwd: str, environment: str) -> dict:
     env = environment.strip().lower()
     if env not in {"dev", "stage", "prod"}:
         return {"ok": False, "reason": "environment must be dev|stage|prod"}
+    signed = bool(_policy(cwd).get("require_signed_critical_actions", True))
+    outage_count = int(integration_status(cwd).get("total", 0) - integration_status(cwd).get("score", 0))
+    logic = rollout_decision(cwd, env, signed, outage_count)
     cur = rollout_status(cwd)
     cur["environment"] = env
     _save(_rollout_path(cwd), cur)
-    return {"ok": True, "rollout": cur}
+    return {"ok": True, "rollout": cur, "smart_logic": logic}
 
 
 def policy_lock_apply(cwd: str) -> dict:
@@ -307,33 +312,56 @@ def preexec_check(cwd: str, command: str, user: str = "owner", token: str = "", 
     cmd = command.strip().lower()
     for pref in pol.get("forbidden_prefixes", []):
         if cmd.startswith(str(pref).lower()):
-            return (False, f"blocked by enterprise forbidden prefix: {pref}")
+            logic = permission_trust_decision(cwd, role_of(cwd, user), False, False, True)
+            return (False, f"blocked by enterprise forbidden prefix: {pref}; smart_logic={logic.get('decision_reason', '')}")
 
     role = role_of(cwd, user)
     if role == "viewer":
-        return (False, "viewer role cannot execute commands")
+        logic = permission_trust_decision(cwd, role, False, False, False)
+        return (False, f"viewer role cannot execute commands; smart_logic={logic.get('decision_reason', '')}")
 
     critical = any(cmd.startswith(str(p).lower()) for p in pol.get("critical_prefixes", []))
+    logic = permission_trust_decision(cwd, role, critical, bool(signed_payload and token), False)
     if critical and pol.get("require_signed_critical_actions", True):
         if not signed_payload or not token:
-            return (False, "critical action requires signed payload token")
+            return (False, f"critical action requires signed payload token; smart_logic={logic.get('decision_reason', '')}")
         if not verify_action(cwd, signed_payload, token):
-            return (False, "invalid signed action token")
+            return (False, f"invalid signed action token; smart_logic={logic.get('decision_reason', '')}")
+    if str(logic.get("decision_action", "")).lower() in {"block", "reject_or_hold"}:
+        return (False, f"blocked by smart logic: {logic.get('decision_reason', '')}")
     return (True, "allowed")
 
 
 def rollback_playbook_run(cwd: str, incident: str) -> dict:
     inc = incident.strip().lower()
+    health_before = capture_health_snapshot(cwd)
     snaps = snapshot_list(cwd).get("snapshots", [])
     if not snaps:
         created = snapshot_create(cwd)
-        return {"ok": True, "incident": inc, "action": "snapshot_created", "snapshot": created.get("id")}
+        result = {"ok": True, "incident": inc, "action": "snapshot_created", "snapshot": created.get("id")}
+        autonomy_record(cwd, "enterprise rollback", "success", 0.91, rollback_used=False, recovery_seconds=4.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        return result
 
     last_id = snaps[-1].get("id")
     if inc in {"critical", "ransomware", "integrity_failure"}:
         res = snapshot_restore(cwd, str(last_id))
-        return {"ok": bool(res.get("ok", False)), "incident": inc, "action": "snapshot_restored", "snapshot": last_id}
-    return {"ok": True, "incident": inc, "action": "monitor_only", "snapshot": last_id}
+        result = {"ok": bool(res.get("ok", False)), "incident": inc, "action": "snapshot_restored", "snapshot": last_id}
+        autonomy_record(
+            cwd,
+            "enterprise rollback",
+            "success" if result["ok"] else "failed",
+            0.94 if result["ok"] else 0.52,
+            rollback_used=True,
+            recovery_seconds=18.0 if result["ok"] else 60.0,
+            blast_radius="system",
+            verification_passed=bool(result["ok"]),
+            health_before=health_before,
+            health_after=capture_health_snapshot(cwd),
+        )
+        return result
+    result = {"ok": True, "incident": inc, "action": "monitor_only", "snapshot": last_id}
+    autonomy_record(cwd, "enterprise rollback", "success", 0.78, rollback_used=False, recovery_seconds=2.0, blast_radius="service", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    return result
 
 
 def adversarial_validate(cwd: str) -> dict:

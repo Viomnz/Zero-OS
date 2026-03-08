@@ -1444,6 +1444,417 @@ def auto_merge_queue_run(cwd: str) -> dict:
     }
 
 
+def _smart_merge_root(cwd: str) -> Path:
+    p = _state_root(cwd) / "smart_merge"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _smart_merge_policy_path(cwd: str) -> Path:
+    return _smart_merge_root(cwd) / "policy.json"
+
+
+def smart_merge_policy_status(cwd: str) -> dict:
+    default = {
+        "version": 1,
+        "merge_extensions": [
+            ".json", ".md", ".markdown", ".txt", ".py", ".js", ".ts", ".tsx", ".jsx",
+            ".java", ".c", ".cc", ".cpp", ".h", ".hpp", ".cs", ".go", ".rs", ".rb",
+            ".php", ".swift", ".kt", ".sh", ".ps1", ".yaml", ".yml", ".xml", ".html",
+        ],
+        "merge_name_suffixes": [".msixmanifest", ".plist", ".wxs", ".spec"],
+        "replace_extensions": [".lock", ".sig", ".pem", ".crt", ".cer", ".der"],
+        "skip_extensions": [".db", ".sqlite", ".sqlite3", ".zip", ".gz", ".rar", ".7z", ".exe", ".dll", ".so", ".dylib", ".bin"],
+        "sensitive_path_markers": ["cert", "key", "secret", "signature", "token"],
+        "binary_replace_max_bytes": 10485760,
+    }
+    data = _load(_smart_merge_policy_path(cwd), default)
+    _save(_smart_merge_policy_path(cwd), data)
+    return data
+
+
+def smart_merge_policy_decide(cwd: str, left_path: str, right_path: str) -> dict:
+    base = Path(cwd).resolve()
+    left = (base / left_path).resolve() if not Path(left_path).is_absolute() else Path(left_path).resolve()
+    right = (base / right_path).resolve() if not Path(right_path).is_absolute() else Path(right_path).resolve()
+    policy = smart_merge_policy_status(cwd)
+    missing = []
+    if not left.exists():
+        missing.append(str(left))
+    if not right.exists():
+        missing.append(str(right))
+    if missing:
+        return {"ok": False, "decision": "skip", "reason": "file_missing", "missing": missing}
+
+    ext = left.suffix.lower() or right.suffix.lower()
+    names = [left.name.lower(), right.name.lower()]
+    rels = [str(p).lower() for p in (left, right)]
+    if any(marker in rel for marker in policy.get("sensitive_path_markers", []) for rel in rels):
+        return {"ok": True, "decision": "replace", "reason": "sensitive_path", "extension": ext}
+    if ext in set(policy.get("skip_extensions", [])):
+        return {"ok": True, "decision": "skip", "reason": "integrity_critical_extension", "extension": ext}
+    if ext in set(policy.get("replace_extensions", [])):
+        return {"ok": True, "decision": "replace", "reason": "deterministic_extension", "extension": ext}
+
+    binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".mp3", ".mp4"}
+    if ext in binary_exts:
+        max_bytes = int(policy.get("binary_replace_max_bytes", 10485760))
+        combined = left.stat().st_size + right.stat().st_size
+        decision = "replace" if combined <= max_bytes else "skip"
+        reason = "binary_small_enough_to_replace" if decision == "replace" else "binary_too_large"
+        return {"ok": True, "decision": decision, "reason": reason, "extension": ext, "bytes": combined}
+
+    if ext in set(policy.get("merge_extensions", [])):
+        return {"ok": True, "decision": "merge", "reason": "mergeable_extension", "extension": ext}
+    if any(name.endswith(suffix) for suffix in policy.get("merge_name_suffixes", []) for name in names):
+        return {"ok": True, "decision": "merge", "reason": "mergeable_name_suffix", "extension": ext}
+
+    return {"ok": True, "decision": "replace", "reason": "unknown_extension_safe_default", "extension": ext}
+
+
+def sync_path_smart(cwd: str, source_path: str, target_path: str) -> dict:
+    base = Path(cwd).resolve()
+    source = (base / source_path).resolve() if not Path(source_path).is_absolute() else Path(source_path).resolve()
+    target = (base / target_path).resolve() if not Path(target_path).is_absolute() else Path(target_path).resolve()
+    if not source.exists():
+        return {"ok": False, "reason": "source missing", "source": str(source), "target": str(target)}
+
+    if source.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+        results = []
+        for item in sorted(source.rglob("*")):
+            rel = item.relative_to(source)
+            dst = target / rel
+            if item.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                continue
+            results.append(sync_path_smart(cwd, str(item), str(dst)))
+        summary = {
+            "ok": all(bool(r.get("ok", False)) for r in results) if results else True,
+            "source": str(source),
+            "target": str(target),
+            "kind": "dir",
+            "files": len(results),
+            "merged": sum(1 for r in results if r.get("decision") == "merge"),
+            "replaced": sum(1 for r in results if r.get("decision") == "replace"),
+            "skipped": sum(1 for r in results if r.get("decision") == "skip"),
+            "results": results[:200],
+        }
+        return summary
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        shutil.copy2(source, target)
+        return {
+            "ok": True,
+            "source": str(source),
+            "target": str(target),
+            "kind": "file",
+            "decision": "replace",
+            "strategy": "copy_new",
+        }
+
+    merged = merge_files_smart(cwd, str(target), str(source), str(target))
+    return {
+        "ok": bool(merged.get("ok", False)),
+        "source": str(source),
+        "target": str(target),
+        "kind": "file",
+        "decision": merged.get("decision", ""),
+        "strategy": merged.get("strategy", ""),
+        "reason": merged.get("reason", ""),
+    }
+
+
+def _line_similarity(a: str, b: str) -> float:
+    return _similarity(a, b)
+
+
+def _merge_json_values(left, right):
+    if isinstance(left, dict) and isinstance(right, dict):
+        merged = dict(left)
+        for key, value in right.items():
+            if key in merged:
+                merged[key] = _merge_json_values(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+    if isinstance(left, list) and isinstance(right, list):
+        merged = list(left)
+        for item in right:
+            if item not in merged:
+                merged.append(item)
+        return merged
+    return right if right not in (None, "", [], {}) else left
+
+
+def _smart_merge_json(left_text: str, right_text: str) -> dict | None:
+    try:
+        left_json = json.loads(left_text)
+        right_json = json.loads(right_text)
+    except json.JSONDecodeError:
+        return None
+    merged = _merge_json_values(left_json, right_json)
+    return {
+        "strategy": "json_recursive_merge",
+        "content": json.dumps(merged, indent=2) + "\n",
+        "stats": {
+            "left_only": len(left_json) if isinstance(left_json, dict) else 0,
+            "right_only": len(right_json) if isinstance(right_json, dict) else 0,
+            "merged_lines": len(json.dumps(merged, indent=2).splitlines()),
+        },
+    }
+
+
+def _smart_merge_markdown(left_text: str, right_text: str) -> dict:
+    left_lines = left_text.splitlines()
+    right_lines = right_text.splitlines()
+    merged: list[str] = []
+    seen: list[str] = []
+
+    def append_markdown(lines: list[str], source: str) -> int:
+        added = 0
+        for line in lines:
+            stripped = line.strip()
+            if stripped and any(
+                stripped == prior.strip() or _line_similarity(stripped, prior.strip()) >= 0.97
+                for prior in seen
+            ):
+                continue
+            if stripped.startswith("#") and merged and merged[-1].strip():
+                merged.append("")
+            merged.append(line)
+            seen.append(line)
+            added += 1
+        return added
+
+    left_added = append_markdown(left_lines, "left")
+    if merged and right_lines:
+        if merged[-1].strip():
+            merged.append("")
+        merged.append("## Smart Merge Additions")
+        merged.append("")
+    right_added = append_markdown(right_lines, "right")
+    return {
+        "strategy": "markdown_section_merge",
+        "content": "\n".join(merged).rstrip() + "\n",
+        "stats": {
+            "left_only": left_added,
+            "right_only": max(0, right_added - 1),
+            "merged_lines": len(merged),
+        },
+    }
+
+
+def _is_code_like(path: Path, text: str) -> bool:
+    code_exts = {
+        ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".c", ".cc", ".cpp", ".h", ".hpp",
+        ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".m", ".mm", ".sh", ".ps1",
+    }
+    if path.suffix.lower() in code_exts:
+        return True
+    markers = ("def ", "class ", "function ", "import ", "#include", "public ", "private ")
+    return any(marker in text for marker in markers)
+
+
+def _smart_merge_code(left_text: str, right_text: str) -> dict:
+    left_lines = left_text.splitlines()
+    right_lines = right_text.splitlines()
+    merged: list[str] = []
+    seen_normalized: set[str] = set()
+    import_lines: list[str] = []
+    body_lines: list[str] = []
+
+    def record(line: str, bucket: list[str]) -> bool:
+        normalized = line.strip()
+        if not normalized:
+            bucket.append(line)
+            return True
+        if normalized in seen_normalized:
+            return False
+        seen_normalized.add(normalized)
+        bucket.append(line)
+        return True
+
+    def add_lines(lines: list[str]) -> int:
+        added = 0
+        for line in lines:
+            stripped = line.strip()
+            is_import = stripped.startswith(("import ", "from ", "#include ", "using "))
+            bucket = import_lines if is_import else body_lines
+            if record(line, bucket):
+                added += 1
+        return added
+
+    left_added = add_lines(left_lines)
+    right_added = add_lines(right_lines)
+    merged.extend(import_lines)
+    if import_lines and body_lines and import_lines[-1].strip():
+        merged.append("")
+    merged.extend(body_lines)
+    return {
+        "strategy": "code_symbol_union_merge",
+        "content": "\n".join(merged).rstrip() + "\n",
+        "stats": {
+            "left_only": left_added,
+            "right_only": right_added,
+            "merged_lines": len(merged),
+        },
+    }
+
+
+def _smart_merge_text(left_text: str, right_text: str) -> dict:
+    left_lines = left_text.splitlines()
+    right_lines = right_text.splitlines()
+    merged: list[str] = []
+    seen: list[str] = []
+    left_only = 0
+    right_only = 0
+
+    def append_unique(source_lines: list[str], source_name: str) -> None:
+        nonlocal left_only, right_only
+        for line in source_lines:
+            stripped = line.strip()
+            duplicate = False
+            for prior in seen:
+                if stripped == prior.strip() or _line_similarity(stripped, prior.strip()) >= 0.96:
+                    duplicate = True
+                    break
+            if duplicate:
+                continue
+            merged.append(line)
+            seen.append(line)
+            if source_name == "left":
+                left_only += 1
+            else:
+                right_only += 1
+
+    append_unique(left_lines, "left")
+    if merged and right_lines:
+        merged.append("")
+        merged.append("# Smart merged additions")
+    append_unique(right_lines, "right")
+    return {
+        "strategy": "dedupe_union_merge",
+        "content": "\n".join(merged).rstrip() + "\n",
+        "stats": {
+            "left_only": left_only,
+            "right_only": right_only,
+            "merged_lines": len(merged),
+        },
+    }
+
+
+def merge_files_smart(cwd: str, left_path: str, right_path: str, output_path: str = "") -> dict:
+    base = Path(cwd).resolve()
+    left = (base / left_path).resolve() if not Path(left_path).is_absolute() else Path(left_path).resolve()
+    right = (base / right_path).resolve() if not Path(right_path).is_absolute() else Path(right_path).resolve()
+    if not left.exists() or not left.is_file():
+        return {"ok": False, "reason": "left file missing", "path": str(left)}
+    if not right.exists() or not right.is_file():
+        return {"ok": False, "reason": "right file missing", "path": str(right)}
+
+    decision = smart_merge_policy_decide(cwd, str(left), str(right))
+    if not decision.get("ok", False):
+        return decision
+
+    target = left if not output_path else ((base / output_path).resolve() if not Path(output_path).is_absolute() else Path(output_path).resolve())
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    if decision["decision"] == "skip":
+        report = {
+            "ok": True,
+            "left": str(left),
+            "right": str(right),
+            "target": str(target),
+            "backup": "",
+            "strategy": "policy_skip",
+            "decision": decision["decision"],
+            "reason": decision["reason"],
+            "merged_lines": 0,
+            "left_only": 0,
+            "right_only": 0,
+            "time_utc": _utc_now(),
+        }
+        _save(_smart_merge_root(cwd) / "last_merge.json", report)
+        return report
+
+    if decision["decision"] == "replace":
+        backup = None
+        if target.exists():
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            backup = _smart_merge_root(cwd) / f"{target.name}.{stamp}.bak"
+            shutil.copy2(target, backup)
+        chosen = right
+        shutil.copy2(chosen, target)
+        report = {
+            "ok": True,
+            "left": str(left),
+            "right": str(right),
+            "target": str(target),
+            "backup": str(backup) if backup else "",
+            "strategy": "policy_replace",
+            "decision": decision["decision"],
+            "reason": decision["reason"],
+            "source": str(chosen),
+            "merged_lines": len(chosen.read_text(encoding="utf-8", errors="replace").splitlines()) if chosen.suffix.lower() not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".mp3", ".mp4"} else 0,
+            "left_only": 0,
+            "right_only": 0,
+            "time_utc": _utc_now(),
+        }
+        _save(_smart_merge_root(cwd) / "last_merge.json", report)
+        return report
+
+    left_text = left.read_text(encoding="utf-8", errors="replace")
+    right_text = right.read_text(encoding="utf-8", errors="replace")
+    if left_text == right_text:
+        if target != left:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(left_text, encoding="utf-8")
+        return {
+            "ok": True,
+            "target": str(target),
+            "strategy": "identical",
+            "decision": "merge",
+            "merged_lines": len(left_text.splitlines()),
+            "left_only": 0,
+            "right_only": 0,
+        }
+
+    backup = None
+    if target.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        backup = _smart_merge_root(cwd) / f"{target.name}.{stamp}.bak"
+        shutil.copy2(target, backup)
+    merge_result = _smart_merge_json(left_text, right_text)
+    if merge_result is None:
+        lower_suffix = target.suffix.lower()
+        if lower_suffix in {".md", ".markdown"}:
+            merge_result = _smart_merge_markdown(left_text, right_text)
+        elif _is_code_like(target, left_text) or _is_code_like(target, right_text):
+            merge_result = _smart_merge_code(left_text, right_text)
+        else:
+            merge_result = _smart_merge_text(left_text, right_text)
+
+    content = merge_result["content"]
+    target.write_text(content, encoding="utf-8")
+    report = {
+        "ok": True,
+        "left": str(left),
+        "right": str(right),
+        "target": str(target),
+        "backup": str(backup) if backup else "",
+        "strategy": merge_result["strategy"],
+        "decision": "merge",
+        "merged_lines": merge_result["stats"]["merged_lines"],
+        "left_only": merge_result["stats"]["left_only"],
+        "right_only": merge_result["stats"]["right_only"],
+        "time_utc": _utc_now(),
+    }
+    _save(_smart_merge_root(cwd) / "last_merge.json", report)
+    return report
+
+
 def _ai_files_smart_path(cwd: str) -> Path:
     return _state_root(cwd) / "ai_files_smart.json"
 

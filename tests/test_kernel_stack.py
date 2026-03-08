@@ -91,6 +91,39 @@ class KernelStackTests(unittest.TestCase):
         self.assertTrue(data["platform"]["smp_enabled"])
         self.assertEqual(4, data["platform"]["cpu_count"])
 
+    def test_process_isolation_and_syscall_allowlist(self) -> None:
+        iso = self.highway.dispatch(
+            "kernel process isolation set mode=sandboxed split=on syscalls=on",
+            cwd=str(self.base),
+        )
+        self.assertTrue(json.loads(iso.summary)["ok"])
+        allow = self.highway.dispatch(
+            "kernel syscall allowlist set proc_spawn,proc_exit,file_open,mem_alloc_page",
+            cwd=str(self.base),
+        )
+        self.assertTrue(json.loads(allow.summary)["ok"])
+        status = self.highway.dispatch("kernel stack status", cwd=str(self.base))
+        data = json.loads(status.summary)
+        self.assertEqual("sandboxed", data["processes"]["isolation_mode"])
+        self.assertTrue(data["processes"]["user_kernel_split"])
+        self.assertTrue(data["processes"]["syscall_filtering"])
+        self.assertIn("mem_alloc_page", data["processes"]["syscall_allowlist"])
+
+        spawned = self.highway.dispatch("kernel process spawn name=init priv=user", cwd=str(self.base))
+        sp = json.loads(spawned.summary)
+        self.assertTrue(sp["ok"])
+        self.assertEqual(sp["process"]["pid"], sp["scheduled"]["pid"])
+        tick = self.highway.dispatch("kernel scheduler tick", cwd=str(self.base))
+        tdata = json.loads(tick.summary)
+        self.assertTrue(tdata["ok"])
+        self.assertEqual(sp["process"]["pid"], tdata["current"]["pid"])
+        exited = self.highway.dispatch(f"kernel process exit pid={sp['process']['pid']}", cwd=str(self.base))
+        self.assertTrue(json.loads(exited.summary)["ok"])
+        status2 = self.highway.dispatch("kernel stack status", cwd=str(self.base))
+        data2 = json.loads(status2.summary)
+        self.assertEqual("exited", data2["processes"]["table"][0]["state"])
+        self.assertIsNone(data2["scheduler"]["current"])
+
 
 if __name__ == "__main__":
     unittest.main()

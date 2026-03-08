@@ -23,6 +23,39 @@ def _review_decisions_path(cwd: str) -> Path:
     return _runtime(cwd) / "false_positive_decisions.jsonl"
 
 
+def _autonomy_history_path(cwd: str) -> Path:
+    return Path(cwd).resolve() / ".zero_os" / "autonomy" / "history.json"
+
+
+def _autonomy_history_stats(cwd: str, context: dict | None = None) -> dict:
+    path = _autonomy_history_path(cwd)
+    if not path.exists():
+        return {"count": 0, "success_rate": 0.5, "quality_score": 0.5}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return {"count": 0, "success_rate": 0.5, "quality_score": 0.5}
+    events = list(data.get("events", []))
+    target_action = str((context or {}).get("action", "")).strip().lower()
+    operation = str((context or {}).get("operation", "")).strip().lower()
+    filtered = events
+    if target_action:
+        filtered = [item for item in events if str(item.get("action", "")).strip().lower() == target_action]
+    elif operation:
+        filtered = [item for item in events if operation in str(item.get("action", "")).strip().lower()]
+    if not filtered:
+        filtered = events[-20:]
+    if not filtered:
+        return {"count": 0, "success_rate": 0.5, "quality_score": 0.5}
+    success = sum(1 for item in filtered if str(item.get("outcome", "")).lower() == "success")
+    quality_values = [float(item.get("quality", 1.0 if str(item.get("outcome", "")).lower() == "success" else 0.0)) for item in filtered]
+    return {
+        "count": len(filtered),
+        "success_rate": round(success / len(filtered), 4),
+        "quality_score": round(sum(quality_values) / len(quality_values), 4),
+    }
+
+
 def _default_policy() -> dict:
     return {
         "global": {"review_enabled": True},
@@ -31,6 +64,11 @@ def _default_policy() -> dict:
             "zero_ai_internal_smart_logic_v1": {"min_confidence": 0.55},
             "cure_firewall_smart_logic_v1": {"min_confidence": 0.6},
             "antivirus_smart_logic_v1": {"min_confidence": 0.65},
+            "zero_os_security_action_smart_logic_v1": {"min_confidence": 0.6},
+            "zero_os_recovery_smart_logic_v1": {"min_confidence": 0.62},
+            "zero_os_rollout_smart_logic_v1": {"min_confidence": 0.65},
+            "zero_os_abuse_throttle_smart_logic_v1": {"min_confidence": 0.6},
+            "zero_os_permission_trust_smart_logic_v1": {"min_confidence": 0.68},
         },
     }
 
@@ -55,7 +93,15 @@ def apply_governance(cwd: str, logic: dict, context: dict | None = None) -> dict
     engine = str(out.get("engine", "unknown"))
     policy = load_engine_policy(cwd, engine)
     out["governance_policy"] = policy
+    history = _autonomy_history_stats(cwd, context)
+    out["autonomy_history"] = history
     confidence = float(out.get("confidence", 0.0))
+    if history["count"] >= 3:
+        blended = (float(history["success_rate"]) * 0.4) + (float(history["quality_score"]) * 0.6)
+        history_bias = (blended - 0.5) * 0.14
+        confidence = max(0.0, min(0.99, confidence + history_bias))
+        out["confidence"] = round(confidence, 4)
+        out["history_bias"] = round(history_bias, 4)
     action = str(out.get("decision_action", ""))
     if action in {"execute", "allow", "allow_with_monitoring", "allow_and_mark_beacon"} and confidence < float(policy["min_confidence"]):
         out["decision_action"] = "hold_for_review"

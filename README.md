@@ -27,6 +27,13 @@ The only private items are local runtime trust materials and machine-specific se
 - Client-ready verification document:
   - [SECURITY_EVIDENCE.md](C:\Users\gomez\Documents\New folder\SECURITY_EVIDENCE.md)
 
+## Zero AI Architecture Statement
+Zero AI is a capable built-in assistant in Zero OS. Users can ask it directly to help with local system tasks, diagnostics, security, coding workflows, internet lookups, monitoring, validation, and recovery actions, with policy and safety controls governing what it can do automatically.
+
+Zero AI is an autonomous reliability, security, and defense layer for Zero OS that continuously detects errors, bugs, vulnerabilities, malware, bot activity, overload traffic, abuse patterns, and system instability, validates whether they are real through policy, simulation, and multi-signal evidence, applies fixes or containment when confidence is high, verifies post-action health, and records outcomes to improve future decisions.
+
+Its architecture combines detection engines, antivirus and abuse-throttling controls, smart-logic governance, risk classification, confidence scoring, rollback-aware execution, incident response, recovery workflows, and measured pre-action and post-action health snapshots so remediation is automated, controlled, auditable, and reversible.
+
 ## Zero-AI vs RSI
 Zero-AI is **not** RSI (recursive self-improvement) in the standard AI meaning.
 

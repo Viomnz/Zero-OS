@@ -66,6 +66,7 @@ class EnterpriseSecurityTests(unittest.TestCase):
         rdata = json.loads(rset.summary)
         self.assertTrue(rdata["ok"])
         self.assertEqual("prod", rdata["rollout"]["environment"])
+        self.assertIn("smart_logic", rdata)
 
         lock = self.highway.dispatch("enterprise policy lock apply", cwd=str(self.base))
         ldata = json.loads(lock.summary)
