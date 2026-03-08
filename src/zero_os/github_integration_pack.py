@@ -51,6 +51,7 @@ def _api_get(url: str, token: str = "") -> tuple[int, Any]:
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
+        exc.close()
         try:
             payload = json.loads(raw) if raw.strip() else {}
         except Exception:
@@ -71,6 +72,7 @@ def _api_post(url: str, payload: dict[str, Any], token: str = "") -> tuple[int, 
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
+        exc.close()
         try:
             body = json.loads(raw) if raw.strip() else {}
         except Exception:

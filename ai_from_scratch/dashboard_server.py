@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 import re
 import sqlite3
 import time
+from contextlib import contextmanager
 from uuid import uuid4
 
 
@@ -29,9 +30,17 @@ def _chat_db_path() -> Path:
     return RUNTIME / "chat_sessions.sqlite"
 
 
-def _init_chat_db(path: Path) -> None:
+@contextmanager
+def _connect(path: Path):
     conn = sqlite3.connect(path)
     try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def _init_chat_db(path: Path) -> None:
+    with _connect(path) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_messages (
@@ -48,25 +57,19 @@ def _init_chat_db(path: Path) -> None:
             "CREATE INDEX IF NOT EXISTS idx_chat_session_created ON chat_messages(tenant_id, session_id, created_at)"
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
 def _db_write(path: Path, msg_id: str, tenant_id: str, session_id: str, role: str, content: str) -> None:
-    conn = sqlite3.connect(path)
-    try:
+    with _connect(path) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO chat_messages(id, tenant_id, session_id, role, content, created_at) VALUES(?,?,?,?,?,?)",
             (msg_id, tenant_id, session_id, role, content, time.time()),
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
 def _db_recent(path: Path, tenant_id: str, session_id: str, limit: int = 4) -> list[tuple[str, str]]:
-    conn = sqlite3.connect(path)
-    try:
+    with _connect(path) as conn:
         rows = conn.execute(
             """
             SELECT role, content
@@ -79,13 +82,10 @@ def _db_recent(path: Path, tenant_id: str, session_id: str, limit: int = 4) -> l
         ).fetchall()
         rows.reverse()
         return [(str(r[0]), str(r[1])) for r in rows]
-    finally:
-        conn.close()
 
 
 def _db_last_by_role(path: Path, tenant_id: str, session_id: str, role: str) -> tuple[str, str] | None:
-    conn = sqlite3.connect(path)
-    try:
+    with _connect(path) as conn:
         row = conn.execute(
             """
             SELECT id, content
@@ -99,8 +99,6 @@ def _db_last_by_role(path: Path, tenant_id: str, session_id: str, role: str) -> 
         if not row:
             return None
         return (str(row[0]), str(row[1]))
-    finally:
-        conn.close()
 
 
 def _tokens(text: str) -> set[str]:
@@ -108,8 +106,7 @@ def _tokens(text: str) -> set[str]:
 
 
 def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, pool: int = 60, keep: int = 6) -> list[tuple[str, str]]:
-    conn = sqlite3.connect(path)
-    try:
+    with _connect(path) as conn:
         rows = conn.execute(
             """
             SELECT role, content
@@ -120,8 +117,6 @@ def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, 
             """,
             (tenant_id, session_id, max(1, int(pool))),
         ).fetchall()
-    finally:
-        conn.close()
     q = _tokens(query)
     scored: list[tuple[float, str, str]] = []
     for role, content in rows:

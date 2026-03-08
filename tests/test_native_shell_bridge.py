@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -67,8 +68,10 @@ class NativeShellBridgeTests(unittest.TestCase):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception) as ctx:
             urllib.request.urlopen(bad_req, timeout=5)
+        if isinstance(ctx.exception, urllib.error.HTTPError):
+            ctx.exception.close()
 
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/action",

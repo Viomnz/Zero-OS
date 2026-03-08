@@ -1,21 +1,16 @@
 {
   "ok": true,
-  "time_utc": "2026-03-08T06:21:29.736889+00:00",
+  "time_utc": "2026-03-08T22:10:01.624870+00:00",
   "records": [
     {
       "file": "artifact_signatures.json",
-      "sha256": "c8e4f2d9716464d941637115b676fac7e61043b9f92207841fe954e250f9ae28",
-      "signature": "ed623b833f5aa847b82554e379ccfad93b8a74b073f5d8903167d045331d1970"
+      "sha256": "ca75dfd1654494c1f54a748e2815104f2dcb4cd7d6ce17f003c99ecdc9b12f86",
+      "signature": "4f2a08f27606d943a0a2fc6121061fbe33e85d5dc1ede8d57c31dddbfb5ce167"
     },
     {
       "file": "compliance_evidence.json",
-      "sha256": "2e2b3a2cba42a8423ae195c98143fe8b3fbd26a255b5c2796acbb2c9cba37daf",
-      "signature": "23704559a63e8f7cdfa2ba47729cb6564cb67bcc339fe923bbc47ed190feaff6"
-    },
-    {
-      "file": "sbom.json",
-      "sha256": "4a2f9c1a00b1557aa83c1f9fa7e9d2eee17f93fa9b57a3a2acd8258a21fb4b67",
-      "signature": "1ab5b2bfa42fb60a694ed9980cb2497ce5563c5c104169faa4606ca6c0eef3fa"
+      "sha256": "75ff5cedc3eba489f48c9e61fdbf30df0bd7bd793cc98e11ed968e00a934edc4",
+      "signature": "0d174778523c1a05c3aae60fd0343875f40dc1104346f20f74354ff99ebeb2b0"
     },
     {
       "file": "security_benchmark.json",

@@ -46,7 +46,8 @@ def run_distributed_reasoning(
     accepted_nodes = [n for n, g in node_results if g.accepted]
     failed_nodes = [n for n, g in node_results if not g.accepted]
     agreement_ratio = len(accepted_nodes) / max(1, len(node_results))
-    agreement_pass = agreement_ratio >= threshold
+    normalized_ratio = round(agreement_ratio, 4)
+    agreement_pass = normalized_ratio >= threshold
 
     # Node-level selection: prefer first accepted node, else best fallback from node_1.
     selected_gate = next((g for _, g in node_results if g.accepted), node_results[0][1])
@@ -58,7 +59,7 @@ def run_distributed_reasoning(
     report = {
         "node_count": len(node_results),
         "agreement_threshold": threshold,
-        "agreement_ratio": round(agreement_ratio, 4),
+        "agreement_ratio": normalized_ratio,
         "agreement_pass": agreement_pass,
         "accepted_nodes": accepted_nodes,
         "failed_nodes": failed_nodes,

@@ -39,6 +39,7 @@ def request_text(
         except HTTPError as exc:
             status = int(getattr(exc, "code", 0) or 0)
             payload = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else ""
+            exc.close()
             # Retry on transient server/network class errors.
             if status >= 500 and i < attempts - 1:
                 time.sleep(backoff_seconds * (2**i))
