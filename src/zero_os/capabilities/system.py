@@ -171,6 +171,11 @@ from zero_os.brain_awareness import brain_awareness_status, build_brain_awarenes
 from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
+from zero_os.self_continuity import (
+    zero_ai_self_continuity_status,
+    zero_ai_self_continuity_update,
+    zero_ai_self_inspect_refresh,
+)
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
 from zero_os.share_bundle import (
     export_bundle as zero_os_export_bundle,
@@ -598,6 +603,12 @@ class SystemCapability:
             "fix all now",
             "zero ai identity",
             "zero ai consciousness",
+            "zero ai self continuity",
+            "zero ai persistent self",
+            "zero ai self inspect refresh",
+            "zero ai auto inspect refresh",
+            "zero ai highest-value steps",
+            "zero ai inspect and refresh",
             "conscious machine architecture",
             "reflexive causality engine",
             "self-generating ontology engine",
@@ -1601,9 +1612,20 @@ class SystemCapability:
         if text.strip() in {"zero ai brain awareness status", "zero ai brain status"}:
             return Result(self.name, json.dumps(brain_awareness_status(task.cwd), indent=2))
         if text.strip() in {"zero ai identity", "zero ai rsi status"}:
-            return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
+            return Result(self.name, json.dumps(zero_ai_identity(task.cwd), indent=2))
         if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai self continuity", "zero ai self continuity status", "zero ai persistent self"}:
+            return Result(self.name, json.dumps(zero_ai_self_continuity_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai self continuity update", "zero ai recursive state update"}:
+            return Result(self.name, json.dumps(zero_ai_self_continuity_update(task.cwd), indent=2))
+        if text.strip() in {
+            "zero ai self inspect refresh",
+            "zero ai auto inspect refresh",
+            "zero ai highest-value steps",
+            "zero ai inspect and refresh",
+        }:
+            return Result(self.name, json.dumps(zero_ai_self_inspect_refresh(task.cwd), indent=2))
         if text.strip() in {
             "strong persistent long-term memory",
             "zero ai architecture long-term memory",

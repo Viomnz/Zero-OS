@@ -145,6 +145,8 @@ public partial class MainWindow : Window
     private void KnowEverything_Click(object sender, RoutedEventArgs e) => RunBackendTask("zero ai know everything", "Zero AI know-everything run complete");
     private void KnowEverythingCompleteAll_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero os complete all", "Zero AI know-everything and complete-all run complete");
+    private void ZeroAiSelfInspectRefresh_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai self inspect refresh", "Zero AI self inspect and refresh complete");
     private void CoreStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("core status", "Core status loaded");
     private void GithubStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("github status", "GitHub status loaded");
 

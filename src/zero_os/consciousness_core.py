@@ -5,6 +5,7 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.self_continuity import zero_ai_self_continuity_update
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -147,6 +148,8 @@ def consciousness_tick(cwd: str, prompt: str = "") -> dict:
     with _ledger_path(cwd).open("a", encoding="utf-8") as h:
         h.write(json.dumps(entry, sort_keys=True) + "\n")
 
+    continuity = zero_ai_self_continuity_update(cwd)
+
     return {
         "ok": True,
         "identity": state.get("identity", {}),
@@ -154,11 +157,18 @@ def consciousness_tick(cwd: str, prompt: str = "") -> dict:
         "meta_awareness": state.get("meta_awareness", {}),
         "counterfactuals": state.get("counterfactuals", {}),
         "tick": entry,
+        "self_continuity": {
+            "continuity_score": continuity.get("continuity", {}).get("continuity_score"),
+            "same_system": continuity.get("continuity", {}).get("same_system"),
+            "has_contradiction": continuity.get("contradiction_detection", {}).get("has_contradiction"),
+            "issues": continuity.get("contradiction_detection", {}).get("issues", []),
+        },
     }
 
 
 def consciousness_status(cwd: str) -> dict:
     state = _load_state(cwd)
+    continuity = zero_ai_self_continuity_update(cwd)
     ledger = _ledger_path(cwd)
     count = 0
     if ledger.exists():
@@ -169,8 +179,8 @@ def consciousness_status(cwd: str) -> dict:
         "self_model": state.get("self_model", {}),
         "meta_awareness": state.get("meta_awareness", {}),
         "counterfactuals": state.get("counterfactuals", {}),
+        "self_continuity": continuity,
         "ledger_events": count,
         "state_path": str(_state_path(cwd)),
         "ledger_path": str(ledger),
     }
-

@@ -487,6 +487,7 @@
               <WrapPanel>
                 <Button Height="38" Margin="0,0,8,8" Content="Know Everything" Click="KnowEverything_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Self Inspect + Refresh" Click="ZeroAiSelfInspectRefresh_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Core Status" Click="CoreStatus_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="GitHub Status" Click="GithubStatus_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Open Dist Folder" Click="OpenDist_Click" />

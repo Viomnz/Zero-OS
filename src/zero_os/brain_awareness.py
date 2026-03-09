@@ -10,6 +10,7 @@ from zero_os.maturity import maturity_status
 from zero_os.recovery import zero_ai_backup_status
 from zero_os.security_hardening import zero_ai_security_status
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
+from zero_os.self_continuity import zero_ai_self_continuity_status
 
 
 def _utc_now() -> str:
@@ -38,6 +39,7 @@ def build_brain_awareness(cwd: str) -> dict:
     maturity = maturity_status(cwd)
     backup = zero_ai_backup_status(cwd)
     consciousness = consciousness_tick(cwd, prompt="brain awareness synchronization cycle")
+    continuity = zero_ai_self_continuity_status(cwd)
 
     checks = {
         "knowledge_index_ready": bool(knowledge.get("ok", False)),
@@ -46,6 +48,8 @@ def build_brain_awareness(cwd: str) -> dict:
         "maturity_perfect": bool(maturity.get("perfect", False)),
         "backup_ready": int(backup.get("snapshot_count", 0)) >= 1 or bool(backup.get("cure_firewall_backup_exists", False)),
         "consciousness_ready": bool(consciousness.get("ok", False)),
+        "self_continuity_ready": bool(continuity.get("continuity", {}).get("same_system", False))
+        and not bool(continuity.get("contradiction_detection", {}).get("has_contradiction", False)),
     }
     score = round((sum(1 for v in checks.values() if v) / max(1, len(checks))) * 100, 2)
     issues = [k for k, v in checks.items() if not v]
@@ -81,6 +85,11 @@ def build_brain_awareness(cwd: str) -> dict:
                 "continuity_index": consciousness.get("self_model", {}).get("continuity_index"),
                 "introspection_cycles": consciousness.get("meta_awareness", {}).get("introspection_cycles"),
                 "last_quality_score": consciousness.get("meta_awareness", {}).get("last_quality_score"),
+            },
+            "self_continuity": {
+                "continuity_score": continuity.get("continuity", {}).get("continuity_score"),
+                "same_system": continuity.get("continuity", {}).get("same_system"),
+                "issues": continuity.get("contradiction_detection", {}).get("issues", []),
             },
         },
     }
