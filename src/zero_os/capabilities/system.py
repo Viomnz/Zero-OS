@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import ast
 import json
 from pathlib import Path
 import getpass
@@ -172,9 +173,15 @@ from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.self_continuity import (
+    zero_ai_continuity_governor_apply,
+    zero_ai_continuity_governor_check,
+    zero_ai_continuity_governor_status,
+    zero_ai_continuity_simulate,
+    zero_ai_continuity_simulate_apply,
     zero_ai_self_continuity_status,
     zero_ai_self_continuity_update,
     zero_ai_self_inspect_refresh,
+    zero_ai_self_repair_restore_continuity,
 )
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
 from zero_os.share_bundle import (
@@ -609,6 +616,13 @@ class SystemCapability:
             "zero ai auto inspect refresh",
             "zero ai highest-value steps",
             "zero ai inspect and refresh",
+            "zero ai continuity governor",
+            "zero ai continuity governor status",
+            "zero ai continuity governor check",
+            "zero ai continuity governor apply",
+            "zero ai continuity simulate",
+            "zero ai simulate self update",
+            "zero ai continuity simulate apply",
             "conscious machine architecture",
             "reflexive causality engine",
             "self-generating ontology engine",
@@ -1617,6 +1631,46 @@ class SystemCapability:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
         if text.strip() in {"zero ai self continuity", "zero ai self continuity status", "zero ai persistent self"}:
             return Result(self.name, json.dumps(zero_ai_self_continuity_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity governor", "zero ai continuity governor status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governor_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity governor check", "zero ai continuity safety check"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governor_check(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity governor apply", "zero ai apply safe self update"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governor_apply(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity simulate", "zero ai simulate self update"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd), indent=2))
+        csim_patch = re.match(r"^zero ai continuity simulate patch=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if csim_patch:
+            patch_path = Path(csim_patch.group(1).strip()).expanduser()
+            if not patch_path.is_absolute():
+                patch_path = Path(task.cwd) / patch_path
+            proposal = json.loads(patch_path.read_text(encoding="utf-8-sig"))
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd, proposal=proposal), indent=2))
+        csim = re.match(r"^zero ai continuity simulate json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if csim:
+            payload_text = csim.group(1).strip()
+            try:
+                proposal = json.loads(payload_text)
+            except Exception:
+                proposal = ast.literal_eval(payload_text)
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd, proposal=proposal), indent=2))
+        if text.strip() in {"zero ai continuity simulate apply", "zero ai apply safe simulated update"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd), indent=2))
+        csima_patch = re.match(r"^zero ai continuity simulate apply patch=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if csima_patch:
+            patch_path = Path(csima_patch.group(1).strip()).expanduser()
+            if not patch_path.is_absolute():
+                patch_path = Path(task.cwd) / patch_path
+            proposal = json.loads(patch_path.read_text(encoding="utf-8-sig"))
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd, proposal=proposal), indent=2))
+        csima = re.match(r"^zero ai continuity simulate apply json=(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if csima:
+            payload_text = csima.group(1).strip()
+            try:
+                proposal = json.loads(payload_text)
+            except Exception:
+                proposal = ast.literal_eval(payload_text)
+            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd, proposal=proposal), indent=2))
         if text.strip() in {"zero ai self continuity update", "zero ai recursive state update"}:
             return Result(self.name, json.dumps(zero_ai_self_continuity_update(task.cwd), indent=2))
         if text.strip() in {
@@ -1626,6 +1680,12 @@ class SystemCapability:
             "zero ai inspect and refresh",
         }:
             return Result(self.name, json.dumps(zero_ai_self_inspect_refresh(task.cwd), indent=2))
+        if text.strip() in {
+            "zero ai self repair restore continuity",
+            "zero ai restore continuity",
+            "zero ai self repair continuity",
+        }:
+            return Result(self.name, json.dumps(zero_ai_self_repair_restore_continuity(task.cwd), indent=2))
         if text.strip() in {
             "strong persistent long-term memory",
             "zero ai architecture long-term memory",

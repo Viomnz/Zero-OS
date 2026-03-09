@@ -43,7 +43,8 @@ def main() -> int:
         "steps": logs,
         "next": {
             "shell_ui": str(root / "zero_os_shell.html"),
-            "dashboard": str(root / "zero_os_dashboard.html"),
+            "dashboard_command": r".\zero_os_launcher.ps1 open-dashboard",
+            "dashboard_url": "http://127.0.0.1:8765/zero_os_dashboard.html",
             "status_cmd": 'python src/main.py "security overview"',
         },
     }

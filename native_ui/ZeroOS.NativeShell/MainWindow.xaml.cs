@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -147,6 +148,16 @@ public partial class MainWindow : Window
         => RunBackendTask("zero os complete all", "Zero AI know-everything and complete-all run complete");
     private void ZeroAiSelfInspectRefresh_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai self inspect refresh", "Zero AI self inspect and refresh complete");
+    private void ZeroAiSelfRepairRestoreContinuity_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai self repair restore continuity", "Zero AI self repair restore continuity complete");
+    private void ZeroAiContinuityGovernorCheck_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governor check", "Zero AI continuity governor safety check complete");
+    private void ZeroAiContinuityGovernorApply_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governor apply", "Zero AI continuity governor apply complete");
+    private void ZeroAiContinuitySimulate_Click(object sender, RoutedEventArgs e)
+        => RunContinuitySimulationTask(apply: false);
+    private void ZeroAiContinuitySimulateApply_Click(object sender, RoutedEventArgs e)
+        => RunContinuitySimulationTask(apply: true);
     private void CoreStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("core status", "Core status loaded");
     private void GithubStatus_Click(object sender, RoutedEventArgs e) => RunBackendTask("github status", "GitHub status loaded");
 
@@ -640,6 +651,71 @@ public partial class MainWindow : Window
         RefreshArtifacts();
         RefreshGithubData();
         RefreshReleaseData();
+    }
+
+    private void RunContinuitySimulationTask(bool apply)
+    {
+        var stagedPatch = SelectAndStageContinuityProposal();
+        if (string.IsNullOrWhiteSpace(stagedPatch))
+        {
+            SetStatus(apply ? "Continuity simulated apply canceled." : "Continuity simulation canceled.");
+            AppendLog("Continuity proposal selection canceled");
+            return;
+        }
+
+        var command = apply
+            ? $"zero ai continuity simulate apply patch={stagedPatch}"
+            : $"zero ai continuity simulate patch={stagedPatch}";
+        var successMessage = apply
+            ? "Zero AI safe simulated update apply complete"
+            : "Zero AI continuity simulation complete";
+
+        RunBackendTask(command, successMessage);
+    }
+
+    private string? SelectAndStageContinuityProposal()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select Zero AI continuity proposal JSON",
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            InitialDirectory = _repoRoot,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return null;
+        }
+
+        var sourcePath = dialog.FileName;
+        try
+        {
+            var proposalsRoot = Path.Combine(_repoRoot, ".zero_os", "runtime", "proposals");
+            Directory.CreateDirectory(proposalsRoot);
+
+            var safeBaseName = Path.GetFileNameWithoutExtension(sourcePath);
+            foreach (var invalid in Path.GetInvalidFileNameChars())
+            {
+                safeBaseName = safeBaseName.Replace(invalid, '_');
+            }
+
+            safeBaseName = string.IsNullOrWhiteSpace(safeBaseName) ? "proposal" : safeBaseName.Replace(' ', '_');
+            var stagedFileName = $"{safeBaseName}_{DateTime.UtcNow:yyyyMMddTHHmmssZ}.json";
+            var stagedPath = Path.Combine(proposalsRoot, stagedFileName);
+            File.Copy(sourcePath, stagedPath, overwrite: true);
+
+            var relativePath = Path.GetRelativePath(_repoRoot, stagedPath).Replace("\\", "/");
+            AppendLog($"Staged continuity proposal {relativePath}");
+            return relativePath;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Failed to stage proposal: {ex.Message}");
+            AppendLog($"Failed to stage continuity proposal: {ex.Message}");
+            return null;
+        }
     }
 
     private void RunNativeScript(string scriptName, string successMessage)

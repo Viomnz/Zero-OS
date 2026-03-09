@@ -1,34 +1,40 @@
 # Zero-OS
 
-Zero-OS runs on one **main highway**: a single dispatcher that routes every request to capability lanes.
+Zero-OS is an experimental open-source platform that combines a local OS-style control surface, a built-in assistant called Zero AI, security tooling, packaging flows, and a Windows-native shell.
 
 [![UI Cross-Platform Smoke](https://github.com/Viomnz/Zero-OS/actions/workflows/ui-cross-platform-smoke.yml/badge.svg)](https://github.com/Viomnz/Zero-OS/actions/workflows/ui-cross-platform-smoke.yml)
 [GitHub Releases](https://github.com/Viomnz/Zero-OS/releases)
 
-## Quick Start
-Clone it, run one setup command, and open Zero OS:
+## At A Glance
+- What it is: a local-first Zero OS platform with a web shell, a Windows native shell, Zero AI, security tools, GitHub intake flows, bundle/export tools, and experimental native boot work.
+- What works now: the web shell, the Windows native shell, repo quickstart launchers, Zero AI runtime commands, security tooling, bundle/share packaging, CI checks, and GitHub issue/PR intake flows.
+- What is experimental: the standalone native OS/kernel path, some self-management and continuity systems, large-scale indexing features, the native app store production scaffolds, and production-grade installer/signing delivery.
+- How to run it: on Windows, download the native app from Releases or run the repo quickstart `.cmd`. On any platform with Python, run `python zero_os_quickstart.py`.
+- Supported platforms: Windows is the main supported path. macOS and Linux have a smoke-tested launcher and web-shell path, but broader validation is still planned.
+- How mature it is: substantial and usable for local workflows, demos, and development, but still pre-1.0 and not a finished consumer OS or a fully productized standalone kernel.
 
-GitHub users do not need to learn Zero OS commands first.
+## Quick Start
+GitHub users should not need to learn Zero OS commands first.
 
 [Download Native App](https://github.com/Viomnz/Zero-OS/releases)
 
-For Windows beginners, you can also just double-click:
-- `Zero OS QuickStart.cmd`
-- `Open Zero OS.cmd`
-- `Open Zero OS Native Shell.cmd`
+Fastest ways to start:
+1. Windows easiest path: download the native app or portable package from Releases
+2. Windows from the repo: double-click `Zero OS QuickStart.cmd`
+3. Any OS with Python: run `python zero_os_quickstart.py`
+4. macOS or Linux shell: run `./zero_os_quickstart.sh`
+5. macOS Finder: double-click `Zero OS QuickStart.command`
 
-Cross-platform QuickStart:
-- Windows, macOS, Linux: `python zero_os_quickstart.py`
-- macOS, Linux: `./zero_os_quickstart.sh`
-- macOS Finder: double-click `Zero OS QuickStart.command`
-- with make: `make quickstart`
+What QuickStart does:
+1. runs first-run setup
+2. opens the best available UI
+3. lets you use built-in buttons instead of memorizing commands
 
-If you want real `.exe` launchers, build them with:
+Important:
+- the git repo includes the `.cmd`, `.command`, `.py`, and `.sh` launchers
+- prebuilt Windows `.exe` binaries come from GitHub Releases, not from a fresh clone
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.BeginnerLauncher\publish_launchers.ps1
-```
-Use this simple flow:
+Manual setup if you want the explicit steps:
 1. Clone or download Zero OS
 2. Run `.\zero_os_launcher.ps1 first-run`
 3. Open the UI with `python zero_os_ui.py` or `Start-Process ".\zero_os_shell.html"`
@@ -38,10 +44,24 @@ Use this simple flow:
 git clone https://github.com/Viomnz/Zero-OS.git
 cd Zero-OS
 .\zero_os_launcher.ps1 first-run
-Start-Process ".\zero_os_shell.html"
+python zero_os_ui.py
 ```
 
-Cross-platform UI launch:
+Cross-platform QuickStart commands:
+
+```powershell
+python zero_os_quickstart.py
+```
+
+```sh
+./zero_os_quickstart.sh
+```
+
+```sh
+make quickstart
+```
+
+Cross-platform UI launch if setup is already done:
 
 ```powershell
 python zero_os_ui.py
@@ -60,11 +80,45 @@ chmod +x ./zero_os_ui.sh
 ./zero_os_ui.sh
 ```
 
-`zero_os_ui.py` picks the best available UI automatically:
-- Windows: Zero OS native desktop UI
-- macOS/Linux: Zero OS web shell with the local shell bridge
+UI behavior by platform:
+- Windows: launches the Zero OS native desktop UI
+- macOS/Linux: launches the Zero OS web shell with the local shell bridge
+- Web fallback: opens the guided Start Here flow first
 
 GitHub Actions also smoke-tests this universal UI path on Windows, macOS, and Linux.
+
+## Prerequisites
+- End users from source: Python 3.11+ on x64
+- End users from Releases: no source build required for the Windows native app path
+- Optional convenience tooling: `make` for shortcut commands on systems that have it
+- Native shell contributors on Windows: .NET SDK 8+ compatible with `net8.0-windows`
+- Native packaging contributors on Windows: Windows SDK `makeappx`, WiX tooling, and a signing certificate for signed MSIX output
+
+## Validation Scope
+- Cross-platform UI smoke is automated on Windows, macOS, and Linux in [ui-cross-platform-smoke.yml](C:\Users\gomez\Documents\New folder\.github\workflows\ui-cross-platform-smoke.yml)
+- Core CI gates currently run on Windows in [ci.yml](C:\Users\gomez\Documents\New folder\.github\workflows\ci.yml)
+- Windows native shell build, publish, portable packaging, and MSIX packaging run in [native-shell-windows.yml](C:\Users\gomez\Documents\New folder\.github\workflows\native-shell-windows.yml)
+- Native store Windows packaging smoke also runs in [ci.yml](C:\Users\gomez\Documents\New folder\.github\workflows\ci.yml)
+- macOS and Linux launcher/web-shell paths are smoke-tested, but not yet validated to Windows-level depth
+
+## Major Subsystems
+- Web shell: [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
+- Windows native shell: [native_ui/ZeroOS.NativeShell](C:\Users\gomez\Documents\New folder\native_ui\ZeroOS.NativeShell)
+- Zero AI runtime and continuity systems: [src/zero_os](C:\Users\gomez\Documents\New folder\src\zero_os)
+- Security stack, including Cure Firewall and Antivirus: [SECURITY.md](C:\Users\gomez\Documents\New folder\SECURITY.md)
+- Native boot and kernel R&D: [docs/kernel/README.md](C:\Users\gomez\Documents\New folder\docs\kernel\README.md)
+- Native app store and multi-OS packaging scaffolds: [docs/NATIVE_APP_STORE.md](C:\Users\gomez\Documents\New folder\docs\NATIVE_APP_STORE.md)
+- AI-from-scratch baseline stack: [ai_from_scratch/README.md](C:\Users\gomez\Documents\New folder\ai_from_scratch\README.md)
+
+## Read Next
+- Architecture: [ARCHITECTURE.md](C:\Users\gomez\Documents\New folder\ARCHITECTURE.md)
+- Threat model: [THREAT_MODEL.md](C:\Users\gomez\Documents\New folder\THREAT_MODEL.md)
+- Security policy: [SECURITY.md](C:\Users\gomez\Documents\New folder\SECURITY.md)
+- Compatibility matrix: [docs/COMPATIBILITY_MATRIX.md](C:\Users\gomez\Documents\New folder\docs\COMPATIBILITY_MATRIX.md)
+- Kernel R&D overview: [docs/kernel/README.md](C:\Users\gomez\Documents\New folder\docs\kernel\README.md)
+- Native app store subsystem: [docs/NATIVE_APP_STORE.md](C:\Users\gomez\Documents\New folder\docs\NATIVE_APP_STORE.md)
+- Roadmap: [ROADMAP.md](C:\Users\gomez\Documents\New folder\ROADMAP.md)
+- Contributing: [CONTRIBUTING.md](C:\Users\gomez\Documents\New folder\CONTRIBUTING.md)
 
 If you want the local dashboard server too:
 
@@ -92,12 +146,46 @@ make share
 make release
 ```
 
+## What Works Today
+- Windows native shell with quickstart, file browsing, search, editing, packaging controls, and Zero AI runtime actions
+- Cross-platform web shell with guided start pages, GitHub helpers, output viewer, saved files, and in-shell file viewing
+- Zero AI continuity, inspection, repair, governor, and simulation flows
+- Security tooling including Cure Firewall and Antivirus inside this codebase scope
+- Bundle/export/share flows for Zero OS and Zero AI
+- GitHub issue and pull request intake, planning, and draft-reply flows
+- Cross-platform launcher and quickstart paths
+- Native app store scaffolds, backend scaffolds, and packaging metadata for multiple operating systems
+
+## What Is Still Experimental
+- Standalone native boot and kernel work
+- Some large-scale indexing and watcher workflows
+- Installer signing and full production release delivery
+- Several advanced Zero AI autonomy and continuity systems
+- Native app store production deployment and vendor integration
+- Overall product polish beyond the current developer/power-user stage
+
+## Platforms
+- Windows: best-supported experience, including the native shell and beginner launchers
+- macOS: smoke-tested launcher and web-shell path, broader validation still planned
+- Linux: smoke-tested launcher and web-shell path, broader validation still planned
+- Standalone native image: available for R&D and testing, not the main supported user path yet
+
+## Maturity
+- UI layer: usable now
+- Developer workflow layer: usable now
+- Zero AI local tooling layer: substantial but still evolving
+- Security/tooling layer: strong in repo scope
+- Native app store layer: scaffolded and progressing, not production-ready
+- Native standalone OS layer: experimental
+- Overall project state: ambitious, working, and real, but not finished
+
 ## Get Zero OS
 Best ways for GitHub users to copy Zero OS:
 - `git clone https://github.com/Viomnz/Zero-OS.git`
 - download the repo zip from GitHub Releases or the repository page
+- download the ready-made native app or release bundle from GitHub Releases
 - run `.\zero_os_launcher.ps1 first-run`
-- open [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
+- open the UI and use the built-in buttons
 
 If you want to create a clean shareable local copy from this repo, use:
 
@@ -269,7 +357,7 @@ Run one command to initialize, harden defaults, enable monitoring, and set up lo
 
 Then open:
 - [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
-- [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html)
+- or run `.\zero_os_launcher.ps1 open-dashboard` for the optional local dashboard server
 
 Quick check:
 ```powershell
@@ -327,9 +415,13 @@ python src/main.py "agent: create file notes/a.txt with hello then append to not
 ```
 
 ## Local dashboard
-- Open [zero_os_dashboard.html](C:\Users\gomez\Documents\New folder\zero_os_dashboard.html) in your browser.
-- It auto-refreshes runtime files every 5 seconds.
+- Optional dashboard server command:
+```powershell
+.\zero_os_launcher.ps1 open-dashboard
+```
+- Dashboard server URL: `http://127.0.0.1:8765/zero_os_dashboard.html`
 - Windows-like shell UI: [zero_os_shell.html](C:\Users\gomez\Documents\New folder\zero_os_shell.html)
+- The shell UI is the main guided interface in this repo. The dashboard server is an additional local surface.
 
 ## One-command launcher
 - Run:
