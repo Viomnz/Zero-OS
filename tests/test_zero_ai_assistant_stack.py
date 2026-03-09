@@ -14,8 +14,9 @@ from zero_os.task_executor import run_task, run_task_resume
 from zero_os.recovery import zero_ai_backup_create
 from zero_os.api_connector_profiles import profile_set
 from zero_os.approval_workflow import decide as approval_decide, status as approval_status
-from zero_os.assistant_job_runner import schedule as job_schedule, tick as job_tick
+from zero_os.assistant_job_runner import remove_recurring as job_remove_recurring, schedule as job_schedule, schedule_recurring_builtin as job_schedule_recurring_builtin, status as job_status, tick as job_tick
 from zero_os.playbook_memory import status as playbook_status
+from zero_os.self_continuity import zero_ai_continuity_governance_set
 
 
 class ZeroAiAssistantStackTests(unittest.TestCase):
@@ -112,6 +113,18 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         job_schedule(str(self.base), "check system status")
         ticked = job_tick(str(self.base))
         self.assertTrue(ticked["ok"])
+
+    def test_background_job_runner_can_manage_recurring_continuity_governance(self) -> None:
+        zero_ai_continuity_governance_set(str(self.base), True, 120)
+        scheduled = job_schedule_recurring_builtin(str(self.base), "continuity_governance", interval_seconds=120, enabled=True)
+        self.assertTrue(scheduled["ok"])
+        status = job_status(str(self.base))
+        self.assertGreaterEqual(status["recurring_count"], 1)
+        ticked = job_tick(str(self.base))
+        self.assertTrue(ticked["ok"])
+        self.assertIn("recurring_job", ticked)
+        removed = job_remove_recurring(str(self.base), "continuity_governance")
+        self.assertTrue(removed["ok"])
 
     def test_run_task_browser_dom_inspect(self) -> None:
         out = run_task(str(self.base), "inspect page https://example.com")

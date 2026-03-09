@@ -170,12 +170,55 @@ from zero_os.large_code_index import index_status as large_index_status, index_w
 from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
 from zero_os.brain_awareness import brain_awareness_status, build_brain_awareness
 from zero_os.zero_ai_sync import zero_ai_sync_all
+from zero_os.zero_ai_evolution import (
+    zero_ai_evolution_auto_run,
+    zero_ai_evolution_canary,
+    zero_ai_evolution_promote,
+    zero_ai_evolution_propose,
+    zero_ai_evolution_rollback,
+    zero_ai_evolution_simulate,
+    zero_ai_evolution_status,
+)
+from zero_os.zero_ai_source_evolution import (
+    zero_ai_source_evolution_auto_run,
+    zero_ai_source_evolution_canary,
+    zero_ai_source_evolution_promote,
+    zero_ai_source_evolution_propose,
+    zero_ai_source_evolution_rollback,
+    zero_ai_source_evolution_simulate,
+    zero_ai_source_evolution_status,
+)
+from zero_os.zero_ai_capability_map import (
+    zero_ai_capability_map_refresh,
+    zero_ai_capability_map_status,
+)
+from zero_os.zero_ai_control_workflows import (
+    zero_ai_control_workflow_browser_act,
+    zero_ai_control_workflow_browser_open,
+    zero_ai_control_workflow_install,
+    zero_ai_control_workflow_recover,
+    zero_ai_control_workflows_refresh,
+    zero_ai_control_workflows_status,
+)
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
 from zero_os.self_continuity import (
+    zero_ai_continuity_checkpoint_create,
+    zero_ai_continuity_checkpoint_status,
+    zero_ai_continuity_governance_auto_apply,
+    zero_ai_continuity_governance_auto_status,
+    zero_ai_continuity_governance_run,
+    zero_ai_continuity_governance_set,
+    zero_ai_continuity_governance_status,
+    zero_ai_continuity_governance_tick,
     zero_ai_continuity_governor_apply,
     zero_ai_continuity_governor_check,
     zero_ai_continuity_governor_status,
+    zero_ai_continuity_policy_auto_apply,
+    zero_ai_continuity_policy_auto_status,
+    zero_ai_continuity_policy_set,
+    zero_ai_continuity_policy_status,
+    zero_ai_continuity_restore_last_safe,
     zero_ai_continuity_simulate,
     zero_ai_continuity_simulate_apply,
     zero_ai_self_continuity_status,
@@ -223,7 +266,7 @@ from zero_os.ops_maturity import (
     rollout_apply,
     runbooks_sync,
 )
-from zero_os.phase_runtime import zero_ai_runtime_run, zero_ai_runtime_status
+from zero_os.phase_runtime import zero_ai_runtime_agent_install, zero_ai_runtime_agent_start, zero_ai_runtime_agent_status, zero_ai_runtime_agent_stop, zero_ai_runtime_agent_uninstall, zero_ai_runtime_loop_run, zero_ai_runtime_loop_set, zero_ai_runtime_loop_status, zero_ai_runtime_loop_tick, zero_ai_runtime_run, zero_ai_runtime_status
 from zero_os.runtime_coupling import (
     adversarial_runtime_validate,
     benchmark_dashboard_export,
@@ -442,7 +485,18 @@ from zero_os.native_platform import maximize as np_maximize, status as np_status
 from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, autonomy_status
 from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
 from zero_os.approval_workflow import decide as zero_ai_approval_decide, status as zero_ai_approval_status
-from zero_os.assistant_job_runner import schedule as zero_ai_job_schedule, status as zero_ai_job_status, tick as zero_ai_job_tick
+from zero_os.assistant_job_runner import recurring_builtin_auto_apply as zero_ai_job_recurring_builtin_auto_apply, recurring_builtin_status as zero_ai_job_recurring_builtin_status, remove_recurring as zero_ai_job_remove_recurring, schedule as zero_ai_job_schedule, schedule_recurring_builtin as zero_ai_job_schedule_recurring_builtin, status as zero_ai_job_status, tick as zero_ai_job_tick
+from zero_os.zero_ai_autonomy import (
+    zero_ai_autonomy_add_goal,
+    zero_ai_autonomy_goals,
+    zero_ai_autonomy_loop_run,
+    zero_ai_autonomy_loop_set,
+    zero_ai_autonomy_loop_status,
+    zero_ai_autonomy_loop_tick,
+    zero_ai_autonomy_run,
+    zero_ai_autonomy_status,
+    zero_ai_autonomy_sync,
+)
 from zero_os.browser_session_connector import browser_session_status as zero_ai_browser_session_status
 from zero_os.observation_layer import collect_observations
 from zero_os.playbook_memory import status as zero_ai_playbook_status
@@ -616,6 +670,25 @@ class SystemCapability:
             "zero ai auto inspect refresh",
             "zero ai highest-value steps",
             "zero ai inspect and refresh",
+            "zero ai continuity checkpoint",
+            "zero ai continuity checkpoint status",
+            "zero ai continuity checkpoint create",
+            "zero ai continuity restore last safe",
+            "zero ai continuity policy",
+            "zero ai continuity policy status",
+            "zero ai continuity policy set",
+            "zero ai continuity policy auto",
+            "zero ai continuity policy auto apply",
+            "zero ai continuity governance",
+            "zero ai continuity governance status",
+            "zero ai continuity governance on",
+            "zero ai continuity governance off",
+            "zero ai continuity governance tick",
+            "zero ai continuity governance run",
+            "zero ai continuity governance auto",
+            "zero ai continuity governance auto apply",
+            "zero ai restore last safe continuity",
+            "zero ai restore last safe checkpoint",
             "zero ai continuity governor",
             "zero ai continuity governor status",
             "zero ai continuity governor check",
@@ -623,6 +696,41 @@ class SystemCapability:
             "zero ai continuity simulate",
             "zero ai simulate self update",
             "zero ai continuity simulate apply",
+            "zero ai evolution",
+            "zero ai evolution status",
+            "zero ai evolution propose",
+            "zero ai evolution simulate",
+            "zero ai evolution canary",
+            "zero ai evolution promote",
+            "zero ai evolution rollback",
+            "zero ai evolution auto run",
+            "zero ai source evolution",
+            "zero ai source evolution status",
+            "zero ai source evolution propose",
+            "zero ai source evolution simulate",
+            "zero ai source evolution canary",
+            "zero ai source evolution promote",
+            "zero ai source evolution rollback",
+            "zero ai source evolution auto run",
+            "zero ai capability map",
+            "zero ai capability map status",
+            "zero ai capability map refresh",
+            "zero ai control workflows",
+            "zero ai control workflows status",
+            "zero ai control workflows refresh",
+            "zero ai workflow browser",
+            "zero ai workflow install",
+            "zero ai workflow recover",
+            "zero ai autonomy goals",
+            "zero ai autonomy sync",
+            "zero ai autonomy run",
+            "zero ai autonomy add",
+            "zero ai autonomy loop",
+            "zero ai autonomy loop status",
+            "zero ai autonomy loop on",
+            "zero ai autonomy loop off",
+            "zero ai autonomy loop tick",
+            "zero ai autonomy loop run",
             "conscious machine architecture",
             "reflexive causality engine",
             "self-generating ontology engine",
@@ -1631,6 +1739,41 @@ class SystemCapability:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
         if text.strip() in {"zero ai self continuity", "zero ai self continuity status", "zero ai persistent self"}:
             return Result(self.name, json.dumps(zero_ai_self_continuity_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity checkpoint", "zero ai continuity checkpoint status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_checkpoint_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity checkpoint create", "zero ai create continuity checkpoint"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_checkpoint_create(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity policy", "zero ai continuity policy status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_policy_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity policy auto", "zero ai continuity policy auto status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_policy_auto_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity policy auto apply", "zero ai continuity policy auto-select"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_policy_auto_apply(task.cwd), indent=2))
+        cpolicy = re.match(r"^zero ai continuity policy set\s+(\w+)$", text.strip(), flags=re.IGNORECASE)
+        if cpolicy:
+            return Result(self.name, json.dumps(zero_ai_continuity_policy_set(task.cwd, cpolicy.group(1)), indent=2))
+        if text.strip() in {"zero ai continuity governance", "zero ai continuity governance status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity governance auto", "zero ai continuity governance auto status"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_auto_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai continuity governance auto apply", "zero ai continuity governance auto-select"}:
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_auto_apply(task.cwd), indent=2))
+        cgov_on = re.match(r"^zero ai continuity governance on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if cgov_on:
+            interval = int(cgov_on.group(1)) if cgov_on.group(1) else None
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_set(task.cwd, True, interval), indent=2))
+        if text.strip() == "zero ai continuity governance off":
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_set(task.cwd, False, None), indent=2))
+        if text.strip() == "zero ai continuity governance tick":
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_tick(task.cwd), indent=2))
+        if text.strip() == "zero ai continuity governance run":
+            return Result(self.name, json.dumps(zero_ai_continuity_governance_run(task.cwd), indent=2))
+        if text.strip() in {
+            "zero ai continuity restore last safe",
+            "zero ai restore last safe continuity",
+            "zero ai restore last safe checkpoint",
+        }:
+            return Result(self.name, json.dumps(zero_ai_continuity_restore_last_safe(task.cwd), indent=2))
         if text.strip() in {"zero ai continuity governor", "zero ai continuity governor status"}:
             return Result(self.name, json.dumps(zero_ai_continuity_governor_status(task.cwd), indent=2))
         if text.strip() in {"zero ai continuity governor check", "zero ai continuity safety check"}:
@@ -1673,6 +1816,86 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd, proposal=proposal), indent=2))
         if text.strip() in {"zero ai self continuity update", "zero ai recursive state update"}:
             return Result(self.name, json.dumps(zero_ai_self_continuity_update(task.cwd), indent=2))
+        if text.strip() in {"zero ai evolution", "zero ai evolution status"}:
+            return Result(self.name, json.dumps(zero_ai_evolution_status(task.cwd), indent=2))
+        if text.strip() == "zero ai evolution propose":
+            return Result(self.name, json.dumps(zero_ai_evolution_propose(task.cwd), indent=2))
+        if text.strip() == "zero ai evolution simulate":
+            return Result(self.name, json.dumps(zero_ai_evolution_simulate(task.cwd), indent=2))
+        if text.strip() == "zero ai evolution canary":
+            return Result(self.name, json.dumps(zero_ai_evolution_canary(task.cwd), indent=2))
+        if text.strip() == "zero ai evolution promote":
+            return Result(self.name, json.dumps(zero_ai_evolution_promote(task.cwd), indent=2))
+        if text.strip() == "zero ai evolution rollback":
+            return Result(self.name, json.dumps(zero_ai_evolution_rollback(task.cwd), indent=2))
+        if text.strip() in {"zero ai evolution auto run", "zero ai self evolve", "zero ai self evolve auto"}:
+            return Result(self.name, json.dumps(zero_ai_evolution_auto_run(task.cwd), indent=2))
+        if text.strip() in {"zero ai source evolution", "zero ai source evolution status"}:
+            return Result(self.name, json.dumps(zero_ai_source_evolution_status(task.cwd), indent=2))
+        if text.strip() == "zero ai source evolution propose":
+            return Result(self.name, json.dumps(zero_ai_source_evolution_propose(task.cwd), indent=2))
+        if text.strip() == "zero ai source evolution simulate":
+            return Result(self.name, json.dumps(zero_ai_source_evolution_simulate(task.cwd), indent=2))
+        if text.strip() == "zero ai source evolution canary":
+            return Result(self.name, json.dumps(zero_ai_source_evolution_canary(task.cwd), indent=2))
+        if text.strip() == "zero ai source evolution promote":
+            return Result(self.name, json.dumps(zero_ai_source_evolution_promote(task.cwd), indent=2))
+        if text.strip() == "zero ai source evolution rollback":
+            return Result(self.name, json.dumps(zero_ai_source_evolution_rollback(task.cwd), indent=2))
+        if text.strip() in {"zero ai source evolution auto run", "zero ai source evolve", "zero ai source evolve auto"}:
+            return Result(self.name, json.dumps(zero_ai_source_evolution_auto_run(task.cwd), indent=2))
+        if text.strip() in {"zero ai capability map", "zero ai capability map status"}:
+            return Result(self.name, json.dumps(zero_ai_capability_map_status(task.cwd), indent=2))
+        if text.strip() == "zero ai capability map refresh":
+            return Result(self.name, json.dumps(zero_ai_capability_map_refresh(task.cwd), indent=2))
+        if text.strip() in {"zero ai control workflows", "zero ai control workflows status"}:
+            return Result(self.name, json.dumps(zero_ai_control_workflows_status(task.cwd), indent=2))
+        if text.strip() == "zero ai control workflows refresh":
+            return Result(self.name, json.dumps(zero_ai_control_workflows_refresh(task.cwd), indent=2))
+        browser_wf_open = re.match(r"^zero ai workflow browser open\s+url=(\S+)$", raw.strip(), flags=re.IGNORECASE)
+        if browser_wf_open:
+            return Result(self.name, json.dumps(zero_ai_control_workflow_browser_open(task.cwd, browser_wf_open.group(1)), indent=2))
+        browser_wf_act = re.match(
+            r"^zero ai workflow browser act\s+url=(\S+)\s+action=(open|inspect|click|input)(?:\s+selector=(\S+))?(?:\s+value=(.+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if browser_wf_act:
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_control_workflow_browser_act(
+                        task.cwd,
+                        browser_wf_act.group(1),
+                        browser_wf_act.group(2),
+                        browser_wf_act.group(3) or "",
+                        browser_wf_act.group(4) or "",
+                    ),
+                    indent=2,
+                ),
+            )
+        store_wf = re.match(
+            r"^zero ai workflow install\s+app=(.+?)(?:\s+user=(\S+))?(?:\s+email=(\S+))?(?:\s+os=(\S+))?$",
+            raw.strip(),
+            flags=re.IGNORECASE,
+        )
+        if store_wf:
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_control_workflow_install(
+                        task.cwd,
+                        store_wf.group(1),
+                        store_wf.group(2) or "",
+                        store_wf.group(3) or "",
+                        store_wf.group(4) or "",
+                    ),
+                    indent=2,
+                ),
+            )
+        recover_wf = re.match(r"^zero ai workflow recover(?:\s+snapshot=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
+        if recover_wf:
+            return Result(self.name, json.dumps(zero_ai_control_workflow_recover(task.cwd, recover_wf.group(1) or "latest"), indent=2))
         if text.strip() in {
             "zero ai self inspect refresh",
             "zero ai auto inspect refresh",
@@ -1752,7 +1975,7 @@ class SystemCapability:
             result = zero_ai_sync_all(task.cwd)
             autonomy_record(task.cwd, "fix all now", "success" if result.get("ok") else "failed", gate["confidence"]["confidence"])
             return Result(self.name, json.dumps({"ok": bool(result.get("ok", False)), "gate": gate, "result": result}, indent=2))
-        if text.strip() == "zero ai autonomy status":
+        if text.strip() in {"zero ai autonomy gate status", "zero ai autonomy review status"}:
             return Result(self.name, json.dumps(autonomy_status(task.cwd), indent=2))
         if text.strip() == "zero ai tools status":
             return Result(self.name, json.dumps(zero_ai_registry_status(), indent=2))
@@ -1770,6 +1993,85 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_job_status(task.cwd), indent=2))
         if text.strip() == "zero ai jobs tick":
             return Result(self.name, json.dumps(zero_ai_job_tick(task.cwd), indent=2))
+        jobs_cgov_on = re.match(r"^zero ai jobs continuity governance on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
+        if jobs_cgov_on:
+            interval = int(jobs_cgov_on.group(1)) if jobs_cgov_on.group(1) else 180
+            zero_ai_continuity_governance_set(task.cwd, True, interval)
+            scheduled = zero_ai_job_schedule_recurring_builtin(task.cwd, "continuity_governance", interval_seconds=interval, enabled=True)
+            return Result(
+                self.name,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
+                        "jobs": zero_ai_job_status(task.cwd),
+                        "scheduled": scheduled,
+                    },
+                    indent=2,
+                ),
+            )
+        if text.strip() == "zero ai jobs continuity governance off":
+            zero_ai_continuity_governance_set(task.cwd, False, None)
+            removed = zero_ai_job_remove_recurring(task.cwd, "continuity_governance")
+            return Result(
+                self.name,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
+                        "jobs": zero_ai_job_status(task.cwd),
+                        "removed": removed,
+                    },
+                    indent=2,
+                ),
+            )
+        if text.strip() == "zero ai jobs continuity governance status":
+            return Result(
+                self.name,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "auto": zero_ai_continuity_governance_auto_status(task.cwd),
+                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
+                        "jobs": zero_ai_job_status(task.cwd),
+                    },
+                    indent=2,
+                ),
+            )
+        if text.strip() in {"zero ai jobs continuity governance auto", "zero ai jobs continuity governance auto status"}:
+            return Result(
+                self.name,
+                json.dumps(zero_ai_job_recurring_builtin_status(task.cwd, "continuity_governance"), indent=2),
+            )
+        if text.strip() in {"zero ai jobs continuity governance auto apply", "zero ai jobs continuity governance auto-select"}:
+            return Result(
+                self.name,
+                json.dumps(zero_ai_job_recurring_builtin_auto_apply(task.cwd, "continuity_governance"), indent=2),
+            )
+        if text.strip() in {"zero ai autonomy", "zero ai autonomy status"}:
+            return Result(self.name, json.dumps(zero_ai_autonomy_status(task.cwd), indent=2))
+        if text.strip() == "zero ai autonomy goals":
+            return Result(self.name, json.dumps(zero_ai_autonomy_goals(task.cwd), indent=2))
+        if text.strip() == "zero ai autonomy sync":
+            return Result(self.name, json.dumps(zero_ai_autonomy_sync(task.cwd), indent=2))
+        if text.strip() == "zero ai autonomy run":
+            return Result(self.name, json.dumps(zero_ai_autonomy_run(task.cwd), indent=2))
+        autonomy_add = re.match(r"^zero ai autonomy add(?:\s+priority=(\d+))?\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if autonomy_add:
+            priority = int(autonomy_add.group(1) or "70")
+            return Result(self.name, json.dumps(zero_ai_autonomy_add_goal(task.cwd, autonomy_add.group(2).strip(), priority=priority), indent=2))
+        if text.strip() in {"zero ai autonomy loop", "zero ai autonomy loop status"}:
+            return Result(self.name, json.dumps(zero_ai_autonomy_loop_status(task.cwd), indent=2))
+        autonomy_loop_on = re.match(r"^zero ai autonomy loop on(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if autonomy_loop_on:
+            interval = int(autonomy_loop_on.group(1) or "300")
+            return Result(self.name, json.dumps(zero_ai_autonomy_loop_set(task.cwd, True, interval), indent=2))
+        if text.strip() == "zero ai autonomy loop off":
+            return Result(self.name, json.dumps(zero_ai_autonomy_loop_set(task.cwd, False, None), indent=2))
+        if text.strip() == "zero ai autonomy loop tick":
+            return Result(self.name, json.dumps(zero_ai_autonomy_loop_tick(task.cwd), indent=2))
+        if text.strip() == "zero ai autonomy loop run":
+            return Result(self.name, json.dumps(zero_ai_autonomy_loop_run(task.cwd), indent=2))
         if text.strip() == "zero ai api profile status":
             return Result(self.name, json.dumps(zero_ai_api_profile_status(task.cwd), indent=2))
         zero_ai_api_set = re.match(
@@ -2074,6 +2376,28 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_runtime_status(task.cwd), indent=2))
         if text.strip() in {"zero ai runtime run", "phase runtime run", "zero ai runtime all"}:
             return Result(self.name, json.dumps(zero_ai_runtime_run(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime loop status", "phase runtime loop status"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_loop_status(task.cwd), indent=2))
+        rt_loop_on = re.match(r"^zero ai runtime loop on(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if rt_loop_on:
+            interval = int(rt_loop_on.group(1) or "180")
+            return Result(self.name, json.dumps(zero_ai_runtime_loop_set(task.cwd, True, interval), indent=2))
+        if text.strip() in {"zero ai runtime loop off", "phase runtime loop off"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_loop_set(task.cwd, False, None), indent=2))
+        if text.strip() in {"zero ai runtime loop tick", "phase runtime loop tick"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_loop_tick(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime loop run", "phase runtime loop run"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_loop_run(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent status", "phase runtime agent status"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent install", "phase runtime agent install"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_install(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent start", "phase runtime agent start"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_start(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent stop", "phase runtime agent stop"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_stop(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent uninstall", "phase runtime agent uninstall"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_uninstall(task.cwd), indent=2))
         rt_ing = re.match(r"^runtime telemetry ingest(?:\s+source=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
         if rt_ing:
             return Result(self.name, json.dumps(telemetry_ingest(task.cwd, rt_ing.group(1) or "runtime"), indent=2))
@@ -3193,6 +3517,42 @@ class SystemCapability:
             "- zero ai brain awareness status\n"
             "- zero ai identity\n"
             "- zero ai consciousness status\n"
+            "- zero ai continuity policy status\n"
+            "- zero ai continuity policy set <strict|balanced|research>\n"
+            "- zero ai continuity policy auto\n"
+            "- zero ai continuity policy auto apply\n"
+            "- zero ai continuity governance status\n"
+            "- zero ai continuity governance on [interval=<seconds>]\n"
+            "- zero ai continuity governance off\n"
+            "- zero ai continuity governance tick\n"
+            "- zero ai continuity governance run\n"
+            "- zero ai continuity governance auto\n"
+            "- zero ai continuity governance auto apply\n"
+            "- zero ai continuity checkpoint status\n"
+            "- zero ai continuity checkpoint create\n"
+            "- zero ai continuity restore last safe\n"
+            "- zero ai evolution status\n"
+            "- zero ai evolution propose\n"
+            "- zero ai evolution simulate\n"
+            "- zero ai evolution canary\n"
+            "- zero ai evolution promote\n"
+            "- zero ai evolution rollback\n"
+            "- zero ai evolution auto run\n"
+            "- zero ai source evolution status\n"
+            "- zero ai source evolution propose\n"
+            "- zero ai source evolution simulate\n"
+            "- zero ai source evolution canary\n"
+            "- zero ai source evolution promote\n"
+            "- zero ai source evolution rollback\n"
+            "- zero ai source evolution auto run\n"
+            "- zero ai capability map status\n"
+            "- zero ai capability map refresh\n"
+            "- zero ai control workflows status\n"
+            "- zero ai control workflows refresh\n"
+            "- zero ai workflow browser open url=<url>\n"
+            "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
+            "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
+            "- zero ai workflow recover [snapshot=<id|latest>]\n"
             "- zero ai conscious architecture\n"
             "- conscious machine architecture phase 2\n"
             "- conscious machine architecture phase 3\n"
@@ -3230,8 +3590,50 @@ class SystemCapability:
             "- zero ai gap fix\n"
             "- zero ai self upgrade\n"
             "- zero ai upgrade system\n"
+            "- zero ai autonomy status\n"
+            "- zero ai autonomy goals\n"
+            "- zero ai autonomy sync\n"
+            "- zero ai autonomy run\n"
+            "- zero ai autonomy add [priority=<1-100>] <goal>\n"
+            "- zero ai autonomy loop status\n"
+            "- zero ai autonomy loop on [interval=<seconds>]\n"
+            "- zero ai autonomy loop tick\n"
+            "- zero ai autonomy loop run\n"
+            "- zero ai autonomy loop off\n"
+            "- zero ai evolution status\n"
+            "- zero ai evolution propose\n"
+            "- zero ai evolution simulate\n"
+            "- zero ai evolution canary\n"
+            "- zero ai evolution promote\n"
+            "- zero ai evolution rollback\n"
+            "- zero ai evolution auto run\n"
+            "- zero ai source evolution status\n"
+            "- zero ai source evolution propose\n"
+            "- zero ai source evolution simulate\n"
+            "- zero ai source evolution canary\n"
+            "- zero ai source evolution promote\n"
+            "- zero ai source evolution rollback\n"
+            "- zero ai source evolution auto run\n"
+            "- zero ai capability map status\n"
+            "- zero ai capability map refresh\n"
+            "- zero ai control workflows status\n"
+            "- zero ai control workflows refresh\n"
+            "- zero ai workflow browser open url=<url>\n"
+            "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
+            "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
+            "- zero ai workflow recover [snapshot=<id|latest>]\n"
             "- zero ai runtime status\n"
             "- zero ai runtime run\n"
+            "- zero ai runtime loop status\n"
+            "- zero ai runtime loop on [interval=<seconds>]\n"
+            "- zero ai runtime loop tick\n"
+            "- zero ai runtime loop run\n"
+            "- zero ai runtime loop off\n"
+            "- zero ai runtime agent status\n"
+            "- zero ai runtime agent install\n"
+            "- zero ai runtime agent start\n"
+            "- zero ai runtime agent stop\n"
+            "- zero ai runtime agent uninstall\n"
             "- runtime telemetry ingest [source=<name>]\n"
             "- runtime node publish <node> <json_payload>\n"
             "- runtime node consensus\n"
@@ -3245,7 +3647,7 @@ class SystemCapability:
             "- architecture measure\n"
             "- architecture explain\n"
             "- zero ai fix all\n"
-            "- zero ai autonomy status\n"
+            "- zero ai autonomy gate status\n"
             "- zero ai autonomy evaluate action=<text> radius=<scope> reversible=<on|off> evidence=<n> contradictions=<n> verifiers=<n>\n"
             "- zero ai tools status\n"
             "- zero ai observe\n"
@@ -3256,6 +3658,11 @@ class SystemCapability:
             "- zero ai approval decide id=<id> state=<approve|reject>\n"
             "- zero ai jobs status\n"
             "- zero ai jobs tick\n"
+            "- zero ai jobs continuity governance status\n"
+            "- zero ai jobs continuity governance on [interval=<seconds>]\n"
+            "- zero ai jobs continuity governance off\n"
+            "- zero ai jobs continuity governance auto\n"
+            "- zero ai jobs continuity governance auto apply\n"
             "- zero ai job add <request>\n"
             "- zero ai playbooks status\n"
             "- zero ai tasks status\n"

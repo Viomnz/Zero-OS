@@ -53,8 +53,9 @@
                 <Button Height="42" Margin="0,0,0,8" Content="Step 1. Open Repository" Click="OpenRepository_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Step 2. Run First-Run" Click="RunFirstRun_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Step 3. Open Shell UI" Click="OpenShellUi_Click" />
-                <Button Height="42" Margin="0,0,0,8" Content="Step 4. Know Everything" Click="KnowEverything_Click" />
-                <Button Height="42" Margin="0,0,0,12" Content="Step 5. Complete All" Click="KnowEverythingCompleteAll_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 4. Install + Start Background Agent" Click="QuickStartInstallBackgroundAgent_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Step 5. Know Everything" Click="KnowEverything_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Step 6. Complete All" Click="KnowEverythingCompleteAll_Click" />
                 <Button Height="38" Content="Refresh Wizard Status" Click="RefreshQuickStart_Click" />
               </StackPanel>
             </Border>
@@ -97,7 +98,8 @@
                 <Button Height="42" Margin="0,0,0,8" Content="1. Open Repository" Click="OpenRepository_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="2. Run First-Run" Click="RunFirstRun_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="3. Open Shell UI" Click="OpenShellUi_Click" />
-                <Button Height="42" Margin="0,0,0,12" Content="4. Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="4. Install + Start Background Agent" Click="QuickStartInstallBackgroundAgent_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="5. Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
                 <TextBlock Text="More Actions"
                            Margin="0,4,0,10"
                            FontSize="16"
@@ -128,7 +130,121 @@
                          Foreground="{StaticResource TextFg}"
                          BorderThickness="0"
                          IsReadOnly="True"
-                         Text="Start Here&#x0a;1. Download Native App or clone Zero OS&#x0a;2. Run First-Run&#x0a;3. Open Shell UI&#x0a;4. Use the built-in buttons&#x0a;&#x0a;GitHub users should not need to learn commands." />
+                         Text="Start Here&#x0a;1. Download Native App or clone Zero OS&#x0a;2. Run First-Run&#x0a;3. Open Shell UI&#x0a;4. Install + Start Background Agent&#x0a;5. Use the built-in buttons&#x0a;&#x0a;GitHub users should not need to learn commands." />
+              </DockPanel>
+            </Border>
+          </Grid>
+        </TabItem>
+
+        <TabItem Header="System Health">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.1*" />
+              <ColumnDefinition Width="1.9*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <StackPanel>
+                <TextBlock Text="System Health"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="One place to answer: is Zero OS okay right now?"
+                           Margin="0,6,0,16"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh System Health" Click="RefreshSystemHealth_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Fix Now" Click="FixSystemHealthNow_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Start Background Agent" Click="ZeroAiRuntimeAgentStart_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Run Runtime Now" Click="ZeroAiRuntimeRun_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Repair Continuity" Click="ZeroAiSelfRepairRestoreContinuity_Click" />
+                <TextBlock Text="Fast path"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <Button Height="38" Margin="0,0,0,8" Content="Install + Start Background Agent" Click="QuickStartInstallBackgroundAgent_Click" />
+                <Button Height="38" Content="Open Runtime Tab Actions" Click="ZeroAiRuntimeStatus_Click" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Health Summary"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="SystemHealthBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading system health..." />
+              </DockPanel>
+            </Border>
+          </Grid>
+        </TabItem>
+
+        <TabItem Header="Autonomy">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.1*" />
+              <ColumnDefinition Width="1.9*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <StackPanel>
+                <TextBlock Text="Autonomy"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="See Zero AI's current goal, next action, blocked reasons, and autonomous loop state."
+                           Margin="0,6,0,16"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Autonomy" Click="RefreshAutonomy_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Sync Goals" Click="ZeroAiAutonomySync_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Run Autonomous Work" Click="ZeroAiAutonomyRun_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Autonomy Loop On" Click="ZeroAiAutonomyLoopOn_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Autonomy Loop Tick" Click="ZeroAiAutonomyLoopTick_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Autonomy Loop Off" Click="ZeroAiAutonomyLoopOff_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Evolution Status" Click="ZeroAiEvolutionStatus_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Evolution Auto Run" Click="ZeroAiEvolutionAutoRun_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Evolution Rollback" Click="ZeroAiEvolutionRollback_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Source Evolution Status" Click="ZeroAiSourceEvolutionStatus_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Source Evolution Auto Run" Click="ZeroAiSourceEvolutionAutoRun_Click" />
+                <Button Height="38" Margin="0,0,0,12" Content="Source Evolution Rollback" Click="ZeroAiSourceEvolutionRollback_Click" />
+                <TextBlock Text="Fast path"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <Button Height="38" Margin="0,0,0,8" Content="Fix Now" Click="FixSystemHealthNow_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Run Runtime Now" Click="ZeroAiRuntimeRun_Click" />
+                <Button Height="38" Content="Start Background Agent" Click="ZeroAiRuntimeAgentStart_Click" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Autonomy Summary"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="AutonomyBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading autonomy status..." />
               </DockPanel>
             </Border>
           </Grid>
@@ -489,6 +605,39 @@
                 <Button Height="38" Margin="0,0,8,8" Content="Know Everything + Complete All" Click="KnowEverythingCompleteAll_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Zero AI Self Inspect + Refresh" Click="ZeroAiSelfInspectRefresh_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Zero AI Self Repair Restore Continuity" Click="ZeroAiSelfRepairRestoreContinuity_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Continuity Policy Status" Click="ZeroAiContinuityPolicyStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Policy Auto Status" Click="ZeroAiContinuityPolicyAutoStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Policy Auto Apply" Click="ZeroAiContinuityPolicyAutoApply_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Continuity Governance Status" Click="ZeroAiContinuityGovernanceStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Governance Auto Status" Click="ZeroAiContinuityGovernanceAutoStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Governance Auto Apply" Click="ZeroAiContinuityGovernanceAutoApply_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Governance On" Click="ZeroAiContinuityGovernanceOn_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Governance Tick" Click="ZeroAiContinuityGovernanceTick_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Governance Off" Click="ZeroAiContinuityGovernanceOff_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Status" Click="ZeroAiJobsStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Governance Auto Status" Click="ZeroAiJobsContinuityGovernanceAutoStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Governance Auto Apply" Click="ZeroAiJobsContinuityGovernanceAutoApply_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Governance On" Click="ZeroAiJobsContinuityGovernanceOn_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Tick" Click="ZeroAiJobsTick_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Jobs Governance Off" Click="ZeroAiJobsContinuityGovernanceOff_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Status" Click="ZeroAiRuntimeStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Run" Click="ZeroAiRuntimeRun_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Loop Status" Click="ZeroAiRuntimeLoopStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Loop On" Click="ZeroAiRuntimeLoopOn_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Loop Tick" Click="ZeroAiRuntimeLoopTick_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Runtime Loop Off" Click="ZeroAiRuntimeLoopOff_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Install Background Agent" Click="ZeroAiRuntimeAgentInstall_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Background Agent Status" Click="ZeroAiRuntimeAgentStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Start Background Agent" Click="ZeroAiRuntimeAgentStart_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Stop Background Agent" Click="ZeroAiRuntimeAgentStop_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Uninstall Background Agent" Click="ZeroAiRuntimeAgentUninstall_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Remember Loop On Launch" Click="RememberRuntimeLoopOnLaunch_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Forget Loop On Launch" Click="ForgetRuntimeLoopOnLaunch_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Policy Strict" Click="ZeroAiContinuityPolicyStrict_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Policy Balanced" Click="ZeroAiContinuityPolicyBalanced_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Policy Research" Click="ZeroAiContinuityPolicyResearch_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Continuity Checkpoint Status" Click="ZeroAiContinuityCheckpointStatus_Click" />
+                <Button Height="38" Margin="0,0,8,8" Content="Zero AI Restore Last Safe Continuity" Click="ZeroAiContinuityRestoreLastSafe_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Zero AI Continuity Governor Check" Click="ZeroAiContinuityGovernorCheck_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Zero AI Continuity Governor Apply" Click="ZeroAiContinuityGovernorApply_Click" />
                 <Button Height="38" Margin="0,0,8,8" Content="Zero AI Simulate Self Update" Click="ZeroAiContinuitySimulate_Click" />
@@ -500,19 +649,40 @@
             </StackPanel>
             </Border>
             <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
-              <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Logs" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
-                <TextBox x:Name="LogBox"
-                         Margin="0,12,0,0"
-                         Background="#0D1826"
-                         Foreground="{StaticResource TextFg}"
-                         BorderThickness="0"
-                         IsReadOnly="True"
-                         AcceptsReturn="True"
-                         VerticalScrollBarVisibility="Auto"
-                         TextWrapping="Wrap"
-                         Text="No log entries yet." />
-              </DockPanel>
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="12" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0">
+                  <TextBlock DockPanel.Dock="Top" Text="Runtime Continuity Background" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="RuntimeContinuityBox"
+                           Margin="0,12,0,0"
+                           MinHeight="210"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           VerticalScrollBarVisibility="Auto"
+                           TextWrapping="Wrap"
+                           Text="Runtime continuity background status will appear here." />
+                </DockPanel>
+                <DockPanel Grid.Row="2">
+                  <TextBlock DockPanel.Dock="Top" Text="Logs" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="LogBox"
+                           Margin="0,12,0,0"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           VerticalScrollBarVisibility="Auto"
+                           TextWrapping="Wrap"
+                           Text="No log entries yet." />
+                </DockPanel>
+              </Grid>
             </Border>
           </Grid>
         </TabItem>

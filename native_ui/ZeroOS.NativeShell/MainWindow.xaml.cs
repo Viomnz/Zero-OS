@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ZeroOS.NativeShell;
 
@@ -29,11 +30,14 @@ public partial class MainWindow : Window
     private readonly string _nativeUiRoot;
     private readonly NativeBackend _backend;
     private readonly NativeDiagnostics _diagnostics;
+    private readonly DispatcherTimer _runtimeLoopTimer;
     private readonly ObservableCollection<string> _logs = new();
     private string? _activeWorkspacePath;
     private bool _activeWorkspacePathEditable;
     private bool _workspaceDirty;
     private bool _suspendWorkspaceDirtyTracking;
+    private bool _runtimeLoopTickInFlight;
+    private bool _autoEnableRuntimeLoopOnLaunch;
 
     private static readonly HashSet<string> SkipRoots = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,6 +57,9 @@ public partial class MainWindow : Window
         _projectFile = Path.Combine(_repoRoot, "native_ui", "ZeroOS.NativeShell", "ZeroOS.NativeShell.csproj");
         _backend = new NativeBackend(_repoRoot);
         _diagnostics = new NativeDiagnostics(_repoRoot);
+        _runtimeLoopTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _runtimeLoopTimer.Tick += RuntimeLoopTimer_Tick;
+        _autoEnableRuntimeLoopOnLaunch = LoadRuntimeStartupPreference();
 
         var crashReport = _diagnostics.ConsumeCrashMarker();
         if (!string.IsNullOrWhiteSpace(crashReport))
@@ -72,6 +79,10 @@ public partial class MainWindow : Window
         RefreshReleaseData();
         RefreshSecuritySpecs();
         RefreshQuickStartStatus();
+        RefreshRuntimeContinuityStatus();
+        RefreshSystemHealth();
+        RefreshAutonomyStatus();
+        ApplyRuntimeLoopStartupPreference();
         SetStatus("Ready");
         AppendLog("Application started");
     }
@@ -104,6 +115,13 @@ public partial class MainWindow : Window
 
     private void OpenRepository_Click(object sender, RoutedEventArgs e) => OpenUrl(RepoUrl);
     private void OpenReleases_Click(object sender, RoutedEventArgs e) => OpenUrl(ReleasesUrl);
+    private void QuickStartInstallBackgroundAgent_Click(object sender, RoutedEventArgs e)
+    {
+        _autoEnableRuntimeLoopOnLaunch = true;
+        SaveRuntimeStartupPreference();
+        RunBackendTask("zero ai runtime agent install", "Zero AI always-on background agent installed");
+        RefreshQuickStartStatus();
+    }
 
     private void RefreshGithubData_Click(object sender, RoutedEventArgs e)
     {
@@ -121,6 +139,22 @@ public partial class MainWindow : Window
     {
         RefreshSecuritySpecs();
         SetStatus("Security specs refreshed.");
+    }
+    private void RefreshSystemHealth_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshSystemHealth();
+        SetStatus("System health refreshed.");
+    }
+
+    private void FixSystemHealthNow_Click(object sender, RoutedEventArgs e)
+    {
+        RunSystemHealthFixNow();
+    }
+
+    private void RefreshAutonomy_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshAutonomyStatus();
+        SetStatus("Autonomy refreshed.");
     }
 
     private void CopyPublishCommand_Click(object sender, RoutedEventArgs e) => CopyText(PublishCommand, "publish command");
@@ -150,6 +184,94 @@ public partial class MainWindow : Window
         => RunBackendTask("zero ai self inspect refresh", "Zero AI self inspect and refresh complete");
     private void ZeroAiSelfRepairRestoreContinuity_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai self repair restore continuity", "Zero AI self repair restore continuity complete");
+    private void ZeroAiContinuityPolicyStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy status", "Zero AI continuity policy status loaded");
+    private void ZeroAiContinuityPolicyAutoStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy auto", "Zero AI auto policy recommendation loaded");
+    private void ZeroAiContinuityPolicyAutoApply_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy auto apply", "Zero AI auto policy selection complete");
+    private void ZeroAiContinuityGovernanceStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance status", "Zero AI continuity governance status loaded");
+    private void ZeroAiContinuityGovernanceAutoStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance auto", "Zero AI continuity governance auto recommendation loaded");
+    private void ZeroAiContinuityGovernanceAutoApply_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance auto apply", "Zero AI continuity governance auto toggle complete");
+    private void ZeroAiContinuityGovernanceOn_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance on interval=180", "Zero AI continuity governance enabled");
+    private void ZeroAiContinuityGovernanceTick_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance tick", "Zero AI continuity governance tick complete");
+    private void ZeroAiContinuityGovernanceOff_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity governance off", "Zero AI continuity governance disabled");
+    private void ZeroAiJobsStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs status", "Zero AI jobs status loaded");
+    private void ZeroAiJobsContinuityGovernanceAutoStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs continuity governance auto", "Zero AI jobs governance auto recommendation loaded");
+    private void ZeroAiJobsContinuityGovernanceAutoApply_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs continuity governance auto apply", "Zero AI jobs governance auto toggle complete");
+    private void ZeroAiJobsContinuityGovernanceOn_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs continuity governance on interval=180", "Zero AI continuity governance scheduled in jobs");
+    private void ZeroAiJobsTick_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs tick", "Zero AI jobs tick complete");
+    private void ZeroAiJobsContinuityGovernanceOff_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai jobs continuity governance off", "Zero AI continuity governance removed from jobs");
+    private void ZeroAiRuntimeStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime status", "Zero AI runtime status loaded");
+    private void ZeroAiRuntimeRun_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime run", "Zero AI runtime loop complete");
+    private void ZeroAiRuntimeLoopStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime loop status", "Zero AI runtime loop status loaded");
+    private void ZeroAiRuntimeLoopOn_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime loop on interval=180", "Zero AI runtime loop enabled");
+    private void ZeroAiRuntimeLoopTick_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime loop tick", "Zero AI runtime loop tick complete");
+    private void ZeroAiRuntimeLoopOff_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime loop off", "Zero AI runtime loop disabled");
+    private void ZeroAiRuntimeAgentInstall_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime agent install", "Zero AI background agent installed");
+    private void ZeroAiRuntimeAgentStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime agent status", "Zero AI background agent status loaded");
+    private void ZeroAiRuntimeAgentStart_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime agent start", "Zero AI background agent started");
+    private void ZeroAiRuntimeAgentStop_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime agent stop", "Zero AI background agent stopped");
+    private void ZeroAiRuntimeAgentUninstall_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai runtime agent uninstall", "Zero AI background agent uninstalled");
+    private void ZeroAiAutonomySync_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai autonomy sync", "Zero AI autonomy goals synced");
+    private void ZeroAiAutonomyRun_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai autonomy run", "Zero AI autonomous work run complete");
+    private void ZeroAiAutonomyLoopOn_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai autonomy loop on interval=300", "Zero AI autonomy loop enabled");
+    private void ZeroAiAutonomyLoopTick_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai autonomy loop tick", "Zero AI autonomy loop tick complete");
+    private void ZeroAiAutonomyLoopOff_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai autonomy loop off", "Zero AI autonomy loop disabled");
+    private void ZeroAiEvolutionStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai evolution status", "Zero AI bounded evolution status loaded");
+    private void ZeroAiEvolutionAutoRun_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai evolution auto run", "Zero AI bounded self evolution run complete");
+    private void ZeroAiEvolutionRollback_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai evolution rollback", "Zero AI bounded evolution rollback complete");
+    private void ZeroAiSourceEvolutionStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai source evolution status", "Zero AI source evolution status loaded");
+    private void ZeroAiSourceEvolutionAutoRun_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai source evolution auto run", "Zero AI guarded source evolution run complete");
+    private void ZeroAiSourceEvolutionRollback_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai source evolution rollback", "Zero AI guarded source evolution rollback complete");
+    private void RememberRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
+        => SetRuntimeLoopStartupPreference(true);
+    private void ForgetRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
+        => SetRuntimeLoopStartupPreference(false);
+    private void ZeroAiContinuityPolicyStrict_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy set strict", "Zero AI continuity policy set to strict");
+    private void ZeroAiContinuityPolicyBalanced_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy set balanced", "Zero AI continuity policy set to balanced");
+    private void ZeroAiContinuityPolicyResearch_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity policy set research", "Zero AI continuity policy set to research");
+    private void ZeroAiContinuityCheckpointStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity checkpoint status", "Zero AI continuity checkpoint status loaded");
+    private void ZeroAiContinuityRestoreLastSafe_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai continuity restore last safe", "Zero AI last safe continuity restored");
     private void ZeroAiContinuityGovernorCheck_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai continuity governor check", "Zero AI continuity governor safety check complete");
     private void ZeroAiContinuityGovernorApply_Click(object sender, RoutedEventArgs e)
@@ -651,6 +773,21 @@ public partial class MainWindow : Window
         RefreshArtifacts();
         RefreshGithubData();
         RefreshReleaseData();
+        if (ShouldRefreshRuntimeContinuityStatus(command))
+        {
+            RefreshRuntimeContinuityStatus();
+            RefreshSystemHealth();
+            RefreshQuickStartStatus();
+            RefreshAutonomyStatus();
+        }
+        else if (command.Trim().StartsWith("zero ai autonomy", StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshAutonomyStatus();
+        }
+        else if (command.Trim().StartsWith("zero ai source evolution", StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshAutonomyStatus();
+        }
     }
 
     private void RunContinuitySimulationTask(bool apply)
@@ -842,6 +979,18 @@ public partial class MainWindow : Window
         var msixDir = Path.Combine(_nativeUiRoot, "msix");
         var portableReady = Directory.Exists(installerDir) && Directory.GetFiles(installerDir, "*.zip").Length > 0;
         var msixReady = Directory.Exists(msixDir) && Directory.GetFiles(msixDir, "*.msix").Length > 0;
+        var runtimeStatus = _backend.RunTask("zero ai runtime status");
+        var runtimeAgentInstalled = false;
+        var runtimeAgentRunning = false;
+        if (runtimeStatus.Payload.HasValue && runtimeStatus.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var payload = runtimeStatus.Payload.Value;
+            if (payload.TryGetProperty("runtime_agent", out var runtimeAgent))
+            {
+                runtimeAgentInstalled = ReadBool(runtimeAgent, "installed");
+                runtimeAgentRunning = ReadBool(runtimeAgent, "running");
+            }
+        }
 
         var lines = new List<string>
         {
@@ -858,17 +1007,754 @@ public partial class MainWindow : Window
             $"7. Gap status report: {(File.Exists(gapStatus) ? "yes" : "no")}",
             $"8. Portable installer ready: {(portableReady ? "yes" : "no")}",
             $"9. MSIX package ready: {(msixReady ? "yes" : "no")}",
+            $"10. Background agent installed: {(runtimeAgentInstalled ? "yes" : "no")}",
+            $"11. Background agent running: {(runtimeAgentRunning ? "yes" : "no")}",
+            $"12. Auto-enable runtime loop on launch: {(_autoEnableRuntimeLoopOnLaunch ? "yes" : "no")}",
             "",
             "Recommended order:",
             "Download Native App",
             "Step 1. Open Repository",
             "Step 2. Run First-Run",
             "Step 3. Open Shell UI",
-            "Step 4. Know Everything",
-            "Step 5. Complete All"
+            "Step 4. Install + Start Background Agent",
+            "Step 5. Know Everything",
+            "Step 6. Complete All"
         };
 
         QuickStartStatusBox.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    private void RefreshSystemHealth()
+    {
+        var runtimeStatus = _backend.RunTask("zero ai runtime status");
+        var continuityStatus = _backend.RunTask("zero ai self continuity status");
+        SystemHealthBox.Text = BuildSystemHealthSummary(runtimeStatus, continuityStatus);
+    }
+
+    private void RefreshAutonomyStatus()
+    {
+        var result = _backend.RunTask("zero ai autonomy status");
+        AutonomyBox.Text = BuildAutonomySummary(result);
+    }
+
+    private void RefreshRuntimeContinuityStatus()
+    {
+        var result = _backend.RunTask("zero ai runtime status");
+        RuntimeContinuityBox.Text = BuildRuntimeContinuitySummary(result)
+            + Environment.NewLine + Environment.NewLine
+            + $"Auto-enable runtime loop on launch: {(_autoEnableRuntimeLoopOnLaunch ? "yes" : "no")}";
+        SyncRuntimeLoopTimer(result);
+    }
+
+    private string RuntimeShellSettingsPath()
+    {
+        return Path.Combine(_repoRoot, ".zero_os", "native_shell", "ui_settings.json");
+    }
+
+    private bool LoadRuntimeStartupPreference()
+    {
+        var path = RuntimeShellSettingsPath();
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("auto_enable_runtime_loop_on_launch", out var setting)
+                && (setting.ValueKind == JsonValueKind.True || setting.ValueKind == JsonValueKind.False))
+            {
+                return setting.GetBoolean();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Failed to load runtime startup preference: {ex.Message}");
+        }
+
+        return false;
+    }
+
+    private void SaveRuntimeStartupPreference()
+    {
+        var path = RuntimeShellSettingsPath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var payload = new Dictionary<string, object>
+        {
+            ["auto_enable_runtime_loop_on_launch"] = _autoEnableRuntimeLoopOnLaunch,
+            ["updated_utc"] = DateTime.UtcNow.ToString("O"),
+        };
+        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private void SetRuntimeLoopStartupPreference(bool enabled)
+    {
+        _autoEnableRuntimeLoopOnLaunch = enabled;
+        SaveRuntimeStartupPreference();
+        RefreshRuntimeContinuityStatus();
+        RefreshAutonomyStatus();
+        SetStatus(enabled ? "Runtime loop will auto-enable on launch." : "Runtime loop will no longer auto-enable on launch.");
+        AppendLog(enabled ? "Enabled runtime loop auto-start on launch" : "Disabled runtime loop auto-start on launch");
+    }
+
+    private void ApplyRuntimeLoopStartupPreference()
+    {
+        if (!_autoEnableRuntimeLoopOnLaunch)
+        {
+            return;
+        }
+
+        var status = _backend.RunTask("zero ai runtime loop status");
+        if (status.Payload.HasValue
+            && status.Payload.Value.ValueKind == JsonValueKind.Object
+            && ReadBool(status.Payload.Value, "enabled"))
+        {
+            return;
+        }
+
+        AppendLog("Auto-enabling Zero AI runtime loop on launch");
+        var enabled = _backend.RunTask("zero ai runtime loop on interval=180");
+        if (enabled.Ok)
+        {
+            SetStatus("Auto-enabled Zero AI runtime loop on launch.");
+        }
+        else
+        {
+            SetStatus("Tried to auto-enable runtime loop. Review output.");
+        }
+        RefreshRuntimeContinuityStatus();
+        RefreshAutonomyStatus();
+    }
+
+    private static bool ShouldRefreshRuntimeContinuityStatus(string command)
+    {
+        var normalized = command.Trim().ToLowerInvariant();
+        return normalized.StartsWith("zero ai runtime", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai continuity", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai jobs continuity governance", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai source evolution", StringComparison.Ordinal)
+            || normalized == "zero ai jobs tick"
+            || normalized == "zero ai self inspect refresh"
+            || normalized == "zero ai self repair restore continuity"
+            || normalized == "zero ai know everything"
+            || normalized == "zero os complete all";
+    }
+
+    private static string BuildRuntimeContinuitySummary(NativeCommandResult result)
+    {
+        if (!result.Payload.HasValue || result.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            return "Runtime Continuity Background" + Environment.NewLine + Environment.NewLine + result.DisplayText();
+        }
+
+        var payload = result.Payload.Value;
+        payload.TryGetProperty("runtime_loop", out var runtimeLoop);
+        payload.TryGetProperty("runtime_agent", out var runtimeAgent);
+        payload.TryGetProperty("autonomy", out var autonomy);
+        payload.TryGetProperty("autonomy_background", out var autonomyBackground);
+        payload.TryGetProperty("source_evolution", out var sourceEvolution);
+        if (TryGetBool(payload, "missing", out var missing) && missing)
+        {
+            return string.Join(
+                Environment.NewLine,
+                "Runtime Continuity Background",
+                "",
+                "No runtime status has been captured yet.",
+                "Run `Zero AI Runtime Run` to build the live background continuity report.",
+                "",
+                $"Runtime loop enabled: {(ReadBool(runtimeLoop, "enabled") ? "yes" : "no")}",
+                $"Runtime loop interval: {ReadNumber(runtimeLoop, "interval_seconds")} seconds",
+                $"Background agent running: {(ReadBool(runtimeAgent, "running") ? "yes" : "no")}"
+            );
+        }
+
+        if (!payload.TryGetProperty("continuity_governance_background", out var background) || background.ValueKind != JsonValueKind.Object)
+        {
+            return "Runtime Continuity Background" + Environment.NewLine + Environment.NewLine + result.DisplayText();
+        }
+
+        payload.TryGetProperty("capability_control_map", out var capabilityMap);
+        background.TryGetProperty("auto", out var auto);
+        background.TryGetProperty("continuity_governance", out var governance);
+        background.TryGetProperty("jobs", out var jobs);
+        background.TryGetProperty("tick", out var tick);
+
+        var lines = new List<string>
+        {
+            "Runtime Continuity Background",
+            "",
+            $"Runtime ready: {ReadBool(payload, "runtime_ready")}",
+            $"Runtime score: {ReadNumber(payload, "runtime_score")}",
+            $"Last runtime status: {ReadString(payload, "time_utc")}",
+            "",
+            $"Runtime loop enabled: {(ReadBool(runtimeLoop, "enabled") ? "yes" : "no")}",
+            $"Runtime loop interval: {ReadNumber(runtimeLoop, "interval_seconds")} seconds",
+            $"Runtime loop due now: {(ReadBool(runtimeLoop, "due_now") ? "yes" : "no")}",
+            $"Runtime loop last run: {ReadString(runtimeLoop, "last_run_utc")}",
+            $"Runtime loop next run: {ReadString(runtimeLoop, "next_run_utc")}",
+            $"Runtime loop failures: {ReadNumber(runtimeLoop, "consecutive_failures")}",
+            $"Runtime loop backoff: {ReadNumber(runtimeLoop, "backoff_seconds")} seconds",
+            $"Runtime loop last failure: {ReadString(runtimeLoop, "last_failure")}",
+            "",
+            $"Background agent installed: {(ReadBool(runtimeAgent, "installed") ? "yes" : "no")}",
+            $"Background agent running: {(ReadBool(runtimeAgent, "running") ? "yes" : "no")}",
+            $"Background agent auto-start on login: {(ReadBool(runtimeAgent, "auto_start_on_login") ? "yes" : "no")}",
+            $"Background agent pid: {ReadString(runtimeAgent, "worker_pid")}",
+            $"Background agent heartbeat: {ReadString(runtimeAgent, "last_heartbeat_utc")}",
+            $"Background agent heartbeat fresh: {(ReadBool(runtimeAgent, "heartbeat_fresh") ? "yes" : "no")}",
+            $"Background agent last tick: {ReadString(runtimeAgent, "last_tick_utc")}",
+            $"Background agent last failure: {ReadString(runtimeAgent, "last_failure")}",
+            $"Background agent launcher: {ReadString(runtimeAgent, "startup_launcher_path")}",
+            "",
+            $"Auto recommendation: {(ReadBool(auto, "recommended_enabled") ? "keep on" : "keep off")}",
+            $"Recommended interval: {ReadNumber(auto, "recommended_interval_seconds")} seconds",
+            $"Current governance state: {(ReadBool(governance, "enabled") ? "on" : "off")}",
+            $"Current policy level: {ReadString(governance, "current_policy_level")}",
+            $"Jobs recurring count: {ReadNumber(jobs, "recurring_count")}",
+            "",
+            $"Background tick executed: {(ReadBool(tick, "ticked") ? "yes" : "no")}",
+            $"Tick reason: {ReadString(tick, "reason")}",
+            $"Tick result ok: {ReadNestedBool(tick, "result", "ok")}",
+            $"Last governance tick: {ReadString(governance, "last_tick_utc")}",
+            $"Last governance actions: {ReadStringArray(governance, "last_actions")}",
+            "",
+            $"Auto reasons: {ReadStringArray(auto, "reasons")}",
+            "",
+            $"Autonomy current goal: {ReadString(autonomy, "current_goal_title")}",
+            $"Autonomy loop enabled: {(ReadNestedBool(autonomy, "loop", "enabled") ? "yes" : "no")}",
+            $"Autonomy background ran: {(ReadBool(autonomyBackground, "ran") ? "yes" : "no")}",
+            $"Autonomy background reason: {ReadString(autonomyBackground, "reason")}",
+            "",
+            $"Source evolution ready: {(ReadBool(sourceEvolution, "source_evolution_ready") ? "yes" : "no")}",
+            $"Source evolution due now: {(ReadBool(sourceEvolution, "due_now") ? "yes" : "no")}",
+            $"Source evolution action: {ReadString(sourceEvolution, "recommended_action")}"
+        };
+
+        if (capabilityMap.ValueKind == JsonValueKind.Object)
+        {
+            lines.Add("");
+            lines.Add("Capability control map:");
+            lines.Add($"Autonomous surface: {ReadNestedNumber(capabilityMap, "summary", "autonomous_surface_score")}%");
+            lines.Add($"Active autonomous surface: {ReadNestedNumber(capabilityMap, "summary", "active_autonomous_surface_score")}%");
+            lines.Add($"Approval-gated count: {ReadNestedNumber(capabilityMap, "summary", "approval_gated_count")}");
+            lines.Add($"Forbidden count: {ReadNestedNumber(capabilityMap, "summary", "forbidden_count")}");
+            lines.Add($"Fully autonomous control: {(ReadBool(capabilityMap, "fully_autonomous_control") ? "yes" : "no")}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildAutonomySummary(NativeCommandResult result)
+    {
+        if (!result.Payload.HasValue || result.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            return "Autonomy" + Environment.NewLine + Environment.NewLine + result.DisplayText();
+        }
+
+        var payload = result.Payload.Value;
+        payload.TryGetProperty("loop", out var loop);
+        payload.TryGetProperty("current_goal", out var currentGoal);
+        payload.TryGetProperty("recent_runs", out var recentRuns);
+        payload.TryGetProperty("evolution", out var evolution);
+        payload.TryGetProperty("source_evolution", out var sourceEvolution);
+        payload.TryGetProperty("capability_control_map", out var capabilityMap);
+
+        var lines = new List<string>
+        {
+            "Autonomy",
+            "",
+            $"Autonomy ready: {(ReadBool(payload, "autonomy_ready") ? "yes" : "no")}",
+            $"Open goals: {ReadNumber(payload, "open_count")}",
+            $"Blocked goals: {ReadNumber(payload, "blocked_count")}",
+            $"Resolved goals: {ReadNumber(payload, "resolved_count")}",
+            $"Pending approvals: {ReadNumber(payload, "approvals_pending")}",
+            $"Pending jobs: {ReadNumber(payload, "jobs_pending")}",
+            "",
+            $"Current goal: {ReadString(payload, "current_goal_title")}",
+            $"Next action: {ReadString(payload, "current_goal_next_action")}",
+            $"Blocked reason: {ReadString(payload, "blocked_reason")}",
+            "",
+            $"Autonomy loop enabled: {(ReadBool(loop, "enabled") ? "yes" : "no")}",
+            $"Autonomy loop due now: {(ReadBool(loop, "due_now") ? "yes" : "no")}",
+            $"Autonomy loop interval: {ReadNumber(loop, "interval_seconds")} seconds",
+            $"Autonomy loop last run: {ReadString(loop, "last_run_utc")}",
+            $"Autonomy loop next run: {ReadString(loop, "next_run_utc")}",
+            $"Autonomy loop last goal: {ReadString(loop, "last_goal_title")}",
+            $"Autonomy loop last failure: {ReadString(loop, "last_failure")}",
+        };
+
+        if (evolution.ValueKind == JsonValueKind.Object)
+        {
+            evolution.TryGetProperty("pending_candidate", out var pendingCandidate);
+            lines.Add("");
+            lines.Add("Bounded self evolution:");
+            lines.Add($"- Ready: {(ReadBool(payload, "evolution_ready") ? "yes" : "no")}");
+            lines.Add($"- Due now: {(ReadBool(payload, "evolution_due_now") ? "yes" : "no")}");
+            lines.Add($"- Recommended action: {ReadString(evolution, "recommended_action")}");
+            lines.Add($"- Generation: {ReadNumber(evolution, "current_generation")}");
+            lines.Add($"- Promotions: {ReadNumber(evolution, "promoted_count")}");
+            lines.Add($"- Rollbacks: {ReadNumber(evolution, "rollback_count")}");
+            lines.Add($"- Runtime loop target: {ReadNestedNumber(evolution, "current_profile", "runtime_loop_interval_seconds")} seconds");
+            lines.Add($"- Autonomy loop target: {ReadNestedNumber(evolution, "current_profile", "autonomy_loop_interval_seconds")} seconds");
+            lines.Add($"- Fitness score: {ReadNestedNumber(evolution, "fitness", "fitness_score")}");
+            lines.Add($"- Candidate gain: {ReadNestedNumber(evolution, "proposal", "predicted_gain")}");
+            lines.Add($"- Pending candidate: {ReadString(pendingCandidate, "candidate_id")}");
+        }
+
+        if (sourceEvolution.ValueKind == JsonValueKind.Object)
+        {
+            sourceEvolution.TryGetProperty("pending_candidate", out var pendingSourceCandidate);
+            lines.Add("");
+            lines.Add("Guarded source evolution:");
+            lines.Add($"- Ready: {(ReadBool(payload, "source_evolution_ready") ? "yes" : "no")}");
+            lines.Add($"- Due now: {(ReadBool(payload, "source_evolution_due_now") ? "yes" : "no")}");
+            lines.Add($"- Recommended action: {ReadString(sourceEvolution, "recommended_action")}");
+            lines.Add($"- Source generation: {ReadNumber(sourceEvolution, "current_source_generation")}");
+            lines.Add($"- Promotions: {ReadNumber(sourceEvolution, "promoted_count")}");
+            lines.Add($"- Rollbacks: {ReadNumber(sourceEvolution, "rollback_count")}");
+            lines.Add($"- Candidate gain: {ReadNestedNumber(sourceEvolution, "proposal", "predicted_gain")}");
+            lines.Add($"- Pending candidate: {ReadString(pendingSourceCandidate, "candidate_id")}");
+        }
+
+        if (capabilityMap.ValueKind == JsonValueKind.Object)
+        {
+            lines.Add("");
+            lines.Add("Capability control:");
+            lines.Add($"- Autonomous surface: {ReadNestedNumber(capabilityMap, "summary", "autonomous_surface_score")}%");
+            lines.Add($"- Active autonomous surface: {ReadNestedNumber(capabilityMap, "summary", "active_autonomous_surface_score")}%");
+            lines.Add($"- Approval-gated count: {ReadNestedNumber(capabilityMap, "summary", "approval_gated_count")}");
+            lines.Add($"- Forbidden count: {ReadNestedNumber(capabilityMap, "summary", "forbidden_count")}");
+            lines.Add($"- Fully autonomous control: {(ReadBool(capabilityMap, "fully_autonomous_control") ? "yes" : "no")}");
+        }
+
+        if (currentGoal.ValueKind == JsonValueKind.Object)
+        {
+            lines.Add("");
+            lines.Add("Selected goal details:");
+            lines.Add($"- Title: {ReadString(currentGoal, "title")}");
+            lines.Add($"- Source: {ReadString(currentGoal, "source")}");
+            lines.Add($"- Priority: {ReadNumber(currentGoal, "priority")}");
+            lines.Add($"- State: {ReadString(currentGoal, "state")}");
+            lines.Add($"- Risk: {ReadString(currentGoal, "risk")}");
+            lines.Add($"- Action kind: {ReadString(currentGoal, "action_kind")}");
+        }
+
+        if (recentRuns.ValueKind == JsonValueKind.Array && recentRuns.GetArrayLength() > 0)
+        {
+            lines.Add("");
+            lines.Add("Recent autonomous runs:");
+            foreach (var item in recentRuns.EnumerateArray().Take(4))
+            {
+                var title = ReadString(item, "goal_title");
+                var summary = FirstNonEmpty(ReadString(item, "summary"), ReadString(item, "reason"), "n/a");
+                var ok = ReadBool(item, "ok") ? "ok" : "review";
+                lines.Add($"- [{ok}] {title}: {summary}");
+            }
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private string BuildSystemHealthSummary(NativeCommandResult runtimeResult, NativeCommandResult continuityResult)
+    {
+        if (!runtimeResult.Payload.HasValue || runtimeResult.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            return "System Health" + Environment.NewLine + Environment.NewLine + runtimeResult.DisplayText();
+        }
+
+        var runtimePayload = runtimeResult.Payload.Value;
+        runtimePayload.TryGetProperty("runtime_loop", out var runtimeLoop);
+        runtimePayload.TryGetProperty("runtime_agent", out var runtimeAgent);
+        runtimePayload.TryGetProperty("autonomy", out var autonomy);
+        runtimePayload.TryGetProperty("autonomy_background", out var autonomyBackground);
+
+        JsonElement continuityPayload = default;
+        var hasContinuityPayload = false;
+        if (continuityResult.Payload is JsonElement continuityElement && continuityElement.ValueKind == JsonValueKind.Object)
+        {
+            continuityPayload = continuityElement;
+            hasContinuityPayload = true;
+        }
+
+        var runtimeReady = ReadBool(runtimePayload, "runtime_ready");
+        var runtimeMissing = ReadBool(runtimePayload, "missing");
+        var agentRunning = ReadBool(runtimeAgent, "running");
+        var agentInstalled = ReadBool(runtimeAgent, "installed");
+        var loopEnabled = ReadBool(runtimeLoop, "enabled");
+        var continuityHealthy = hasContinuityPayload
+            && ReadNestedBool(continuityPayload, "continuity", "same_system")
+            && !ReadNestedBool(continuityPayload, "contradiction_detection", "has_contradiction");
+        var continuityScore = hasContinuityPayload ? ReadNestedNumber(continuityPayload, "continuity", "continuity_score") : "n/a";
+        var lastFailure = FirstNonEmpty(
+            ReadString(runtimeAgent, "last_failure"),
+            ReadString(runtimeLoop, "last_failure"),
+            runtimeMissing ? "runtime has not been run yet" : ""
+        );
+
+        var healthState = "Healthy";
+        if (!continuityHealthy)
+        {
+            healthState = "Needs Attention";
+        }
+        else if (!agentRunning || !runtimeReady || !loopEnabled)
+        {
+            healthState = "Setup Needed";
+        }
+
+        var recommendedFix = "No immediate action needed.";
+        if (!agentInstalled || !agentRunning)
+        {
+            recommendedFix = "Install and start the background agent.";
+        }
+        else if (!loopEnabled)
+        {
+            recommendedFix = "Turn on the runtime loop.";
+        }
+        else if (!continuityHealthy)
+        {
+            recommendedFix = "Repair continuity.";
+        }
+        else if (!runtimeReady || runtimeMissing)
+        {
+            recommendedFix = "Run the runtime now.";
+        }
+
+        var lines = new List<string>
+        {
+            "System Health",
+            "",
+            $"Overall: {healthState}",
+            $"Recommended fix: {recommendedFix}",
+            "",
+            $"Zero AI background agent: {(agentRunning ? "running" : "not running")}",
+            $"Runtime loop: {(loopEnabled ? "on" : "off")}",
+            $"Continuity: {(continuityHealthy ? "healthy" : "needs attention")}",
+            $"Continuity score: {continuityScore}",
+            $"Runtime ready: {(runtimeReady ? "yes" : "no")}",
+            $"Last successful runtime tick: {FirstNonEmpty(ReadString(runtimeLoop, "last_run_utc"), ReadString(runtimeAgent, "last_tick_utc"), "n/a")}",
+            $"Last failure: {lastFailure}",
+            "",
+            $"Agent installed: {(agentInstalled ? "yes" : "no")}",
+            $"Agent heartbeat: {ReadString(runtimeAgent, "last_heartbeat_utc")}",
+            $"Runtime loop next run: {ReadString(runtimeLoop, "next_run_utc")}",
+            $"Auto-enable runtime loop on launch: {(_autoEnableRuntimeLoopOnLaunch ? "yes" : "no")}",
+            $"Autonomy current goal: {ReadString(autonomy, "current_goal_title")}",
+            $"Autonomy next action: {ReadString(autonomy, "current_goal_next_action")}",
+            $"Autonomy loop enabled: {(ReadNestedBool(autonomy, "loop", "enabled") ? "yes" : "no")}",
+            $"Autonomy background tick: {(ReadBool(autonomyBackground, "ran") ? "ran" : "idle")}"
+        };
+
+        if (hasContinuityPayload)
+        {
+            lines.Add($"Continuity contradictions: {ReadNestedStringArray(continuityPayload, "contradiction_detection", "issues")}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private void RunSystemHealthFixNow()
+    {
+        var runtimeStatus = _backend.RunTask("zero ai runtime status");
+        var continuityStatus = _backend.RunTask("zero ai self continuity status");
+
+        JsonElement runtimePayload = default;
+        JsonElement runtimeLoop = default;
+        JsonElement runtimeAgent = default;
+        if (runtimeStatus.Payload.HasValue && runtimeStatus.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            runtimePayload = runtimeStatus.Payload.Value;
+            runtimePayload.TryGetProperty("runtime_loop", out runtimeLoop);
+            runtimePayload.TryGetProperty("runtime_agent", out runtimeAgent);
+        }
+
+        JsonElement continuityPayload = default;
+        var hasContinuityPayload = false;
+        if (continuityStatus.Payload is JsonElement continuityElement && continuityElement.ValueKind == JsonValueKind.Object)
+        {
+            continuityPayload = continuityElement;
+            hasContinuityPayload = true;
+        }
+
+        var commands = new List<(string Command, string Label)>();
+        var agentRunning = ReadBool(runtimeAgent, "running");
+        var agentInstalled = ReadBool(runtimeAgent, "installed");
+        var loopEnabled = ReadBool(runtimeLoop, "enabled");
+        var runtimeReady = ReadBool(runtimePayload, "runtime_ready");
+        var runtimeMissing = ReadBool(runtimePayload, "missing");
+        var continuityHealthy = hasContinuityPayload
+            && ReadNestedBool(continuityPayload, "continuity", "same_system")
+            && !ReadNestedBool(continuityPayload, "contradiction_detection", "has_contradiction");
+
+        if (!agentInstalled || !agentRunning)
+        {
+            _autoEnableRuntimeLoopOnLaunch = true;
+            SaveRuntimeStartupPreference();
+            commands.Add(("zero ai runtime agent install", "Installed and started background agent"));
+        }
+        else if (!loopEnabled)
+        {
+            commands.Add(("zero ai runtime loop on interval=180", "Enabled runtime loop"));
+        }
+
+        if (!continuityHealthy)
+        {
+            commands.Add(("zero ai self repair restore continuity", "Repaired continuity"));
+        }
+
+        if (!runtimeReady || runtimeMissing || !continuityHealthy)
+        {
+            commands.Add(("zero ai runtime run", "Ran runtime health pass"));
+        }
+
+        if (commands.Count == 0)
+        {
+            commands.Add(("zero ai runtime run", "Ran runtime health pass"));
+        }
+
+        var results = new List<string>
+        {
+            "System Health Fix Now",
+            ""
+        };
+
+        foreach (var step in commands)
+        {
+            SetStatus($"Running health fix: {step.Command}");
+            AppendLog($"Running system health fix: {step.Command}");
+            var result = _backend.RunTask(step.Command);
+            results.Add($"[{step.Label}] {step.Command}");
+            results.Add(result.DisplayText());
+            results.Add("");
+        }
+
+        OutputBox.Text = string.Join(Environment.NewLine, results).TrimEnd();
+        SetStatus("System health fix complete.");
+        AppendLog("System health fix complete");
+        RefreshRuntimeContinuityStatus();
+        RefreshSystemHealth();
+        RefreshQuickStartStatus();
+        RefreshAutonomyStatus();
+    }
+
+    private void SyncRuntimeLoopTimer(NativeCommandResult result)
+    {
+        if (!result.Payload.HasValue || result.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            StopRuntimeLoopTimer();
+            return;
+        }
+
+        var payload = result.Payload.Value;
+        payload.TryGetProperty("runtime_agent", out var runtimeAgent);
+        if (!payload.TryGetProperty("runtime_loop", out var runtimeLoop) || runtimeLoop.ValueKind != JsonValueKind.Object)
+        {
+            StopRuntimeLoopTimer();
+            return;
+        }
+
+        if (ReadBool(runtimeLoop, "enabled") || ReadBool(runtimeAgent, "running"))
+        {
+            if (!_runtimeLoopTimer.IsEnabled)
+            {
+                _runtimeLoopTimer.Start();
+                AppendLog("Zero AI runtime loop timer started");
+            }
+        }
+        else
+        {
+            StopRuntimeLoopTimer();
+        }
+    }
+
+    private void StopRuntimeLoopTimer()
+    {
+        if (_runtimeLoopTimer.IsEnabled)
+        {
+            _runtimeLoopTimer.Stop();
+            AppendLog("Zero AI runtime loop timer stopped");
+        }
+    }
+
+    private void RuntimeLoopTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_runtimeLoopTickInFlight)
+        {
+            return;
+        }
+
+        _runtimeLoopTickInFlight = true;
+        try
+        {
+            var status = _backend.RunTask("zero ai runtime status");
+            if (status.Payload.HasValue && status.Payload.Value.ValueKind == JsonValueKind.Object)
+            {
+                RuntimeContinuityBox.Text = BuildRuntimeContinuitySummary(status)
+                    + Environment.NewLine + Environment.NewLine
+                    + $"Auto-enable runtime loop on launch: {(_autoEnableRuntimeLoopOnLaunch ? "yes" : "no")}";
+
+                var payload = status.Payload.Value;
+                payload.TryGetProperty("runtime_agent", out var runtimeAgent);
+                payload.TryGetProperty("runtime_loop", out var runtimeLoop);
+                if (ReadBool(runtimeAgent, "running"))
+                {
+                    return;
+                }
+
+                if (ReadBool(runtimeLoop, "enabled") && ReadBool(runtimeLoop, "due_now"))
+                {
+                    var result = _backend.RunTask("zero ai runtime loop tick");
+                    if (result.Payload.HasValue && result.Payload.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        var tickPayload = result.Payload.Value;
+                        if (ReadBool(tickPayload, "ran"))
+                        {
+                            AppendLog("Zero AI runtime loop tick executed");
+                        }
+                        else
+                        {
+                            var reason = ReadString(tickPayload, "reason");
+                            if (!string.Equals(reason, "runtime loop not due", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(reason, "runtime loop is off", StringComparison.OrdinalIgnoreCase))
+                            {
+                                AppendLog($"Zero AI runtime loop tick skipped: {reason}");
+                            }
+                        }
+                    }
+                    RefreshRuntimeContinuityStatus();
+                    RefreshSystemHealth();
+                    RefreshQuickStartStatus();
+                    RefreshAutonomyStatus();
+                }
+            }
+            else if (!status.Ok)
+            {
+                AppendLog("Zero AI runtime loop timer could not load runtime status");
+            }
+        }
+        finally
+        {
+            _runtimeLoopTickInFlight = false;
+        }
+    }
+
+    private static string ReadString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "n/a";
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? "n/a",
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => value.ToString()
+        };
+    }
+
+    private static string ReadNumber(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "n/a";
+        }
+
+        return value.ValueKind == JsonValueKind.Number ? value.ToString() : "n/a";
+    }
+
+    private static string ReadNestedNumber(JsonElement element, string objectPropertyName, string valuePropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return "n/a";
+        }
+
+        return ReadNumber(nested, valuePropertyName);
+    }
+
+    private static bool ReadBool(JsonElement element, string propertyName)
+    {
+        return TryGetBool(element, propertyName, out var value) && value;
+    }
+
+    private static bool ReadNestedBool(JsonElement element, string objectPropertyName, string valuePropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return false;
+        }
+
+        return ReadBool(nested, valuePropertyName);
+    }
+
+    private static string ReadNestedStringArray(JsonElement element, string objectPropertyName, string valuePropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return "n/a";
+        }
+
+        return ReadStringArray(nested, valuePropertyName);
+    }
+
+    private static bool TryGetBool(JsonElement element, string propertyName, out bool value)
+    {
+        value = false;
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.True)
+        {
+            value = true;
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.False)
+        {
+            value = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string ReadStringArray(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "n/a";
+        }
+
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            return value.ToString();
+        }
+
+        var items = value.EnumerateArray()
+            .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .ToList();
+
+        return items.Count == 0 ? "none" : string.Join(", ", items);
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && !string.Equals(value, "n/a", StringComparison.OrdinalIgnoreCase))
+            {
+                return value;
+            }
+        }
+
+        return "none";
     }
 
     private void RefreshCodeIndexStatus()
@@ -1330,7 +2216,10 @@ public partial class MainWindow : Window
         if (!EnsureWorkspaceSelectionCanChange())
         {
             e.Cancel = true;
+            return;
         }
+
+        StopRuntimeLoopTimer();
     }
 
     private void ResetWorkspaceEditorState()

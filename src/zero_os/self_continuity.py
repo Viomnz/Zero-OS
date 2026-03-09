@@ -40,6 +40,48 @@ def _governor_path(cwd: str) -> Path:
     return _runtime(cwd) / "zero_ai_continuity_governor.json"
 
 
+def _checkpoint_root(cwd: str) -> Path:
+    path = _runtime(cwd) / "zero_ai_continuity_checkpoints"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _governance_state_path(cwd: str) -> Path:
+    return _runtime(cwd) / "zero_ai_continuity_governance.json"
+
+
+def _policy_presets() -> dict[str, dict[str, Any]]:
+    return {
+        "strict": {
+            "description": "Maximum continuity protection with tighter scoring and broader safe-state retention.",
+            "min_safe_score": 95.0,
+            "block_identity_anchor_changes": True,
+            "block_rsi_flip": True,
+            "block_missing_core_constraints": True,
+            "auto_checkpoint_safe_state": True,
+            "max_checkpoints": 30,
+        },
+        "balanced": {
+            "description": "Default continuity policy balancing guarded evolution with practical self-maintenance.",
+            "min_safe_score": 85.0,
+            "block_identity_anchor_changes": True,
+            "block_rsi_flip": True,
+            "block_missing_core_constraints": True,
+            "auto_checkpoint_safe_state": True,
+            "max_checkpoints": 20,
+        },
+        "research": {
+            "description": "Allows wider self-model experimentation while still preserving identity anchors and non-RSI identity.",
+            "min_safe_score": 70.0,
+            "block_identity_anchor_changes": True,
+            "block_rsi_flip": True,
+            "block_missing_core_constraints": False,
+            "auto_checkpoint_safe_state": True,
+            "max_checkpoints": 40,
+        },
+    }
+
+
 def _default_continuity() -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -121,14 +163,11 @@ def _default_policy_memory() -> dict[str, Any]:
 
 
 def _default_governor() -> dict[str, Any]:
+    presets = _policy_presets()
     return {
         "schema_version": 1,
-        "policy": {
-            "min_safe_score": 85.0,
-            "block_identity_anchor_changes": True,
-            "block_rsi_flip": True,
-            "block_missing_core_constraints": True,
-        },
+        "active_policy_level": "balanced",
+        "policy": dict(presets["balanced"]),
         "last_check": {},
         "audit_log": [],
         "updated_utc": _utc_now(),
@@ -215,7 +254,147 @@ def _save_consciousness_state(cwd: str, state: dict[str, Any]) -> None:
 
 
 def _load_governor(cwd: str) -> dict[str, Any]:
-    return _load_json(_governor_path(cwd), _default_governor())
+    governor = _load_json(_governor_path(cwd), _default_governor())
+    presets = _policy_presets()
+    active_policy_level = str(governor.get("active_policy_level", "balanced")).lower()
+    if active_policy_level not in presets:
+        active_policy_level = "balanced"
+    merged_policy = dict(presets[active_policy_level])
+    if isinstance(governor.get("policy"), dict):
+        merged_policy.update(governor["policy"])
+    governor["active_policy_level"] = active_policy_level
+    governor["policy"] = merged_policy
+    return governor
+
+
+def _policy_level_status(governor: dict[str, Any]) -> dict[str, Any]:
+    presets = _policy_presets()
+    active = str(governor.get("active_policy_level", "balanced")).lower()
+    return {
+        "active_policy_level": active,
+        "policy": governor.get("policy", {}),
+        "available_policy_levels": {
+            name: {
+                "description": preset.get("description", ""),
+                "min_safe_score": preset.get("min_safe_score"),
+                "block_identity_anchor_changes": preset.get("block_identity_anchor_changes"),
+                "block_rsi_flip": preset.get("block_rsi_flip"),
+                "block_missing_core_constraints": preset.get("block_missing_core_constraints"),
+                "auto_checkpoint_safe_state": preset.get("auto_checkpoint_safe_state"),
+                "max_checkpoints": preset.get("max_checkpoints"),
+            }
+            for name, preset in presets.items()
+        },
+    }
+
+
+def _list_checkpoint_paths(cwd: str) -> list[Path]:
+    return sorted(_checkpoint_root(cwd).glob("*.json"), key=lambda item: item.name, reverse=True)
+
+
+def _read_checkpoint_payload(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _checkpoint_summary(payload: dict[str, Any], path: Path | None = None) -> dict[str, Any]:
+    continuity_summary = payload.get("continuity_summary", {})
+    return {
+        "checkpoint_id": payload.get("checkpoint_id", ""),
+        "created_utc": payload.get("created_utc", ""),
+        "reason": payload.get("reason", ""),
+        "state_hash": payload.get("state_hash", ""),
+        "continuity_score": continuity_summary.get("continuity_score"),
+        "same_system": continuity_summary.get("same_system"),
+        "has_contradiction": continuity_summary.get("has_contradiction"),
+        "path": str(path) if path else payload.get("path", ""),
+    }
+
+
+def _latest_checkpoint(cwd: str) -> tuple[Path, dict[str, Any]] | None:
+    for path in _list_checkpoint_paths(cwd):
+        payload = _read_checkpoint_payload(path)
+        if payload:
+            return path, payload
+    return None
+
+
+def _prune_checkpoints(cwd: str, keep: int) -> None:
+    for stale in _list_checkpoint_paths(cwd)[max(keep, 0):]:
+        try:
+            stale.unlink()
+        except FileNotFoundError:
+            continue
+
+
+def _checkpoint_status(cwd: str) -> dict[str, Any]:
+    checkpoints: list[dict[str, Any]] = []
+    for path in _list_checkpoint_paths(cwd)[:5]:
+        payload = _read_checkpoint_payload(path)
+        if payload:
+            checkpoints.append(_checkpoint_summary(payload, path))
+    latest = checkpoints[0] if checkpoints else None
+    return {
+        "checkpoint_root": str(_checkpoint_root(cwd)),
+        "checkpoint_count": len(_list_checkpoint_paths(cwd)),
+        "latest_checkpoint": latest,
+        "recent_checkpoints": checkpoints,
+    }
+
+
+def _governance_default() -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "interval_seconds": 180,
+        "auto_restore_enabled": True,
+        "last_tick_utc": "",
+        "last_ok": None,
+        "last_actions": [],
+        "last_policy_level": "balanced",
+        "last_restore_used": False,
+    }
+
+
+def _create_safe_checkpoint(cwd: str, reason: str, continuity_report: dict[str, Any]) -> dict[str, Any] | None:
+    continuity_data = continuity_report.get("continuity", {})
+    contradiction = continuity_report.get("contradiction_detection", {})
+    if contradiction.get("has_contradiction", False) or not continuity_data.get("same_system", False):
+        return None
+
+    state_hash = continuity_report.get("recursive_state_tracking", {}).get("last_state_hash", "")
+    latest = _latest_checkpoint(cwd)
+    if latest and latest[1].get("state_hash") == state_hash:
+        return _checkpoint_summary(latest[1], latest[0])
+
+    checkpoint_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{state_hash or 'safe'}"
+    checkpoint_path = _checkpoint_root(cwd) / f"{checkpoint_id}.json"
+    payload = {
+        "checkpoint_id": checkpoint_id,
+        "created_utc": _utc_now(),
+        "reason": reason,
+        "state_hash": state_hash,
+        "continuity_summary": {
+            "continuity_score": continuity_data.get("continuity_score"),
+            "same_system": continuity_data.get("same_system"),
+            "has_contradiction": contradiction.get("has_contradiction"),
+            "issues": contradiction.get("issues", []),
+        },
+        "identity": _load_identity_snapshot(cwd),
+        "state": _load_consciousness_state(cwd),
+        "continuity": _load_json(_continuity_path(cwd), _default_continuity()),
+        "policy_memory": _load_policy_memory(cwd),
+        "governor": _load_governor(cwd),
+    }
+    checkpoint_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    keep = int(_load_governor(cwd).get("policy", {}).get("max_checkpoints", 20))
+    _prune_checkpoints(cwd, keep)
+    return _checkpoint_summary(payload, checkpoint_path)
 
 
 def _repair_suggestions(issues: list[str]) -> list[str]:
@@ -385,7 +564,16 @@ def zero_ai_self_continuity_update(cwd: str) -> dict[str, Any]:
     }
     with _history_path(cwd).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
-    return zero_ai_self_continuity_status(cwd)
+
+    status = zero_ai_self_continuity_status(cwd)
+    governor_policy = _load_governor(cwd).get("policy", {})
+    checkpoint_created = None
+    if bool(governor_policy.get("auto_checkpoint_safe_state", True)):
+        checkpoint_created = _create_safe_checkpoint(cwd, "auto_safe_state", status)
+    status["checkpoint_status"] = _checkpoint_status(cwd)
+    if checkpoint_created:
+        status["checkpoint_created"] = checkpoint_created
+    return status
 
 
 def zero_ai_self_continuity_status(cwd: str) -> dict[str, Any]:
@@ -404,6 +592,7 @@ def zero_ai_self_continuity_status(cwd: str) -> dict[str, Any]:
         "last_repair_suggestions": policy_memory.get("contradiction_memory", {}).get("last_repair_suggestions", []),
         "last_resolved_utc": policy_memory.get("contradiction_memory", {}).get("last_resolved_utc", ""),
     }
+    continuity["checkpoint_status"] = _checkpoint_status(cwd)
     continuity["ok"] = True
     return continuity
 
@@ -431,6 +620,7 @@ def zero_ai_self_inspect_refresh(cwd: str) -> dict[str, Any]:
     brain = build_brain_awareness(cwd)
     actions.append("build_brain_awareness")
     status = consciousness_status(cwd)
+    policy_auto = zero_ai_continuity_policy_auto_status(cwd)
 
     highest_value_steps: list[str] = []
     contradiction = continuity.get("contradiction_detection", {})
@@ -481,6 +671,11 @@ def zero_ai_self_inspect_refresh(cwd: str) -> dict[str, Any]:
         "brain_awareness": {
             "aware": brain.get("aware"),
             "brain_awareness_score": brain.get("brain_awareness_score"),
+        },
+        "continuity_policy": {
+            "current_policy_level": policy_auto.get("current_policy_level"),
+            "recommended_policy_level": policy_auto.get("recommended_policy_level"),
+            "reasons": policy_auto.get("reasons", []),
         },
         "highest_value_steps": highest_value_steps,
         "next_priority": highest_value_steps[:3],
@@ -574,8 +769,362 @@ def zero_ai_self_repair_restore_continuity(cwd: str) -> dict[str, Any]:
 def zero_ai_continuity_governor_status(cwd: str) -> dict[str, Any]:
     governor = _load_governor(cwd)
     governor["governor_path"] = str(_governor_path(cwd))
+    governor["checkpoint_status"] = _checkpoint_status(cwd)
+    governor.update(_policy_level_status(governor))
     governor["ok"] = True
     return governor
+
+
+def zero_ai_continuity_policy_status(cwd: str) -> dict[str, Any]:
+    governor = _load_governor(cwd)
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "governor_path": str(_governor_path(cwd)),
+        "checkpoint_status": _checkpoint_status(cwd),
+        **_policy_level_status(governor),
+    }
+
+
+def zero_ai_continuity_policy_set(cwd: str, level: str) -> dict[str, Any]:
+    normalized = (level or "").strip().lower()
+    presets = _policy_presets()
+    if normalized not in presets:
+        return {
+            "ok": False,
+            "applied": False,
+            "reason": f"unknown continuity policy level: {level}",
+            "available_policy_levels": sorted(presets.keys()),
+        }
+
+    governor = _load_governor(cwd)
+    governor["active_policy_level"] = normalized
+    governor["policy"] = dict(presets[normalized])
+    governor["audit_log"] = (governor.get("audit_log", []) or [])[-49:] + [
+        {
+            "time_utc": _utc_now(),
+            "action": "set_policy_level",
+            "policy_level": normalized,
+            "safe": True,
+            "candidate_score": None,
+            "blocked_reasons": [],
+        }
+    ]
+    _save_json(_governor_path(cwd), governor)
+    status = zero_ai_continuity_policy_status(cwd)
+    status["applied"] = True
+    status["message"] = f"continuity policy set to {normalized}"
+    return status
+
+
+def _auto_policy_recommendation(cwd: str) -> dict[str, Any]:
+    continuity = zero_ai_self_continuity_status(cwd)
+    state = _load_consciousness_state(cwd)
+    contradiction = continuity.get("contradiction_detection", {})
+    continuity_data = continuity.get("continuity", {})
+    self_model = state.get("self_model", {})
+    meta_awareness = state.get("meta_awareness", {})
+    policy_memory = continuity.get("policy_memory", {})
+
+    uncertainty = float(self_model.get("uncertainty", 1.0))
+    quality = float(meta_awareness.get("last_quality_score", 0.0))
+    introspection_cycles = int(meta_awareness.get("introspection_cycles", 0))
+    drift_signals = list(meta_awareness.get("drift_signals", []) or [])
+    continuity_score = float(continuity_data.get("continuity_score", 0.0))
+    contradiction_events = int(policy_memory.get("contradiction_event_count", 0))
+
+    recommended = "balanced"
+    reasons: list[str] = []
+
+    if contradiction.get("has_contradiction", False):
+        recommended = "strict"
+        reasons.append("self contradiction is active")
+    elif not continuity_data.get("same_system", False):
+        recommended = "strict"
+        reasons.append("identity anchors are drifting")
+    elif continuity_score < 90.0:
+        recommended = "strict"
+        reasons.append("continuity score dropped below the safe stability band")
+    elif uncertainty > 0.6:
+        recommended = "strict"
+        reasons.append("self uncertainty is high")
+    elif contradiction_events > 0:
+        recommended = "strict"
+        reasons.append("recent contradiction memory suggests a stabilization phase")
+    elif len(drift_signals) >= 3:
+        recommended = "strict"
+        reasons.append("multiple drift signals are active")
+    elif (
+        continuity_score >= 99.0
+        and uncertainty <= 0.2
+        and quality >= 80.0
+        and introspection_cycles >= 3
+        and not drift_signals
+        and contradiction_events == 0
+    ):
+        recommended = "research"
+        reasons.append("continuity is highly stable and introspection quality is strong")
+    else:
+        reasons.append("state is stable enough for balanced continuity governance")
+
+    return {
+        "recommended_policy_level": recommended,
+        "reasons": reasons,
+        "signals": {
+            "continuity_score": continuity_score,
+            "same_system": continuity_data.get("same_system", False),
+            "has_contradiction": contradiction.get("has_contradiction", False),
+            "uncertainty": uncertainty,
+            "last_quality_score": quality,
+            "introspection_cycles": introspection_cycles,
+            "drift_signal_count": len(drift_signals),
+            "contradiction_event_count": contradiction_events,
+        },
+    }
+
+
+def zero_ai_continuity_policy_auto_status(cwd: str) -> dict[str, Any]:
+    governor = _load_governor(cwd)
+    recommendation = _auto_policy_recommendation(cwd)
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "governor_path": str(_governor_path(cwd)),
+        "current_policy_level": governor.get("active_policy_level", "balanced"),
+        "checkpoint_status": _checkpoint_status(cwd),
+        **_policy_level_status(governor),
+        **recommendation,
+    }
+
+
+def zero_ai_continuity_policy_auto_apply(cwd: str) -> dict[str, Any]:
+    governor = _load_governor(cwd)
+    current_level = str(governor.get("active_policy_level", "balanced")).lower()
+    recommendation = _auto_policy_recommendation(cwd)
+    recommended_level = str(recommendation.get("recommended_policy_level", current_level)).lower()
+
+    if recommended_level == current_level:
+        status = zero_ai_continuity_policy_status(cwd)
+        status["applied"] = False
+        status["current_policy_level"] = current_level
+        status.update(recommendation)
+        status["message"] = f"continuity policy remains {current_level}"
+        return status
+
+    applied = zero_ai_continuity_policy_set(cwd, recommended_level)
+    applied["current_policy_level"] = current_level
+    applied.update(recommendation)
+    applied["message"] = f"continuity policy auto-switched from {current_level} to {recommended_level}"
+    return applied
+
+
+def zero_ai_continuity_governance_status(cwd: str) -> dict[str, Any]:
+    state = _load_json(_governance_state_path(cwd), _governance_default())
+    default = _governance_default()
+    for key, value in default.items():
+        state.setdefault(key, value)
+    _save_json(_governance_state_path(cwd), state)
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "governance_path": str(_governance_state_path(cwd)),
+        "current_policy_level": _load_governor(cwd).get("active_policy_level", "balanced"),
+        "checkpoint_status": _checkpoint_status(cwd),
+        **state,
+    }
+
+
+def zero_ai_continuity_governance_set(cwd: str, enabled: bool, interval_seconds: int | None = None) -> dict[str, Any]:
+    state = _load_json(_governance_state_path(cwd), _governance_default())
+    state["enabled"] = bool(enabled)
+    if interval_seconds is not None:
+        state["interval_seconds"] = max(30, min(3600, int(interval_seconds)))
+    _save_json(_governance_state_path(cwd), state)
+    return zero_ai_continuity_governance_status(cwd)
+
+
+def zero_ai_continuity_governance_run(cwd: str) -> dict[str, Any]:
+    state = _load_json(_governance_state_path(cwd), _governance_default())
+    actions: list[str] = []
+    continuity_before = zero_ai_self_continuity_status(cwd)
+
+    policy_auto = zero_ai_continuity_policy_auto_apply(cwd)
+    recommended_level = policy_auto.get("recommended_policy_level", policy_auto.get("active_policy_level", "balanced"))
+    actions.append(f"policy_auto:{recommended_level}")
+
+    contradiction_before = continuity_before.get("contradiction_detection", {})
+    continuity_before_data = continuity_before.get("continuity", {})
+    restore_used = False
+
+    if contradiction_before.get("has_contradiction", False) or not continuity_before_data.get("same_system", False):
+        if bool(state.get("auto_restore_enabled", True)):
+            restore = zero_ai_continuity_restore_last_safe(cwd)
+            if restore.get("ok", False) and restore.get("restored", False):
+                actions.append("restore_last_safe")
+                continuity_after = restore.get("self_continuity", zero_ai_self_continuity_status(cwd))
+                restore_used = True
+            else:
+                repair = zero_ai_self_repair_restore_continuity(cwd)
+                actions.append("self_repair_restore_continuity")
+                continuity_after = repair.get("self_continuity", zero_ai_self_continuity_status(cwd))
+        else:
+            repair = zero_ai_self_repair_restore_continuity(cwd)
+            actions.append("self_repair_restore_continuity")
+            continuity_after = repair.get("self_continuity", zero_ai_self_continuity_status(cwd))
+    else:
+        continuity_after = zero_ai_self_continuity_update(cwd)
+        actions.append("self_continuity_update")
+
+    checkpoint_status = continuity_after.get("checkpoint_status", _checkpoint_status(cwd))
+    if (
+        int(checkpoint_status.get("checkpoint_count", 0)) == 0
+        and continuity_after.get("continuity", {}).get("same_system", False)
+        and not continuity_after.get("contradiction_detection", {}).get("has_contradiction", False)
+    ):
+        created = zero_ai_continuity_checkpoint_create(cwd, reason="governance_safe_state")
+        if created.get("ok", False):
+            actions.append("checkpoint_create")
+            checkpoint_status = created.get("checkpoint_status", checkpoint_status)
+
+    ok = bool(continuity_after.get("continuity", {}).get("same_system", False)) and not bool(
+        continuity_after.get("contradiction_detection", {}).get("has_contradiction", False)
+    )
+
+    state["last_tick_utc"] = _utc_now()
+    state["last_ok"] = ok
+    state["last_actions"] = actions
+    state["last_policy_level"] = _load_governor(cwd).get("active_policy_level", "balanced")
+    state["last_restore_used"] = restore_used
+    _save_json(_governance_state_path(cwd), state)
+
+    report = {
+        "ok": ok,
+        "time_utc": _utc_now(),
+        "actions": actions,
+        "policy_auto": policy_auto,
+        "continuity_before": {
+            "continuity_score": continuity_before_data.get("continuity_score"),
+            "same_system": continuity_before_data.get("same_system"),
+            "has_contradiction": contradiction_before.get("has_contradiction"),
+            "issues": contradiction_before.get("issues", []),
+        },
+        "continuity_after": {
+            "continuity_score": continuity_after.get("continuity", {}).get("continuity_score"),
+            "same_system": continuity_after.get("continuity", {}).get("same_system"),
+            "has_contradiction": continuity_after.get("contradiction_detection", {}).get("has_contradiction"),
+            "issues": continuity_after.get("contradiction_detection", {}).get("issues", []),
+        },
+        "restore_used": restore_used,
+        "checkpoint_status": checkpoint_status,
+        "governance": zero_ai_continuity_governance_status(cwd),
+    }
+    (_runtime(cwd) / "zero_ai_continuity_governance_run.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
+def zero_ai_continuity_governance_tick(cwd: str) -> dict[str, Any]:
+    state = zero_ai_continuity_governance_status(cwd)
+    if not state.get("enabled", False):
+        return {"ok": False, "ran": False, "reason": "continuity governance disabled", "governance": state}
+    result = zero_ai_continuity_governance_run(cwd)
+    return {"ok": True, "ran": True, "result": result, "governance": zero_ai_continuity_governance_status(cwd)}
+
+
+def zero_ai_continuity_governance_auto_status(cwd: str) -> dict[str, Any]:
+    governance = zero_ai_continuity_governance_status(cwd)
+    policy_auto = zero_ai_continuity_policy_auto_status(cwd)
+    continuity = zero_ai_self_continuity_status(cwd)
+
+    contradiction = continuity.get("contradiction_detection", {})
+    continuity_data = continuity.get("continuity", {})
+    signals = policy_auto.get("signals", {})
+
+    continuity_score = float(signals.get("continuity_score", continuity_data.get("continuity_score", 0.0)))
+    uncertainty = float(signals.get("uncertainty", 1.0))
+    drift_signal_count = int(signals.get("drift_signal_count", 0))
+    contradiction_event_count = int(signals.get("contradiction_event_count", 0))
+    recommended_policy_level = str(policy_auto.get("recommended_policy_level", "balanced"))
+
+    recommended_enabled = False
+    reasons: list[str] = []
+    recommended_interval = 180
+
+    if contradiction.get("has_contradiction", False):
+        recommended_enabled = True
+        recommended_interval = 60
+        reasons.append("active contradiction means continuity governance should stay on")
+    elif not continuity_data.get("same_system", False):
+        recommended_enabled = True
+        recommended_interval = 60
+        reasons.append("identity continuity drift means governance should stay on")
+    elif recommended_policy_level == "strict":
+        recommended_enabled = True
+        recommended_interval = 120
+        reasons.append("strict policy recommendation implies elevated continuity risk")
+    elif continuity_score < 98.0:
+        recommended_enabled = True
+        recommended_interval = 120
+        reasons.append("continuity score is below the stable comfort band")
+    elif uncertainty > 0.35:
+        recommended_enabled = True
+        recommended_interval = 120
+        reasons.append("uncertainty is elevated, so scheduled governance is still useful")
+    elif drift_signal_count > 0:
+        recommended_enabled = True
+        recommended_interval = 120
+        reasons.append("drift signals are active")
+    elif contradiction_event_count > 0:
+        recommended_enabled = True
+        recommended_interval = 180
+        reasons.append("recent contradiction memory suggests keeping governance warm")
+    else:
+        recommended_enabled = False
+        recommended_interval = 300
+        reasons.append("continuity is stable enough that background governance can stay off")
+
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        "current_enabled": governance.get("enabled", False),
+        "recommended_enabled": recommended_enabled,
+        "recommended_interval_seconds": recommended_interval,
+        "current_interval_seconds": governance.get("interval_seconds", 180),
+        "current_policy_level": governance.get("current_policy_level", "balanced"),
+        "recommended_policy_level": recommended_policy_level,
+        "reasons": reasons,
+        "signals": {
+            "continuity_score": continuity_score,
+            "same_system": continuity_data.get("same_system", False),
+            "has_contradiction": contradiction.get("has_contradiction", False),
+            "uncertainty": uncertainty,
+            "drift_signal_count": drift_signal_count,
+            "contradiction_event_count": contradiction_event_count,
+        },
+        "governance": governance,
+    }
+
+
+def zero_ai_continuity_governance_auto_apply(cwd: str) -> dict[str, Any]:
+    recommendation = zero_ai_continuity_governance_auto_status(cwd)
+    recommended_enabled = bool(recommendation.get("recommended_enabled", False))
+    recommended_interval = int(recommendation.get("recommended_interval_seconds", 180))
+    current_enabled = bool(recommendation.get("current_enabled", False))
+    current_interval = int(recommendation.get("current_interval_seconds", 180))
+
+    changed = current_enabled != recommended_enabled or (recommended_enabled and current_interval != recommended_interval)
+    applied = zero_ai_continuity_governance_set(cwd, recommended_enabled, recommended_interval if recommended_enabled else None)
+
+    return {
+        "ok": True,
+        "applied": changed,
+        "message": (
+            f"continuity governance auto-switched to {'on' if recommended_enabled else 'off'}"
+            if changed
+            else f"continuity governance remains {'on' if current_enabled else 'off'}"
+        ),
+        "recommendation": recommendation,
+        "governance": applied,
+    }
 
 
 def zero_ai_continuity_governor_check(cwd: str) -> dict[str, Any]:
@@ -688,5 +1237,70 @@ def zero_ai_continuity_simulate_apply(cwd: str, proposal: dict[str, Any] | None 
         "ok": True,
         "blocked": False,
         "simulation": simulation,
+        "self_continuity": continuity,
+    }
+
+
+def zero_ai_continuity_checkpoint_status(cwd: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "time_utc": _utc_now(),
+        **_checkpoint_status(cwd),
+    }
+
+
+def zero_ai_continuity_checkpoint_create(cwd: str, reason: str = "manual_safe_state") -> dict[str, Any]:
+    continuity = zero_ai_self_continuity_status(cwd)
+    checkpoint = _create_safe_checkpoint(cwd, reason, continuity)
+    if checkpoint is None:
+        return {
+            "ok": False,
+            "blocked": True,
+            "reason": "current self state is not safe enough to checkpoint",
+            "self_continuity": continuity,
+        }
+    return {
+        "ok": True,
+        "blocked": False,
+        "checkpoint": checkpoint,
+        "checkpoint_status": _checkpoint_status(cwd),
+    }
+
+
+def zero_ai_continuity_restore_last_safe(cwd: str) -> dict[str, Any]:
+    latest = _latest_checkpoint(cwd)
+    if latest is None:
+        return {
+            "ok": False,
+            "restored": False,
+            "reason": "no safe continuity checkpoint available",
+            "checkpoint_status": _checkpoint_status(cwd),
+        }
+
+    checkpoint_path, payload = latest
+    _save_identity_snapshot(cwd, payload.get("identity", _load_identity_snapshot(cwd)))
+    _save_consciousness_state(cwd, payload.get("state", _load_consciousness_state(cwd)))
+    _save_json(_continuity_path(cwd), payload.get("continuity", _default_continuity()))
+    _save_json(_policy_memory_path(cwd), payload.get("policy_memory", _default_policy_memory()))
+
+    governor = payload.get("governor", _default_governor())
+    governor["audit_log"] = (governor.get("audit_log", []) or [])[-49:] + [
+        {
+            "time_utc": _utc_now(),
+            "action": "restore_checkpoint",
+            "safe": True,
+            "checkpoint_id": payload.get("checkpoint_id", ""),
+            "candidate_score": payload.get("continuity_summary", {}).get("continuity_score"),
+            "blocked_reasons": [],
+        }
+    ]
+    _save_json(_governor_path(cwd), governor)
+
+    continuity = zero_ai_self_continuity_update(cwd)
+    return {
+        "ok": True,
+        "restored": True,
+        "checkpoint": _checkpoint_summary(payload, checkpoint_path),
+        "checkpoint_status": _checkpoint_status(cwd),
         "self_continuity": continuity,
     }
