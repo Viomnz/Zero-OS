@@ -1,0 +1,2131 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zero OS Shell</title>
+  <style>
+    :root {
+      --bg1: #0d1f3a;
+      --bg2: #13284a;
+      --glass: rgba(16, 28, 48, 0.68);
+      --glass-2: rgba(21, 36, 61, 0.8);
+      --line: rgba(189, 212, 255, 0.24);
+      --text: #edf4ff;
+      --muted: #a9bad7;
+      --accent: #5bb8ff;
+      --ok: #66d6a7;
+      --warn: #ffce75;
+      --bad: #ff7f92;
+      --shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+      --radius: 14px;
+      --taskbar-h: 56px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Segoe UI Variable", Tahoma, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 0%, #284f8f 0%, transparent 62%),
+        radial-gradient(1200px 700px at 85% 10%, #193d7a 0%, transparent 62%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      overflow: hidden;
+    }
+
+    .desktop {
+      position: relative;
+      width: 100%;
+      height: calc(100% - var(--taskbar-h));
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      gap: 14px;
+    }
+
+    .dock {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .dock h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .status-item {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .status-key { color: var(--muted); font-size: 12px; }
+    .status-val { font-weight: 700; margin-top: 2px; }
+
+    .canvas {
+      position: relative;
+      min-height: 0;
+    }
+
+    .window {
+      position: absolute;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--glass-2);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .window .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 15, 30, 0.48);
+      font-size: 13px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .window .content {
+      padding: 12px;
+      font-size: 12px;
+      max-height: 320px;
+      overflow: auto;
+      color: #dfe9f8;
+    }
+
+    .win-a { left: 8px; top: 8px; width: min(560px, 55vw); }
+    .win-b { right: 8px; top: 8px; width: min(520px, 46vw); }
+    .win-c { left: 80px; bottom: 8px; width: min(640px, 62vw); }
+
+    .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .ok { background: rgba(102,214,167,.2); color: var(--ok); }
+    .warn { background: rgba(255,206,117,.2); color: var(--warn); }
+    .bad { background: rgba(255,127,146,.2); color: var(--bad); }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      padding: 10px;
+    }
+
+    .summary-card .label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .value {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .layer-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .layer-tab {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .layer-tab.active {
+      background: rgba(91, 184, 255, 0.16);
+      color: var(--text);
+      border-color: rgba(91, 184, 255, 0.38);
+    }
+
+    .layer-view {
+      display: none;
+    }
+
+    .layer-view.active {
+      display: block;
+    }
+
+    .chat-shell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+    }
+
+    .chat-log {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 360px;
+      overflow: auto;
+      margin-bottom: 10px;
+    }
+
+    .chat-msg {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .chat-msg.user {
+      border-color: rgba(91, 184, 255, 0.3);
+      background: rgba(91, 184, 255, 0.08);
+    }
+
+    .chat-msg.assistant {
+      border-color: rgba(102,214,167,.28);
+      background: rgba(102,214,167,.08);
+    }
+
+    .chat-role {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .chat-text {
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+
+    .chat-compose {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .chat-compose textarea {
+      width: 100%;
+      min-height: 84px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(7, 15, 30, 0.48);
+      color: var(--text);
+      padding: 10px;
+      font: inherit;
+    }
+
+    .inline-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .inline-form input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(7, 15, 30, 0.48);
+      color: var(--text);
+      padding: 10px;
+      font: inherit;
+    }
+
+    .inline-form.actions {
+      grid-template-columns: 1.2fr .8fr auto auto auto auto;
+    }
+
+    .output-panel {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      overflow: hidden;
+    }
+
+    .output-head {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .output-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .saved-file {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(189, 212, 255, 0.12);
+    }
+
+    .saved-file:last-child {
+      border-bottom: 0;
+    }
+
+    .saved-file-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .saved-file-path {
+      font-family: Consolas, "Courier New", monospace;
+      word-break: break-all;
+    }
+
+    .json-view {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .json-line {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .json-key {
+      color: #8fd3ff;
+    }
+
+    .json-string {
+      color: #9fe3b3;
+    }
+
+    .json-number {
+      color: #ffd479;
+    }
+
+    .json-bool {
+      color: #ff9fb0;
+    }
+
+    .json-null {
+      color: #c7b8ff;
+    }
+
+    .json-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .json-node {
+      border-left: 1px solid rgba(189, 212, 255, 0.14);
+      padding-left: 10px;
+      margin-left: 2px;
+    }
+
+    .json-summary {
+      cursor: pointer;
+      color: var(--text);
+      user-select: none;
+      list-style: none;
+    }
+
+    .json-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .json-summary::before {
+      content: ">";
+      display: inline-block;
+      margin-right: 6px;
+      color: var(--muted);
+      transform: rotate(0deg);
+      transition: transform 120ms ease;
+    }
+
+    details[open] > .json-summary::before {
+      transform: rotate(90deg);
+    }
+
+    .json-leaf {
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 2px 0;
+    }
+
+    .output-body {
+      max-height: 220px;
+      overflow: auto;
+      padding: 10px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      color: #dfe9f8;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .action-list,
+    .notice-list,
+    .recent-list,
+    .task-list,
+    .drawer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-chip,
+    .notice-chip,
+    .recent-chip,
+    .task-chip,
+    .drawer-chip {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      padding: 8px 10px;
+    }
+
+    .action-chip button,
+    .task-actions button {
+      width: auto;
+      margin-top: 6px;
+    }
+
+    .task-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .chip-title {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .app-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .app-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-icon {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(91, 184, 255, 0.16);
+      font-size: 16px;
+    }
+
+    .state-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .mini-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .recent-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .recent-app {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      padding: 8px 10px;
+      min-width: 120px;
+    }
+
+    .chip-copy {
+      color: #d9e6fb;
+      line-height: 1.4;
+    }
+
+    .onboarding {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .onboarding-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .onboarding-copy {
+      color: #d9e6fb;
+      margin-bottom: 10px;
+      line-height: 1.45;
+    }
+
+    .onboarding-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .details {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      overflow: hidden;
+    }
+
+    .details summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .details pre {
+      padding: 10px;
+    }
+
+    .drawer {
+      position: fixed;
+      right: 10px;
+      bottom: calc(var(--taskbar-h) + 10px);
+      width: min(360px, 92vw);
+      max-height: 60vh;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 25, 43, 0.96);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      padding: 14px;
+      display: none;
+      z-index: 101;
+    }
+
+    .drawer.show { display: block; }
+
+    .taskbar {
+      height: var(--taskbar-h);
+      border-top: 1px solid var(--line);
+      background: rgba(7, 16, 32, 0.92);
+      backdrop-filter: blur(16px);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+    }
+
+    .task-left, .task-center, .task-right { display: flex; align-items: center; gap: 8px; }
+    .task-center { justify-content: center; }
+    .task-right { justify-content: flex-end; }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .start-btn {
+      min-width: 84px;
+      font-weight: 700;
+      background: linear-gradient(140deg, #72beff, #2a6fca);
+      border-color: rgba(255,255,255,.24);
+    }
+
+    .start-menu {
+      position: fixed;
+      left: 10px;
+      bottom: calc(var(--taskbar-h) + 10px);
+      width: min(620px, 96vw);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 25, 43, 0.96);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      padding: 14px;
+      display: none;
+      z-index: 100;
+    }
+
+    .start-menu.show { display: block; }
+    .menu-section { margin-top: 12px; }
+    .menu-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .menu-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .tile {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 10px;
+      min-height: 72px;
+      font-size: 12px;
+    }
+
+    .tile-action {
+      width: 100%;
+      text-align: left;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .search {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 10px;
+      outline: none;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .desktop { grid-template-columns: 1fr; }
+      .canvas { min-height: 56vh; }
+      .win-a, .win-b, .win-c { position: relative; left: auto; right: auto; top: auto; bottom: auto; width: 100%; margin-bottom: 10px; }
+      .taskbar { grid-template-columns: 1fr auto; }
+      .task-center { display: none; }
+      .menu-grid, .summary-grid, .home-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script src="zero_os_shell_bridge_config.js"></script>
+</head>
+<body>
+  <div class="desktop">
+    <aside class="dock">
+      <h2>System Layers</h2>
+      <div class="status-item">
+        <div class="status-key">First-Run Checklist</div>
+        <div class="status-val">
+          1) Download Native App or clone Zero OS
+          <br/>2) Run first-run
+          <br/>3) Open the shell UI
+        </div>
+      </div>
+      <div class="status-item"><div class="status-key">Core</div><div class="status-val" id="v-core">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Triad</div><div class="status-val" id="v-triad">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Security</div><div class="status-val" id="v-sec">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Recovery</div><div class="status-val" id="v-rec">Loading...</div></div>
+      <div class="status-item"><div class="status-key">Data Feed</div><div class="status-val" id="v-hint">Checking runtime files...</div></div>
+      <div class="status-item"><div class="status-key">Last Action</div><div class="status-val" id="v-action">No action run yet</div></div>
+      <div class="status-item"><div class="status-key">Action Result</div><div class="status-val" id="v-action-detail">Use Start or the taskbar to run a task.</div></div>
+      <div class="output-panel">
+        <div class="output-head">
+          <span>Last Full Output</span>
+          <div class="output-actions">
+            <button class="btn" id="copyOutputBtn">Copy</button>
+            <button class="btn" id="clearOutputBtn">Clear</button>
+            <button class="btn" id="saveOutputBtn">Save</button>
+          </div>
+        </div>
+        <div class="output-body" id="v-output">No action output yet.</div>
+      </div>
+      <div id="savedOutputsPanel"></div>
+      <button class="btn" id="refreshBtn">Refresh Layers</button>
+      <button class="btn" id="bridgeBtn">Run Platform Status</button>
+      <button class="btn" id="platformMaxBtn">Platform Maximize</button>
+      <button class="btn" id="openFilesBtn">Open Zero Files</button>
+      <button class="btn" id="maxFilesBtn">Maximize Zero Files</button>
+      <button class="btn" id="closeFilesBtn">Close Zero Files</button>
+    </aside>
+
+    <main class="canvas" id="canvas">
+      <section class="window win-a" data-win>
+        <div class="bar"><span>Start Layer</span><span class="badge ok">Ready</span></div>
+        <div class="content" id="startLayer">Loading start layer...</div>
+      </section>
+      <section class="window win-b" data-win>
+        <div class="bar"><span>Security Layer</span><span class="badge warn" id="secBadge">Checking</span></div>
+        <div class="content" id="securityLayer">Loading security layer...</div>
+      </section>
+      <section class="window win-c" data-win>
+        <div class="bar"><span>Runtime Layer</span><span class="badge ok">Live</span></div>
+        <div class="content" id="runtimeLayer">Loading runtime layer...</div>
+      </section>
+    </main>
+  </div>
+
+  <div class="start-menu" id="startMenu">
+    <input class="search" placeholder="Search apps, commands, settings" />
+    <div id="menuGrid"></div>
+  </div>
+
+  <aside class="drawer" id="notifyDrawer">
+    <div class="panel-title">Notification Center</div>
+    <div class="drawer-list" id="drawerList">
+      <div class="drawer-chip">
+        <div class="chip-title">Loading</div>
+        <div class="chip-copy">Notifications will appear here.</div>
+      </div>
+    </div>
+  </aside>
+
+  <footer class="taskbar">
+    <div class="task-left">
+      <button class="btn start-btn" id="startBtn">Start</button>
+      <button class="btn" id="layersBtn">Layers</button>
+    </div>
+    <div class="task-center">
+      <button class="btn">Zero Shell</button>
+      <button class="btn" id="btnSecurity">Zero Security</button>
+      <button class="btn" id="btnRuntime">Zero Runtime</button>
+    </div>
+    <div class="task-right">
+      <button class="btn" id="notifyBtn">Notifications</button>
+      <span id="clock" class="btn"></span>
+    </div>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const RECENT_KEY = "zero_os_shell_recent_v1";
+    const PIN_KEY = "zero_os_shell_pins_v1";
+    const LAYER_PAGE_KEY = "zero_os_shell_layer_page_v1";
+    const CHAT_KEY = "zero_os_shell_chat_v1";
+    const OUTPUT_KEY = "zero_os_shell_output_v1";
+    const SAVED_OUTPUTS_KEY = "zero_os_shell_saved_outputs_v1";
+    const VIEWER_KEY = "zero_os_shell_viewer_v1";
+    const menuSections = [
+      {
+        title: "Everyday",
+        items: [
+          { label: "Open Zero Files", desc: "Open the file workspace.", command: "native desktop window open app=Zero Files layer=top" },
+          { label: "Check System", desc: "Refresh overall platform health.", command: "native platform status" },
+          { label: "Open Security", desc: "Inspect Zero AI security posture.", command: "zero ai security status" }
+        ]
+      },
+      {
+        title: "Recovery",
+        items: [
+          { label: "Maximize Platform", desc: "Apply the current platform hardening path.", command: "native platform maximize" },
+          { label: "Check Runtime", desc: "Inspect kernel and runtime state.", command: "kernel stack status" },
+          { label: "Enable Isolation", desc: "Apply sandboxed kernel isolation.", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" }
+        ]
+      },
+      {
+        title: "GitHub",
+        items: [
+          { label: "GitHub Status", desc: "Show connected GitHub repositories.", command: "github status" },
+          { label: "GitHub Issues", desc: "List issue inbox for the sample connected repo.", command: "github issues octocat/Hello-World limit=5" },
+          { label: "GitHub PRs", desc: "List pull request inbox for the sample connected repo.", command: "github prs octocat/Hello-World limit=5" }
+        ]
+      },
+      {
+        title: "Share Zero OS",
+        items: [
+          { label: "Export Bundle", desc: "Create a clean local bundle under dist.", command: "zero os export bundle" },
+          { label: "Create Share Zip", desc: "Create a release-style share zip under dist.", command: "zero os share package" },
+          { label: "Open Dist Folder", desc: "Open the local dist folder.", command: "shell run Start-Process dist" }
+        ]
+      },
+      {
+        title: "Window Actions",
+        items: [
+          { label: "Maximize Zero Files", desc: "Bring the file window forward.", command: "native desktop window action app=Zero Files action=maximize" },
+          { label: "Close Zero Files", desc: "Close the current file window.", command: "native desktop window action app=Zero Files action=close" }
+        ]
+      }
+    ];
+    const menuActions = menuSections.flatMap((section) => section.items);
+    const appCatalog = [
+      { label: "Zero Files", icon: "F", desc: "File workspace and desktop storage view.", favorite: true, installed: true, command: "native desktop window open app=Zero Files layer=top" },
+      { label: "Zero Security", icon: "S", desc: "Security posture and protection review.", favorite: true, installed: true, command: "zero ai security status" },
+      { label: "Zero Runtime", icon: "R", desc: "Kernel and runtime inspection.", favorite: false, installed: true, command: "kernel stack status" },
+      { label: "System Status", icon: "P", desc: "Platform readiness and health checks.", favorite: true, installed: true, command: "native platform status" },
+      { label: "GitHub Inbox", icon: "G", desc: "Connected GitHub repos, issues, and PR intake.", favorite: false, installed: true, command: "github status" },
+      { label: "Share Zero OS", icon: "Z", desc: "Copy, export, zip, and share Zero OS easily.", favorite: true, installed: true, command: "zero os share package" }
+    ];
+
+    function tickClock() {
+      const now = new Date();
+      $("clock").textContent = now.toLocaleString();
+    }
+
+    function setActionFeedback(title, detail) {
+      $("v-action").textContent = title || "No action run yet";
+      $("v-action-detail").textContent = detail || "No result available";
+    }
+
+    function setActionOutput(payload) {
+      const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      writeLastOutput(text);
+      const node = $("v-output");
+      if (node) node.textContent = text;
+    }
+
+    async function copyActionOutput() {
+      const text = readLastOutput();
+      try {
+        await navigator.clipboard.writeText(text);
+        setActionFeedback("Output", "Copied last full output");
+      } catch {
+        setActionFeedback("Output", "Copy failed");
+      }
+    }
+
+    function clearActionOutput() {
+      writeLastOutput("No action output yet.");
+      const node = $("v-output");
+      if (node) node.textContent = "No action output yet.";
+      setActionFeedback("Output", "Cleared last full output");
+    }
+
+    async function copySavedPath(index) {
+      const item = readSavedOutputs()[Number(index)];
+      if (!item || !item.path) return;
+      try {
+        await navigator.clipboard.writeText(item.path);
+        setActionFeedback("Saved File", "Copied saved file path");
+      } catch {
+        setActionFeedback("Saved File", "Copy path failed");
+      }
+    }
+
+    async function openSavedPath(index) {
+      const item = readSavedOutputs()[Number(index)];
+      if (!item || !item.path) return;
+      writeViewerState({
+        path: item.path,
+        content: item.content || "No content available.",
+        at: item.at || new Date().toLocaleTimeString()
+      });
+      writeLayerPage("viewer");
+      setActionFeedback("Saved File", `Opened ${item.path} in viewer`);
+      await refreshLayers();
+    }
+
+    async function copyViewerContent() {
+      const viewer = readViewerState();
+      if (!viewer) return;
+      try {
+        await navigator.clipboard.writeText(String(viewer.content || ""));
+        setActionFeedback("File Viewer", "Copied viewer content");
+      } catch {
+        setActionFeedback("File Viewer", "Copy failed");
+      }
+    }
+
+    async function clearViewerContent() {
+      writeViewerState(null);
+      writeLayerPage("home");
+      setActionFeedback("File Viewer", "Closed viewer");
+      await refreshLayers();
+    }
+
+    async function copyShareText(text) {
+      try {
+        await navigator.clipboard.writeText(String(text || ""));
+        setActionFeedback("Share Zero OS", "Copied to clipboard");
+      } catch {
+        setActionFeedback("Share Zero OS", "Copy failed");
+      }
+    }
+
+    function openShareUrl(url) {
+      try {
+        window.open(String(url || ""), "_blank", "noopener,noreferrer");
+        setActionFeedback("Share Zero OS", "Opened link");
+      } catch {
+        setActionFeedback("Share Zero OS", "Open link failed");
+      }
+    }
+
+    async function saveActionOutput() {
+      const text = readLastOutput();
+      if (!text || text === "No action output yet.") {
+        setActionFeedback("Output", "Nothing to save");
+        return;
+      }
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      let ext = "txt";
+      let payloadText = text;
+      try {
+        const parsed = JSON.parse(text);
+        payloadText = JSON.stringify(parsed, null, 2);
+        ext = "json";
+      } catch {}
+      const path = `notes/zero_os_output_${stamp}.${ext}`;
+      const payload = payloadText.replace(/"/g, '\\"');
+      const result = await bridgeCommand(`create file ${path} with ${payload}`);
+      if (result && result.ok) {
+        setActionFeedback("Output", `Saved to ${path}`);
+        pushRecentAction("Saved Output", path);
+        pushSavedOutput(path, payloadText);
+        setActionOutput(result);
+        await refreshLayers();
+        return;
+      }
+      setActionFeedback("Output", "Save failed");
+      setActionOutput({ ok: false, command: `create file ${path} with <output>`, reason: "save failed" });
+    }
+
+    function readRecentActions() {
+      try {
+        return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function pushRecentAction(label, detail) {
+      const next = [{ label, detail, at: new Date().toLocaleTimeString() }, ...readRecentActions()].slice(0, 5);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    }
+
+    function readPins() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PIN_KEY) || "[]");
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function writePins(labels) {
+      localStorage.setItem(PIN_KEY, JSON.stringify(labels));
+    }
+
+    function readLayerPage() {
+      return localStorage.getItem(LAYER_PAGE_KEY) || "start";
+    }
+
+    function writeLayerPage(page) {
+      localStorage.setItem(LAYER_PAGE_KEY, page);
+    }
+
+    function readChatHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function writeChatHistory(items) {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(items.slice(-20)));
+    }
+
+    function pushChatMessage(role, text) {
+      const next = [...readChatHistory(), { role, text, at: new Date().toLocaleTimeString() }];
+      writeChatHistory(next);
+    }
+
+    function readLastOutput() {
+      return localStorage.getItem(OUTPUT_KEY) || "No action output yet.";
+    }
+
+    function writeLastOutput(text) {
+      localStorage.setItem(OUTPUT_KEY, text || "No action output yet.");
+    }
+
+    function readSavedOutputs() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SAVED_OUTPUTS_KEY) || "[]");
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function pushSavedOutput(path, content) {
+      const next = [{ path, content: String(content || ""), at: new Date().toLocaleTimeString() }, ...readSavedOutputs().filter((item) => item.path !== path)].slice(0, 8);
+      localStorage.setItem(SAVED_OUTPUTS_KEY, JSON.stringify(next));
+    }
+
+    function readViewerState() {
+      try {
+        return JSON.parse(localStorage.getItem(VIEWER_KEY) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function writeViewerState(state) {
+      localStorage.setItem(VIEWER_KEY, JSON.stringify(state || null));
+    }
+
+    function renderSavedOutputs() {
+      const items = readSavedOutputs();
+      if (!items.length) {
+        return `
+          <div class="output-panel">
+            <div class="output-head"><span>Saved Files</span></div>
+            <div class="output-body">No saved output files yet.</div>
+          </div>
+        `;
+      }
+      return `
+        <div class="output-panel">
+          <div class="output-head"><span>Saved Files</span></div>
+          <div class="output-body">
+            ${items.map((item, index) => `
+              <div class="saved-file">
+                <div class="saved-file-head">
+                  <span>${item.at}</span>
+                  <span>
+                    <button class="btn" data-saved-copy="${index}">Copy Path</button>
+                    <button class="btn" data-saved-open="${index}">Open</button>
+                  </span>
+                </div>
+                <div class="saved-file-path">${item.path}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function pinnedAppEntries() {
+      return appCatalog.filter((app) => isPinned(app));
+    }
+
+    function isPinned(app) {
+      const saved = readPins();
+      if (!saved.length) return Boolean(app.favorite);
+      return saved.includes(app.label);
+    }
+
+    function togglePinned(label) {
+      const saved = new Set(readPins());
+      if (saved.has(label)) saved.delete(label); else saved.add(label);
+      writePins(Array.from(saved));
+    }
+
+    async function loadJson(path) {
+      try {
+        const res = await fetch(path + "?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    async function bridgeCommand(command) {
+      try {
+        const res = await fetch("http://127.0.0.1:8766/action", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Zero-Token": window.ZERO_SHELL_BRIDGE_TOKEN || ""
+          },
+          body: JSON.stringify({ command })
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    function pickSecurityBadge(sec) {
+      if (!sec) return { cls: "warn", txt: "Unknown" };
+      if (sec.hardened || sec.mark_strict) return { cls: "ok", txt: "Hardened" };
+      return { cls: "bad", txt: "Risk" };
+    }
+
+    function onboardingDecision(platform, sec, backup, triad) {
+      const hasRuntime = Boolean(platform || sec || backup || triad);
+      if (!hasRuntime) {
+        return {
+          title: "Finish setup",
+          copy: "Zero OS has not produced its runtime state yet. Run the first setup path before using the shell.",
+          actions: [
+            { label: "Check System", command: "native platform status" },
+            { label: "Open Security", command: "zero ai security status" }
+          ]
+        };
+      }
+      if (!backup || !backup.ok) {
+        return {
+          title: "Review recovery",
+          copy: "The shell can read runtime state, but recovery proof is missing or stale. Confirm recovery before relying on autonomous actions.",
+          actions: [
+            { label: "Check System", command: "native platform status" },
+            { label: "Check Runtime", command: "kernel stack status" }
+          ]
+        };
+      }
+      if (!sec || (!sec.hardened && !sec.mark_strict)) {
+        return {
+          title: "Review security",
+          copy: "The system is running, but the current security posture is not marked hardened. Review security before normal daily use.",
+          actions: [
+            { label: "Open Security", command: "zero ai security status" },
+            { label: "Enable Isolation", command: "kernel process isolation set mode=sandboxed split=on syscalls=on" }
+          ]
+        };
+      }
+      return {
+        title: "Ready for normal use",
+        copy: "Core platform, recovery, and security signals are present. You can work normally and use the shell for everyday actions.",
+        actions: [
+          { label: "Open Zero Files", command: "native desktop window open app=Zero Files layer=top" },
+          { label: "Check System", command: "native platform status" }
+        ]
+      };
+    }
+
+    function renderOnboarding(state) {
+      return `
+        <div class="onboarding">
+          <div class="onboarding-title">${state.title}</div>
+          <div class="onboarding-copy">${state.copy}</div>
+          <div class="onboarding-actions">
+            ${state.actions.map((action) => `<button class="btn" data-onboard-command="${action.command}" data-onboard-label="${action.label}">${action.label}</button>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSummaryCards(items) {
+      return `<div class="summary-grid">${items.map((item) => `
+        <div class="summary-card">
+          <div class="label">${item.label}</div>
+          <div class="value">${item.value}</div>
+        </div>`).join("")}</div>`;
+    }
+
+    function renderDetails(title, data) {
+      return `<details class="details"><summary>${title}</summary><pre>${JSON.stringify(data, null, 2)}</pre></details>`;
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function renderJsonScalar(value) {
+      if (value === null) return '<span class="json-null">null</span>';
+      if (typeof value === "string") return `<span class="json-string">"${escapeHtml(value)}"</span>`;
+      if (typeof value === "number") return `<span class="json-number">${String(value)}</span>`;
+      if (typeof value === "boolean") return `<span class="json-bool">${String(value)}</span>`;
+      return `<span>${escapeHtml(String(value))}</span>`;
+    }
+
+    function renderJsonNode(value, key = "", depth = 0) {
+      const keyHtml = key !== "" ? `<span class="json-key">"${escapeHtml(key)}"</span>: ` : "";
+      if (value === null || typeof value !== "object") {
+        return `<div class="json-leaf">${keyHtml}${renderJsonScalar(value)}</div>`;
+      }
+      const isArray = Array.isArray(value);
+      const entries = isArray ? value.map((item, index) => [String(index), item]) : Object.entries(value);
+      const sizeLabel = isArray ? `[${entries.length}]` : `{${entries.length}}`;
+      const open = depth < 1 ? " open" : "";
+      return `
+        <details class="json-node"${open}>
+          <summary class="json-summary">${keyHtml}<span>${isArray ? "Array" : "Object"} ${sizeLabel}</span></summary>
+          <div class="json-tree">
+            ${entries.length ? entries.map(([childKey, childValue]) => renderJsonNode(childValue, childKey, depth + 1)).join("") : `<div class="json-leaf">${isArray ? "[]" : "{}"}</div>`}
+          </div>
+        </details>
+      `;
+    }
+
+    function renderJsonViewer(text) {
+      try {
+        const parsed = JSON.parse(String(text || "{}"));
+        return `<div class="json-tree">${renderJsonNode(parsed)}</div>`;
+      } catch {
+        const lines = String(text || "").split("\n");
+        return `
+          <div class="json-view">
+            ${lines.map((line) => `<div class="json-line">${escapeHtml(line)}</div>`).join("")}
+          </div>
+        `;
+      }
+    }
+
+    function renderLayerTabs(active) {
+      const pages = [
+        { id: "start", label: "Start Here" },
+        { id: "home", label: "Home" },
+        { id: "apps", label: "Apps" },
+        { id: "security", label: "Security" },
+        { id: "runtime", label: "Runtime" },
+        { id: "recovery", label: "Recovery" },
+        { id: "github", label: "GitHub" },
+        { id: "chat", label: "Zero AI Chat" },
+        { id: "viewer", label: "File Viewer" },
+        { id: "share", label: "Share Zero OS" }
+      ];
+      return `
+        <div class="layer-tabs">
+          ${pages.map((page) => `
+            <button class="layer-tab ${active === page.id ? "active" : ""}" data-layer-page="${page.id}">${page.label}</button>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderStartHerePanel() {
+      return `
+        <section class="panel">
+          <div class="panel-title">Start Here</div>
+          ${renderSummaryCards([
+            { label: "Goal", value: "No commands needed" },
+            { label: "Best Path", value: "Click buttons" },
+            { label: "Mode", value: "Guided setup" },
+            { label: "Share", value: "GitHub ready" }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">0. Download Native App</div>
+              <div class="chip-copy">Best path for Windows users who want Zero OS without building anything locally.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS/releases">Download Native App</button>
+                <button class="btn" data-share-copy="https://github.com/Viomnz/Zero-OS/releases">Copy Download Link</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">1. Open Repository</div>
+              <div class="chip-copy">Start from the GitHub repo page.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS">Open Repo</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">2. Run First-Run</div>
+              <div class="chip-copy">Run the setup step directly from the local shell.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="powershell run .\\zero_os_launcher.ps1 first-run" data-home-label="Run First-Run">Run First-Run</button>
+                <button class="btn" data-share-copy=".\\zero_os_launcher.ps1 first-run">Copy First-Run</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">3. Open Shell UI</div>
+              <div class="chip-copy">Open the shell directly from the local environment.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="powershell run Start-Process .\\zero_os_shell.html" data-home-label="Open Shell UI">Open Shell UI</button>
+                <button class="btn" data-share-copy="Start-Process \".\\zero_os_shell.html\"">Copy Open Shell</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">4. Know Everything + Complete All</div>
+              <div class="chip-copy">Run the strongest built-in guided action.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero os complete all" data-home-label="Know Everything + Complete All">Run</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">5. Share Zero OS</div>
+              <div class="chip-copy">Build a clean share bundle or zip for GitHub users.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-command="zero os export bundle" data-share-label="Export Bundle">Export Bundle</button>
+                <button class="btn" data-share-command="zero os share package" data-share-label="Create Share Zip">Create Share Zip</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderSecurityPanel(sec, recValue) {
+      const secValue = sec && sec.hardened ? "Hardened" : "Baseline";
+      return `
+        <section class="panel">
+          <div class="panel-title">Security Review</div>
+          ${renderSummaryCards([
+            { label: "Security State", value: secValue },
+            { label: "Recovery", value: recValue },
+            { label: "Status Badge", value: sec && (sec.mark_strict || sec.hardened) ? "Protected" : "Needs review" },
+            { label: "Next Step", value: sec && sec.hardened ? "Monitor" : "Run hardening" }
+          ])}
+          ${renderDetails("Show security details", sec || { hint: "run: ./zero_os_launcher.ps1 first-run" })}
+        </section>
+      `;
+    }
+
+    function renderRuntimePanel(triadValue, kernel, runtime, backup) {
+      return `
+        <section class="panel">
+          <div class="panel-title">Runtime Review</div>
+          ${renderSummaryCards([
+            { label: "Triad", value: triadValue },
+            { label: "Kernel", value: kernel && kernel.processes ? `${kernel.processes.length} processes` : "Idle" },
+            { label: "Isolation", value: kernel && kernel.isolation ? String(kernel.isolation.mode || "shared") : "unknown" },
+            { label: "Validation", value: runtime && runtime.ok ? "Passing" : "Needs check" }
+          ])}
+          ${renderDetails("Show runtime details", { kernel: kernel || {}, triad: triadValue, runtime: runtime || {}, recovery: backup || {} })}
+        </section>
+      `;
+    }
+
+    function renderRecoveryPanel(onboarding, backup, notices) {
+      return `
+        <section class="panel">
+          <div class="panel-title">Recovery Layer</div>
+          <div class="action-list">
+            ${onboarding.actions.map((action) => `
+              <div class="action-chip">
+                <div class="chip-title">${action.label}</div>
+                <div class="chip-copy">Recommended from the current recovery and readiness state.</div>
+                <button class="btn" data-home-command="${action.command}" data-home-label="${action.label}">Run</button>
+              </div>
+            `).join("")}
+            <div class="action-chip">
+              <div class="chip-title">Recovery Status</div>
+              <div class="chip-copy">${backup && backup.ok ? "Recovery proof is present." : "Recovery proof is missing or stale."}</div>
+            </div>
+            ${notices.map((item) => `
+              <div class="notice-chip">
+                <div class="chip-title">${item.title}</div>
+                <div class="chip-copy">${item.copy}</div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderGitHubPanel(github) {
+      const repos = Object.entries(((github || {}).repos) || {});
+      return `
+        <section class="panel">
+          <div class="panel-title">GitHub Layer</div>
+          ${renderSummaryCards([
+            { label: "Connected Repos", value: String(repos.length) },
+            { label: "Tokens Ready", value: String(repos.filter(([, cfg]) => cfg && cfg.token_set).length) },
+            { label: "Events Logged", value: String((((github || {}).events) || []).length) },
+            { label: "Mode", value: repos.length ? "Read and act locally" : "Not connected" }
+          ])}
+          <div class="inline-form">
+            <input id="githubRepoInput" placeholder="owner/repo" value="${repos.length ? repos[0][0] : ""}" />
+            <input id="githubTokenInput" placeholder="token (optional for read-only public repos)" />
+            <button class="btn" id="githubConnectBtn">Connect</button>
+          </div>
+          <div class="inline-form actions">
+            <input id="githubActionRepoInput" placeholder="owner/repo" value="${repos.length ? repos[0][0] : ""}" />
+            <input id="githubActionNumberInput" placeholder="issue or PR #" />
+            <button class="btn" id="githubIssueReadBtn">Read Issue</button>
+            <button class="btn" id="githubPrReadBtn">Read PR</button>
+            <button class="btn" id="githubIssueDraftBtn">Draft Issue Reply</button>
+            <button class="btn" id="githubPrDraftBtn">Draft PR Reply</button>
+          </div>
+          <div class="action-list">
+            ${repos.length ? repos.map(([name, cfg]) => `
+              <div class="action-chip">
+                <div class="chip-title">${name}</div>
+                <div class="chip-copy">Connected: ${cfg && cfg.connected ? "yes" : "no"} · Token: ${cfg && cfg.token_set ? "set" : "missing"}</div>
+                <div class="task-actions">
+                  <button class="btn" data-home-command="github issues ${name} limit=5" data-home-label="Issues ${name}">Issues</button>
+                  <button class="btn" data-home-command="github prs ${name} limit=5" data-home-label="PRs ${name}">PRs</button>
+                  <button class="btn" data-home-command="github status" data-home-label="GitHub Status">Refresh</button>
+                </div>
+              </div>
+            `).join("") : `
+              <div class="action-chip">
+                <div class="chip-title">No connected repo yet</div>
+                <div class="chip-copy">Connect one with: github repo connect owner/repo [token=...]</div>
+              </div>
+            `}
+          </div>
+          ${renderDetails("Show GitHub integration details", github || { repos: {}, events: [] })}
+        </section>
+      `;
+    }
+
+    function renderChatPanel() {
+      const history = readChatHistory();
+      return `
+        <section class="panel">
+          <div class="panel-title">Zero AI Chat</div>
+          <div class="chat-shell">
+            <div class="chat-log" id="chatLog">
+              ${history.length ? history.map((item) => `
+                <div class="chat-msg ${item.role === "user" ? "user" : "assistant"}">
+                  <div class="chat-role">${item.role === "user" ? "You" : "Zero AI"} · ${item.at || ""}</div>
+                  <div class="chat-text">${String(item.text || "")}</div>
+                </div>
+              `).join("") : `
+                <div class="chat-msg assistant">
+                  <div class="chat-role">Zero AI</div>
+                  <div class="chat-text">Ask something like "status", "scan the system", or "github status".</div>
+                </div>
+              `}
+            </div>
+            <div class="chat-compose">
+              <textarea id="chatInput" placeholder="Ask Zero AI to check status, review GitHub, inspect runtime, or run a safe local action..."></textarea>
+              <button class="btn" id="chatSendBtn">Send</button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderSharePanel() {
+      return `
+        <section class="panel">
+          <div class="panel-title">Share Zero OS</div>
+          ${renderSummaryCards([
+            { label: "Git Clone", value: "Ready" },
+            { label: "Release Download", value: "Ready" },
+            { label: "Native App", value: "Release ready" },
+            { label: "Local Bundle", value: "Built in" },
+            { label: "Share Zip", value: "Built in" }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">Download Native App</div>
+              <div class="chip-copy">Open the latest Windows-native release if you do not want to build Zero OS locally.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS/releases">Open Releases</button>
+                <button class="btn" data-share-copy="https://github.com/Viomnz/Zero-OS/releases">Copy Download Link</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Clone From GitHub</div>
+              <div class="chip-copy">Copy the Git clone command for GitHub users.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-copy="git clone https://github.com/Viomnz/Zero-OS.git">Copy Clone Command</button>
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS">Open Repo</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Download Release Zip</div>
+              <div class="chip-copy">Open the GitHub Releases page for ready-made download bundles.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-copy="https://github.com/Viomnz/Zero-OS/releases">Copy Releases Link</button>
+                <button class="btn" data-share-url="https://github.com/Viomnz/Zero-OS/releases">Open Releases</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Create Local Share Bundle</div>
+              <div class="chip-copy">Generate a sanitized copy or zip without local runtime secrets.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-command="zero os export bundle" data-share-label="Export Bundle">Export Bundle</button>
+                <button class="btn" data-share-command="zero os share package" data-share-label="Create Share Zip">Create Share Zip</button>
+                <button class="btn" data-share-command="shell run Start-Process dist" data-share-label="Open Dist Folder">Open Dist Folder</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Quick Start</div>
+              <div class="chip-copy">Copy the simple setup commands for new users.</div>
+              <div class="task-actions">
+                <button class="btn" data-share-copy=".\\zero_os_launcher.ps1 first-run">Copy First-Run</button>
+                <button class="btn" data-share-copy="Start-Process \".\\zero_os_shell.html\"">Copy Open Shell</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderViewerPanel() {
+      const viewer = readViewerState();
+      if (!viewer || !viewer.path) {
+        return `
+          <section class="panel">
+            <div class="panel-title">File Viewer</div>
+            <div class="chat-shell">
+              <div class="chip-title">No file opened</div>
+              <div class="chip-copy">Use the Saved Files panel and click Open to view a saved output here.</div>
+            </div>
+          </section>
+        `;
+      }
+      return `
+        <section class="panel">
+          <div class="panel-title">File Viewer</div>
+          ${renderSummaryCards([
+            { label: "Path", value: viewer.path },
+            { label: "Opened", value: viewer.at || "-" },
+            { label: "Type", value: String(viewer.path).toLowerCase().endsWith(".json") ? "JSON" : "Text" },
+            { label: "Mode", value: "In-shell snapshot" }
+          ])}
+          <div class="output-panel">
+            <div class="output-head">
+              <span>${viewer.path}</span>
+              <div class="output-actions">
+                <button class="btn" id="viewerCopyBtn">Copy</button>
+                <button class="btn" id="viewerClearBtn">Close</button>
+              </div>
+            </div>
+            <div class="output-body" id="viewerBody">${String(viewer.path).toLowerCase().endsWith(".json") ? renderJsonViewer(String(viewer.content || "{}")) : escapeHtml(String(viewer.content || "No content available."))}</div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) {
+      const notices = [];
+      if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
+      if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
+      if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
+      if (!notices.length) notices.push({ title: "No urgent alerts", copy: "System alerts are currently quiet." });
+
+      const recents = readRecentActions();
+      const recentApps = appCatalog.filter((app) => recents.some((item) => String(item.label || "").includes(app.label))).slice(0, 4);
+      const pinned = pinnedAppEntries();
+      return `
+        <div class="home-grid">
+          <section class="panel">
+            <div class="panel-title">App Library</div>
+            <div class="recent-strip">
+              ${recentApps.length ? recentApps.map((app) => `
+                <div class="recent-app">
+                  <div class="chip-title">${app.label}</div>
+                  <div class="chip-copy">Recent app</div>
+                </div>
+              `).join("") : `<div class="recent-app"><div class="chip-title">No recent apps</div><div class="chip-copy">Launch an app to track it here.</div></div>`}
+            </div>
+            <div class="action-list">
+              ${renderLibraryCards(desktop, storeState, storeRegistry)}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Pinned Apps</div>
+            <div class="action-list">
+              ${(pinned.length ? pinned : pinnedAppEntries()).map((item) => `
+                <div class="action-chip">
+                  <div class="chip-title">${item.label}</div>
+                  <div class="chip-copy">${item.copy || item.desc}</div>
+                  <button class="btn" data-home-command="${item.command}" data-home-label="${item.label}">Open</button>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Notifications</div>
+            <div class="notice-list">
+              ${notices.map((item) => `
+                <div class="notice-chip">
+                  <div class="chip-title">${item.title}</div>
+                  <div class="chip-copy">${item.copy}</div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Recent Actions</div>
+            <div class="recent-list">
+              ${recents.length ? recents.map((item) => `
+                <div class="recent-chip">
+                  <div class="chip-title">${item.label}</div>
+                  <div class="chip-copy">${item.detail} · ${item.at}</div>
+                </div>
+              `).join("") : `<div class="recent-chip"><div class="chip-title">No recent actions</div><div class="chip-copy">Run an app or system action and it will appear here.</div></div>`}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title">Quick Recovery</div>
+            <div class="action-list">
+              ${onboarding.actions.map((action) => `
+                <div class="action-chip">
+                  <div class="chip-title">${action.label}</div>
+                  <div class="chip-copy">Recommended from the current onboarding state.</div>
+                  <button class="btn" data-home-command="${action.command}" data-home-label="${action.label}">Run</button>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github) {
+      const notices = renderNotifications(sec, backup, triad, desktop);
+      const recValue = backup && backup.ok ? "Recoverable" : "No report";
+      const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
+      return [
+        renderLayerTabs(activePage),
+        `<div class="layer-view ${activePage === "start" ? "active" : ""}" data-layer-view="start">` +
+          renderStartHerePanel() +
+        `</div>`,
+        `<div class="layer-view ${activePage === "home" ? "active" : ""}" data-layer-view="home">` +
+          renderOnboarding(onboarding) +
+          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) +
+          renderTaskSwitcher(desktop) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "apps" ? "active" : ""}" data-layer-view="apps">` +
+          `<section class="panel"><div class="panel-title">App Library Layer</div><div class="action-list">${renderLibraryCards(desktop, storeState, storeRegistry)}</div></section>` +
+          renderTaskSwitcher(desktop) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "security" ? "active" : ""}" data-layer-view="security">` +
+          renderSecurityPanel(sec, recValue) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "runtime" ? "active" : ""}" data-layer-view="runtime">` +
+          renderRuntimePanel(triadValue, kernel, runtime, backup) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
+          renderRecoveryPanel(onboarding, backup, notices) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "github" ? "active" : ""}" data-layer-view="github">` +
+          renderGitHubPanel(github) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "chat" ? "active" : ""}" data-layer-view="chat">` +
+          renderChatPanel() +
+        `</div>`,
+        `<div class="layer-view ${activePage === "viewer" ? "active" : ""}" data-layer-view="viewer">` +
+          renderViewerPanel() +
+        `</div>`,
+        `<div class="layer-view ${activePage === "share" ? "active" : ""}" data-layer-view="share">` +
+          renderSharePanel() +
+        `</div>`,
+        renderSummaryCards([
+          { label: "Desktop", value: `${(desktop && desktop.windows || []).length} windows` },
+          { label: "Start Menu", value: desktop && desktop.start_menu && desktop.start_menu.style ? desktop.start_menu.style : "layered" },
+          { label: "Mode", value: "Windows-like shell" },
+          { label: "Active Page", value: activePage }
+        ])
+      ].join("");
+    }
+
+    function renderLibraryCards(desktop, storeState, storeRegistry) {
+      const openApps = new Set((((desktop || {}).windows) || []).filter((item) => item.state !== "closed").map((item) => String(item.app || "")));
+      const installs = Object.values((((storeState || {}).installs) || {}));
+      const publishedApps = (((storeRegistry || {}).apps) || []);
+      const recent = readRecentActions().map((item) => String(item.label || ""));
+      return appCatalog.map((app) => {
+        const installedRecord = installs.find((item) => String(item.app || "").toLowerCase() === app.label.toLowerCase() && String(item.state || "").toLowerCase() === "installed");
+        const publishedRecord = publishedApps.find((item) => String(item.name || "").toLowerCase() === app.label.toLowerCase());
+        const releaseVersion = (((storeState || {}).release) || {}).version || "";
+        const installedVersion = installedRecord ? String(installedRecord.version || "") : "";
+        const publishedVersion = publishedRecord ? String(publishedRecord.version || "") : "";
+        const installed = Boolean(app.installed || installedRecord);
+        const state = openApps.has(app.label) ? "Open" : "Ready";
+        const recentMark = recent.some((label) => label.includes(app.label)) ? "Recent" : "Idle";
+        const fav = isPinned(app) ? "Pinned" : "App";
+        const updateState = installed && publishedVersion && installedVersion && publishedVersion !== installedVersion ? "Update available" : (installed ? "Installed" : (publishedRecord ? "Available" : "Built-in"));
+        return `
+          <div class="action-chip">
+            <div class="app-head">
+              <div class="app-title">
+                <span class="app-icon">${app.icon || "A"}</span>
+                <div class="chip-title">${app.label}</div>
+              </div>
+              <span class="mini-badge">${updateState}</span>
+            </div>
+            <div class="chip-copy">${app.desc}</div>
+            <div class="state-badges">
+              <span class="mini-badge">${fav}</span>
+              <span class="mini-badge">${state}</span>
+              <span class="mini-badge">${recentMark}</span>
+              <span class="mini-badge">Installed ${installedVersion || "-"}</span>
+              <span class="mini-badge">Published ${publishedVersion || releaseVersion || "-"}</span>
+            </div>
+            <button class="btn" data-home-command="${app.command}" data-home-label="${app.label}">${openApps.has(app.label) ? "Open Again" : (installed ? "Open" : (publishedRecord ? "Install" : "Launch"))}</button>
+            <button class="btn" data-pin-label="${app.label}">${isPinned(app) ? "Unpin" : "Pin"}</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTaskSwitcher(desktop) {
+      const windows = (desktop && desktop.windows) || [];
+      if (!windows.length) {
+        return `
+          <section class="panel">
+            <div class="panel-title">Open Apps</div>
+            <div class="task-list">
+              <div class="task-chip">
+                <div class="chip-title">No open apps</div>
+                <div class="chip-copy">Open Zero Files or another app to manage windows here.</div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+      return `
+        <section class="panel">
+          <div class="panel-title">Open Apps</div>
+          <div class="task-list">
+            ${windows.map((item) => `
+              <div class="task-chip">
+                <div class="chip-title">${item.app}</div>
+                <div class="chip-copy">State: ${item.state || "open"} · Layer: ${item.layer || "normal"} · Z: ${item.z || 0}</div>
+                <div class="task-actions">
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=maximize" data-task-label="Maximize ${item.app}">Bring Forward</button>
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=minimize" data-task-label="Minimize ${item.app}">Minimize</button>
+                  <button class="btn" data-task-command="native desktop window action app=${item.app} action=close" data-task-label="Close ${item.app}">Close</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderNotifications(sec, backup, triad, desktop) {
+      const notices = [];
+      if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
+      if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
+      if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
+      if (desktop && desktop.windows && desktop.windows.some((w) => w.state === "closed")) notices.push({ title: "Closed windows detected", copy: "Some desktop windows were closed and can be reopened from Start." });
+      if (!notices.length) notices.push({ title: "No urgent alerts", copy: "System alerts are currently quiet." });
+      return notices;
+    }
+
+    function renderDrawer(notices, recents) {
+      $("drawerList").innerHTML = [
+        ...notices.map((item) => `
+          <div class="drawer-chip">
+            <div class="chip-title">${item.title}</div>
+            <div class="chip-copy">${item.copy}</div>
+          </div>
+        `),
+        ...recents.slice(0, 3).map((item) => `
+          <div class="drawer-chip">
+            <div class="chip-title">Recent: ${item.label}</div>
+            <div class="chip-copy">${item.detail} · ${item.at}</div>
+          </div>
+        `)
+      ].join("");
+    }
+
+    async function refreshLayers() {
+      const [triad, runtime, backup, sec, resilience] = await Promise.all([
+        loadJson(".zero_os/runtime/triad_balance.json"),
+        loadJson(".zero_os/runtime/independent_runtime_validation.json"),
+        loadJson(".zero_os/runtime/zero_ai_recovery_report.json"),
+        loadJson(".zero_os/runtime/zero_ai_security_status.json"),
+        loadJson(".zero_os/resilience/kernel_driver_status.json")
+      ]);
+      const [platform, desktop, kernel] = await Promise.all([
+        loadJson(".zero_os/native_platform/maximize_report.json"),
+        loadJson(".zero_os/desktop/session.json"),
+        loadJson(".zero_os/runtime/kernel_stack_state.json")
+      ]);
+      const [storeState, storeRegistry, github] = await Promise.all([
+        loadJson(".zero_os/native_store/state.json"),
+        loadJson(".zero_os/store/registry.json"),
+        loadJson(".zero_os/integrations/github.json")
+      ]);
+
+      const coreValue = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
+      const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
+      const secValue = sec && sec.hardened ? "Hardened" : "Baseline";
+      const recValue = backup && backup.ok ? "Recoverable" : "No report";
+      const onboarding = onboardingDecision(platform, sec, backup, triad);
+      const notices = renderNotifications(sec, backup, triad, desktop);
+      window.__zeroDesktopState = desktop || {};
+
+      $("v-core").textContent = coreValue;
+      $("v-triad").textContent = triadValue;
+      $("v-sec").textContent = secValue;
+      $("v-rec").textContent = recValue;
+      $("v-hint").textContent = (triad || runtime || backup || sec || resilience)
+        ? "Live runtime JSON loaded"
+        : "No runtime JSON yet. Run first-run, then open-dashboard.";
+      $("v-output").textContent = readLastOutput();
+      $("savedOutputsPanel").innerHTML = renderSavedOutputs();
+      $("savedOutputsPanel").querySelectorAll("[data-saved-copy]").forEach((button) => {
+        button.addEventListener("click", async () => copySavedPath(button.dataset.savedCopy));
+      });
+      $("savedOutputsPanel").querySelectorAll("[data-saved-open]").forEach((button) => {
+        button.addEventListener("click", async () => openSavedPath(button.dataset.savedOpen));
+      });
+
+      const activePage = readLayerPage();
+      $("startLayer").innerHTML = [
+        renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github),
+        renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
+      ].join("");
+      $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          writeLayerPage(button.dataset.layerPage || "home");
+          await refreshLayers();
+        });
+      });
+      $("startLayer").querySelectorAll("[data-onboard-command], [data-home-command], [data-task-command]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const label = button.dataset.onboardLabel || button.dataset.homeLabel || button.dataset.taskLabel || "Run Action";
+          const command = button.dataset.onboardCommand || button.dataset.homeCommand || button.dataset.taskCommand || "";
+          await runShellAction(label, command);
+        });
+      });
+      $("startLayer").querySelectorAll("[data-share-command]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          await runShellAction(button.dataset.shareLabel || "Share Zero OS", button.dataset.shareCommand || "");
+        });
+      });
+      $("startLayer").querySelectorAll("[data-share-copy]").forEach((button) => {
+        button.addEventListener("click", async () => copyShareText(button.dataset.shareCopy || ""));
+      });
+      $("startLayer").querySelectorAll("[data-share-url]").forEach((button) => {
+        button.addEventListener("click", () => openShareUrl(button.dataset.shareUrl || ""));
+      });
+      const chatSendBtn = $("chatSendBtn");
+      const chatInput = $("chatInput");
+      const githubConnectBtn = $("githubConnectBtn");
+      const githubIssueReadBtn = $("githubIssueReadBtn");
+      const githubPrReadBtn = $("githubPrReadBtn");
+      const githubIssueDraftBtn = $("githubIssueDraftBtn");
+      const githubPrDraftBtn = $("githubPrDraftBtn");
+      const copyOutputBtn = $("copyOutputBtn");
+      const clearOutputBtn = $("clearOutputBtn");
+      const saveOutputBtn = $("saveOutputBtn");
+      const viewerCopyBtn = $("viewerCopyBtn");
+      const viewerClearBtn = $("viewerClearBtn");
+      if (chatSendBtn && chatInput) {
+        chatSendBtn.addEventListener("click", sendChatMessage);
+        chatInput.addEventListener("keydown", async (event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            await sendChatMessage();
+          }
+        });
+      }
+      if (githubConnectBtn) {
+        githubConnectBtn.addEventListener("click", connectGitHubRepo);
+      }
+      if (githubIssueReadBtn) githubIssueReadBtn.addEventListener("click", async () => runGitHubQuickAction("issue_read"));
+      if (githubPrReadBtn) githubPrReadBtn.addEventListener("click", async () => runGitHubQuickAction("pr_read"));
+      if (githubIssueDraftBtn) githubIssueDraftBtn.addEventListener("click", async () => runGitHubQuickAction("issue_reply"));
+      if (githubPrDraftBtn) githubPrDraftBtn.addEventListener("click", async () => runGitHubQuickAction("pr_reply"));
+      if (copyOutputBtn) copyOutputBtn.addEventListener("click", copyActionOutput);
+      if (clearOutputBtn) clearOutputBtn.addEventListener("click", clearActionOutput);
+      if (saveOutputBtn) saveOutputBtn.addEventListener("click", saveActionOutput);
+      if (viewerCopyBtn) viewerCopyBtn.addEventListener("click", copyViewerContent);
+      if (viewerClearBtn) viewerClearBtn.addEventListener("click", clearViewerContent);
+      $("startLayer").querySelectorAll("[data-pin-label]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const label = button.dataset.pinLabel || "";
+          if (!label) return;
+          togglePinned(label);
+          setActionFeedback(isPinned({ label }) ? `Pinned ${label}` : `Unpinned ${label}`, "Launcher favorites updated");
+          pushRecentAction(isPinned({ label }) ? `Pinned ${label}` : `Unpinned ${label}`, "Launcher favorites updated");
+          await refreshLayers();
+        });
+      });
+      renderDrawer(notices, readRecentActions());
+
+      $("securityLayer").innerHTML = renderSecurityPanel(sec, recValue);
+      $("runtimeLayer").innerHTML = renderRuntimePanel(triadValue, kernel, runtime, backup);
+
+      const b = pickSecurityBadge(sec);
+      const el = $("secBadge");
+      el.className = "badge " + b.cls;
+      el.textContent = b.txt;
+    }
+
+    function createTile(item, runMenuAction) {
+      const tile = document.createElement("button");
+      tile.className = "tile tile-action";
+      tile.innerHTML = `<strong>${item.label}</strong><br/>${item.desc}`;
+      tile.addEventListener("click", async () => runMenuAction(item));
+      return tile;
+    }
+
+    function setupStartMenu() {
+      const startBtn = $("startBtn");
+      const menu = $("startMenu");
+      const search = menu.querySelector(".search");
+      const grid = $("menuGrid");
+      const drawer = $("notifyDrawer");
+
+      startBtn.addEventListener("click", () => menu.classList.toggle("show"));
+      $("notifyBtn").addEventListener("click", () => drawer.classList.toggle("show"));
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== startBtn) menu.classList.remove("show");
+        if (!drawer.contains(e.target) && e.target !== $("notifyBtn")) drawer.classList.remove("show");
+      });
+
+      async function runMenuAction(item) {
+        setActionFeedback(item.label, "Running...");
+        const result = await bridgeCommand(item.command);
+        if (result && result.ok) {
+          setActionFeedback(item.label, result.summary || "Action completed");
+          setActionOutput(result);
+          pushRecentAction(item.label, result.summary || "Action completed");
+        } else {
+          setActionFeedback(item.label, "Action failed or shell bridge is offline");
+          setActionOutput({ ok: false, command: item.command, reason: "shell bridge offline or request failed" });
+          pushRecentAction(item.label, "Action failed or shell bridge is offline");
+        }
+        await refreshLayers();
+        menu.classList.remove("show");
+      }
+
+      function renderSections() {
+        grid.innerHTML = "";
+        menuSections.forEach((section) => {
+          const wrap = document.createElement("section");
+          wrap.className = "menu-section";
+          const title = document.createElement("div");
+          title.className = "menu-title";
+          title.textContent = section.title;
+          const group = document.createElement("div");
+          group.className = "menu-grid";
+          section.items.forEach((item) => group.appendChild(createTile(item, runMenuAction)));
+          wrap.appendChild(title);
+          wrap.appendChild(group);
+          grid.appendChild(wrap);
+        });
+      }
+
+      function renderSearch(query) {
+        const q = (query || "").trim().toLowerCase();
+        grid.innerHTML = "";
+        if (!q) {
+          renderSections();
+          return;
+        }
+        const matches = menuActions.filter((item) => item.label.toLowerCase().includes(q) || item.command.toLowerCase().includes(q));
+        if (!matches.length) {
+          const empty = document.createElement("div");
+          empty.className = "status-item";
+          empty.textContent = "No matching app or action.";
+          grid.appendChild(empty);
+          return;
+        }
+        const group = document.createElement("div");
+        group.className = "menu-grid";
+        matches.forEach((item) => group.appendChild(createTile(item, runMenuAction)));
+        grid.appendChild(group);
+      }
+
+      search.addEventListener("input", (e) => renderSearch(e.target.value));
+      renderSections();
+    }
+
+    function setupWindows() {
+      const windows = Array.from(document.querySelectorAll("[data-win]"));
+      windows.forEach((win) => {
+        const bar = win.querySelector(".bar");
+        let sx = 0, sy = 0, lx = 0, ly = 0, dragging = false;
+        bar.addEventListener("mousedown", (e) => {
+          if (window.innerWidth <= 980) return;
+          dragging = true;
+          sx = e.clientX;
+          sy = e.clientY;
+          const rect = win.getBoundingClientRect();
+          lx = rect.left;
+          ly = rect.top;
+          win.style.zIndex = String(Date.now() % 100000);
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!dragging) return;
+          const dx = e.clientX - sx;
+          const dy = e.clientY - sy;
+          win.style.left = (lx + dx) + "px";
+          win.style.top = (ly + dy) + "px";
+          win.style.right = "auto";
+          win.style.bottom = "auto";
+        });
+        window.addEventListener("mouseup", () => dragging = false);
+      });
+    }
+
+    async function sendChatMessage() {
+      const input = $("chatInput");
+      if (!input) return;
+      const prompt = String(input.value || "").trim();
+      if (!prompt) return;
+      pushChatMessage("user", prompt);
+      input.value = "";
+      setActionFeedback("Zero AI Chat", "Running...");
+      const result = await bridgeCommand(`zero ai ask ${prompt}`);
+      let reply = "Action failed or shell bridge is offline";
+      if (result && result.ok) {
+        reply = result.summary || "Action completed";
+        if (result.command) {
+          reply = `${reply}\n\nCommand: ${result.command}`;
+        }
+        setActionOutput(result);
+      } else {
+        setActionOutput({ ok: false, command: `zero ai ask ${prompt}`, reason: "shell bridge offline or request failed" });
+      }
+      pushChatMessage("assistant", reply);
+      pushRecentAction("Zero AI Chat", reply.split("\n")[0] || reply);
+      setActionFeedback("Zero AI Chat", reply.split("\n")[0] || reply);
+      await refreshLayers();
+    }
+
+    async function connectGitHubRepo() {
+      const repoInput = $("githubRepoInput");
+      const tokenInput = $("githubTokenInput");
+      const repo = repoInput ? String(repoInput.value || "").trim() : "";
+      const token = tokenInput ? String(tokenInput.value || "").trim() : "";
+      if (!repo) {
+        setActionFeedback("GitHub Connect", "Repo is required");
+        return;
+      }
+      const command = token ? `github repo connect ${repo} token=${token}` : `github repo connect ${repo}`;
+      await runShellAction("GitHub Connect", command);
+      if (tokenInput) tokenInput.value = "";
+    }
+
+    function githubActionTarget() {
+      const repoInput = $("githubActionRepoInput");
+      const numberInput = $("githubActionNumberInput");
+      const repo = repoInput ? String(repoInput.value || "").trim() : "";
+      const number = numberInput ? String(numberInput.value || "").trim() : "";
+      if (!repo || !number) return null;
+      return { repo, number };
+    }
+
+    async function runGitHubQuickAction(kind) {
+      const target = githubActionTarget();
+      if (!target) {
+        setActionFeedback("GitHub Action", "Repo and issue/PR number are required");
+        return;
+      }
+      const mapping = {
+        issue_read: {
+          title: "GitHub Issue Read",
+          command: `github issue read ${target.repo} ${target.number}`
+        },
+        pr_read: {
+          title: "GitHub PR Read",
+          command: `github pr read ${target.repo} ${target.number}`
+        },
+        issue_reply: {
+          title: "GitHub Issue Draft Reply",
+          command: `github issue reply ${target.repo} ${target.number}`
+        },
+        pr_reply: {
+          title: "GitHub PR Draft Reply",
+          command: `github pr reply ${target.repo} ${target.number}`
+        }
+      };
+      const action = mapping[kind];
+      if (!action) return;
+      await runShellAction(action.title, action.command);
+    }
+
+    async function runShellAction(title, command) {
+      setActionFeedback(title, "Running...");
+      const result = await bridgeCommand(command);
+      const detail = result && result.ok ? (result.summary || "Action completed") : "Action failed or shell bridge is offline";
+      setActionFeedback(title, detail);
+      if (result && result.ok) {
+        setActionOutput(result);
+      } else {
+        setActionOutput({ ok: false, command, reason: "shell bridge offline or request failed" });
+      }
+      pushRecentAction(title, detail);
+      await refreshLayers();
+    }
+
+    $("refreshBtn").addEventListener("click", refreshLayers);
+    $("layersBtn").addEventListener("click", refreshLayers);
+    $("bridgeBtn").addEventListener("click", async () => runShellAction("Check System", "native platform status"));
+    $("platformMaxBtn").addEventListener("click", async () => runShellAction("Maximize Platform", "native platform maximize"));
+    $("openFilesBtn").addEventListener("click", async () => runShellAction("Open Zero Files", "native desktop window open app=Zero Files layer=top"));
+    $("maxFilesBtn").addEventListener("click", async () => runShellAction("Maximize Zero Files", "native desktop window action app=Zero Files action=maximize"));
+    $("closeFilesBtn").addEventListener("click", async () => runShellAction("Close Zero Files", "native desktop window action app=Zero Files action=close"));
+    $("btnSecurity").addEventListener("click", async () => runShellAction("Open Security", "zero ai security status"));
+    $("btnRuntime").addEventListener("click", async () => runShellAction("Check Runtime", "kernel stack status"));
+
+    tickClock();
+    setInterval(tickClock, 1000);
+    setupStartMenu();
+    setupWindows();
+    refreshLayers();
+    setInterval(refreshLayers, 10000);
+  </script>
+</body>
+</html>
