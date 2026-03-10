@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from zero_os.risk_engine import autonomous_thresholds
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -494,6 +496,7 @@ def _build_status(cwd: str, state: dict, signals: dict) -> dict:
         "ok": True,
         "goals_path": str(_goals_path(cwd)),
         "loop_path": str(_loop_path(cwd)),
+        "thresholds": autonomous_thresholds(),
         "current_goal": current,
         "current_goal_title": str((current or {}).get("title", "")),
         "current_goal_next_action": str((current or {}).get("next_action", "")),
