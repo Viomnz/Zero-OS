@@ -98,6 +98,15 @@ def _lane_defaults() -> dict[str, dict[str, Any]]:
             "last_run": {},
             "recent_runs": [],
         },
+        "self_repair": {
+            "enabled": True,
+            "mode": "canary_backed",
+            "minimum_readiness_floor": 60,
+            "success_count": 0,
+            "failure_count": 0,
+            "last_run": {},
+            "recent_runs": [],
+        },
     }
 
 
@@ -262,16 +271,48 @@ def _recovery_lane_status(cwd: str, lane: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _self_repair_lane_status(cwd: str, lane: dict[str, Any]) -> dict[str, Any]:
+    from zero_os.agent_permission_policy import classify_action
+    from zero_os.recovery import zero_ai_backup_status
+    from zero_os.readiness import os_readiness
+    from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.self_repair import self_repair_status
+
+    backup = zero_ai_backup_status(cwd)
+    continuity = zero_ai_self_continuity_status(cwd)
+    repair = self_repair_status(cwd)
+    continuity_block = dict(continuity.get("continuity") or {})
+    contradiction_block = dict(continuity.get("contradiction_detection") or {})
+    return {
+        "enabled": bool(lane.get("enabled", False)),
+        "mode": str(lane.get("mode", "canary_backed")),
+        "ready": bool(lane.get("enabled", False)),
+        "active": bool(lane.get("enabled", False)),
+        "control_level": "autonomous" if bool(lane.get("enabled", False)) else "approval_gated",
+        "raw_action_policy": classify_action(cwd, "self_repair"),
+        "snapshot_count": int(backup.get("snapshot_count", 0) or 0),
+        "latest_snapshot": str(backup.get("latest_snapshot", "")),
+        "readiness_score": int((os_readiness(cwd) or {}).get("score", 0) or 0),
+        "same_system": bool(continuity_block.get("same_system", False)),
+        "has_contradiction": bool(contradiction_block.get("has_contradiction", False)),
+        "repair_state": repair,
+        "last_run": dict(lane.get("last_run") or {}),
+        "recent_runs": list(lane.get("recent_runs") or []),
+    }
+
+
 def zero_ai_control_workflows_status(cwd: str) -> dict[str, Any]:
     state = _load_state(cwd)
     browser_lane = _browser_lane_status(cwd, dict(state["lanes"]["browser"]))
     store_lane = _store_lane_status(cwd, dict(state["lanes"]["store_install"]))
     recovery_lane = _recovery_lane_status(cwd, dict(state["lanes"]["recovery"]))
+    self_repair_lane = _self_repair_lane_status(cwd, dict(state["lanes"]["self_repair"]))
 
     lanes = {
         "browser": browser_lane,
         "store_install": store_lane,
         "recovery": recovery_lane,
+        "self_repair": self_repair_lane,
     }
 
     total = len(lanes)
@@ -284,7 +325,7 @@ def zero_ai_control_workflows_status(cwd: str) -> dict[str, Any]:
         highest_value_steps.append("Publish or register at least one app package so the autonomous store-install workflow has a real target.")
     if int(recovery_lane.get("snapshot_count", 0) or 0) == 0:
         highest_value_steps.append("Create a baseline recovery snapshot so the autonomous recovery workflow can restore from a known-good point immediately.")
-    highest_value_steps.append("Convert the remaining approval-gated high-risk self-repair lane into a typed canary-backed workflow.")
+    highest_value_steps.append("Expand the typed workflow contract into more subsystems so every safe Zero OS control lane has the same canary-backed autonomy model.")
 
     status = {
         "ok": True,
@@ -549,3 +590,69 @@ def zero_ai_control_workflow_recover(cwd: str, snapshot_id: str = "latest") -> d
         request={"snapshot_id": snapshot_id},
     )
     return {"ok": bool(result["ok"]), "workflow": "recovery", "canary": canary, "result": result, "status": zero_ai_control_workflows_status(cwd)}
+
+
+def zero_ai_control_workflow_self_repair(cwd: str) -> dict[str, Any]:
+    from zero_os.readiness import os_readiness
+    from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
+    from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.self_repair import self_repair_run
+
+    state, lane = _lane_state(cwd, "self_repair")
+    backup_status = zero_ai_backup_status(cwd)
+    created = {}
+    if int(backup_status.get("snapshot_count", 0) or 0) == 0:
+        created = zero_ai_backup_create(cwd)
+        backup_status = zero_ai_backup_status(cwd)
+    chosen_snapshot = str(created.get("id") or backup_status.get("latest_snapshot") or "")
+    continuity = zero_ai_self_continuity_status(cwd)
+    continuity_block = dict(continuity.get("continuity") or {})
+    contradiction_block = dict(continuity.get("contradiction_detection") or {})
+    readiness_before = int((os_readiness(cwd) or {}).get("score", 0) or 0)
+    canary = {
+        "ok": bool(lane.get("enabled", False)) and bool(chosen_snapshot) and bool(continuity_block.get("same_system", False)) and not bool(contradiction_block.get("has_contradiction", False)),
+        "checks": {
+            "lane_enabled": bool(lane.get("enabled", False)),
+            "snapshot_available": bool(chosen_snapshot),
+            "same_system": bool(continuity_block.get("same_system", False)),
+            "no_contradiction": not bool(contradiction_block.get("has_contradiction", False)),
+        },
+        "snapshot_id": chosen_snapshot,
+        "created_snapshot": created,
+        "readiness_before": readiness_before,
+    }
+    if not canary["ok"]:
+        result = {"ok": False, "reason": "self-repair workflow canary rejected the requested repair", "snapshot_id": chosen_snapshot}
+        _record_lane_run(cwd, "self_repair", ok=False, summary=str(result["reason"]), canary=canary, result=result, request={"workflow": "self_repair"})
+        return {"ok": False, "workflow": "self_repair", "canary": canary, "result": result, "status": zero_ai_control_workflows_status(cwd)}
+
+    repair = self_repair_run(cwd)
+    readiness_after = int(repair.get("readiness_after", 0) or 0)
+    minimum_floor = max(int(lane.get("minimum_readiness_floor", 60) or 60), readiness_before)
+    promoted = bool(repair.get("ok", False)) and bool(repair.get("triad_ok", False)) and readiness_after >= minimum_floor
+    rollback = {}
+    if not promoted and chosen_snapshot:
+        rollback = zero_ai_recover(cwd, snapshot_id=chosen_snapshot)
+    result = {
+        "ok": bool(promoted or rollback.get("ok", False)),
+        "promoted": bool(promoted),
+        "rolled_back": bool(not promoted and rollback.get("ok", False)),
+        "snapshot_id": chosen_snapshot,
+        "repair": repair,
+        "rollback": rollback,
+        "summary": (
+            "self-repair workflow promoted a canary-verified repair"
+            if promoted
+            else "self-repair workflow rolled back to the last safe snapshot after verification failed"
+        ),
+    }
+    _record_lane_run(
+        cwd,
+        "self_repair",
+        ok=bool(result["ok"]),
+        summary=str(result["summary"]),
+        canary=canary,
+        result=result,
+        request={"workflow": "self_repair"},
+    )
+    return {"ok": bool(result["ok"]), "workflow": "self_repair", "canary": canary, "result": result, "status": zero_ai_control_workflows_status(cwd)}

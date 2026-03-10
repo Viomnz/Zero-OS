@@ -135,11 +135,12 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     browser_workflow = dict((workflows.get("lanes") or {}).get("browser") or {})
     store_install_workflow = dict((workflows.get("lanes") or {}).get("store_install") or {})
     recovery_workflow = dict((workflows.get("lanes") or {}).get("recovery") or {})
+    self_repair_workflow = dict((workflows.get("lanes") or {}).get("self_repair") or {})
 
     browser_control = str(browser_workflow.get("control_level") or _policy_decision(policy, "browser_action"))
     store_install_control = str(store_install_workflow.get("control_level") or _policy_decision(policy, "store_install"))
     recovery_control = str(recovery_workflow.get("control_level") or _policy_decision(policy, "recover"))
-    self_repair_control = _policy_decision(policy, "self_repair")
+    self_repair_control = str(self_repair_workflow.get("control_level") or _policy_decision(policy, "self_repair"))
 
     capabilities = [
         _capability(
@@ -287,14 +288,18 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
         ),
         _capability(
             "high_risk_self_repair",
-            "High-risk self repair",
+            "Self-repair workflow",
             "self_model",
             self_repair_control,
-            active=approval_counts.get("self_repair", 0) == 0,
-            ready=True,
-            action_kind="self_repair",
-            notes="High-risk self-repair remains approval-gated even though continuity repair exists.",
-            evidence={"pending_approvals": approval_counts.get("self_repair", 0)},
+            active=bool(self_repair_workflow.get("active", False)),
+            ready=bool(self_repair_workflow.get("ready", False)),
+            action_kind="workflow_self_repair",
+            notes="Raw self_repair requests remain approval-gated, but Zero AI now has a canary-backed self-repair workflow with rollback to a safe snapshot on failed verification.",
+            evidence={
+                "pending_approvals": approval_counts.get("self_repair", 0),
+                "workflow": self_repair_workflow,
+                "raw_action_policy": _policy_decision(policy, "self_repair"),
+            },
         ),
         _capability(
             "identity_core_rewrite",
@@ -338,8 +343,6 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     active_autonomous_surface_score = round((active_autonomous_count / max(1, total_count)) * 100.0, 2)
 
     highest_value_steps: list[str] = []
-    if approval_gated_count > 0:
-        highest_value_steps.append("Convert the remaining approval-gated high-risk self-repair lane into a typed canary-backed autonomous workflow.")
     if forbidden_count > 0:
         highest_value_steps.append("Expand guarded source evolution from allowlisted defaults to a sandboxed patch lane for selected non-identity modules.")
     if not bool(store_install_workflow.get("active", False)):

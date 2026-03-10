@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import difflib
+import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 import uuid
@@ -22,6 +25,18 @@ def _evolution_root(cwd: str) -> Path:
 
 def _checkpoint_root(cwd: str) -> Path:
     path = _evolution_root(cwd) / "checkpoints"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _canary_workspace_root(cwd: str) -> Path:
+    path = _evolution_root(cwd) / "canary_workspaces"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _review_root(cwd: str) -> Path:
+    path = _evolution_root(cwd) / "reviews"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -90,6 +105,7 @@ def _state_default() -> dict[str, Any]:
         "allowed_scopes": [
             "src/zero_os/phase_runtime.py:_runtime_loop_default.interval_seconds",
             "src/zero_os/zero_ai_autonomy.py:_loop_state_default.interval_seconds",
+            "src/zero_os/zero_ai_control_workflows.py:_lane_defaults.self_repair.minimum_readiness_floor",
         ],
         "current_source_generation": 0,
         "promoted_count": 0,
@@ -113,12 +129,39 @@ def _load_state(cwd: str) -> dict[str, Any]:
     default = _state_default()
     for key, value in default.items():
         state.setdefault(key, value)
+    existing_scopes = [str(item) for item in state.get("allowed_scopes", [])]
+    merged_scopes = list(existing_scopes)
+    for scope in default.get("allowed_scopes", []):
+        scope_text = str(scope)
+        if scope_text not in merged_scopes:
+            merged_scopes.append(scope_text)
+    state["allowed_scopes"] = merged_scopes
     return state
 
 
 def _save_state(cwd: str, state: dict[str, Any]) -> dict[str, Any]:
     _save_json(_state_path(cwd), state)
     return state
+
+
+def _git_repo_root(cwd: str) -> Path | None:
+    completed = subprocess.run(
+        ["git", "-C", str(Path(cwd).resolve()), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    root = completed.stdout.strip()
+    if not root:
+        return None
+    path = Path(root).resolve()
+    if not path.exists():
+        return None
+    return path
 
 
 def _target_specs(cwd: str) -> list[dict[str, Any]]:
@@ -141,7 +184,33 @@ def _target_specs(cwd: str) -> list[dict[str, Any]]:
             "target_key": "autonomy_loop_interval_seconds",
             "test_hint": "tests.test_zero_ai_autonomy",
         },
+        {
+            "key": "self_repair_minimum_readiness_floor_source_default",
+            "label": "Self-repair readiness floor default",
+            "relative_path": "src/zero_os/zero_ai_control_workflows.py",
+            "path": str(Path(cwd).resolve() / "src" / "zero_os" / "zero_ai_control_workflows.py"),
+            "pattern": r'("self_repair": \{\s+"enabled": True,\s+"mode": "canary_backed",\s+"minimum_readiness_floor": )(\d+)',
+            "target_key": "self_repair_minimum_readiness_floor",
+            "test_hint": "tests.test_zero_ai_control_workflows",
+        },
     ]
+
+
+def _candidate_id(target_profile: dict[str, Any], mutations: list[dict[str, Any]]) -> str:
+    payload = {
+        "profile": target_profile,
+        "mutations": [
+            {
+                "key": str(item.get("key", "")),
+                "path": str(item.get("path", "")),
+                "from": item.get("from"),
+                "to": item.get("to"),
+            }
+            for item in mutations
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:10]
 
 
 def _extract_current_value(content: str, pattern: str) -> int | None:
@@ -160,6 +229,23 @@ def _replace_value(content: str, pattern: str, new_value: int) -> tuple[str, boo
 
     updated, count = re.subn(pattern, repl, content, count=1, flags=re.S)
     return updated, count == 1
+
+
+def _line_number_for_pattern(content: str, pattern: str) -> int | None:
+    match = re.search(pattern, content, flags=re.S)
+    if not match:
+        return None
+    return content[: match.start(2)].count("\n") + 1
+
+
+def _line_text(content: str, line_number: int | None) -> str:
+    if line_number is None:
+        return ""
+    lines = content.splitlines()
+    index = max(0, int(line_number) - 1)
+    if index >= len(lines):
+        return ""
+    return lines[index].strip()
 
 
 def _auto_due(state: dict[str, Any]) -> bool:
@@ -196,6 +282,15 @@ def _source_ready(evolution_status: dict[str, Any]) -> tuple[bool, list[str]]:
     return (len(reasons) == 0, reasons)
 
 
+def _derive_self_repair_floor(cwd: str) -> int:
+    runtime_status_path = Path(cwd).resolve() / ".zero_os" / "runtime" / "phase_runtime_status.json"
+    runtime_status = _load_json(runtime_status_path, {"runtime_score": 0.0, "runtime_ready": False})
+    runtime_score = float(runtime_status.get("runtime_score", 0.0) or 0.0)
+    if runtime_score <= 0:
+        return 0
+    return max(60, min(90, int(runtime_score) - 10))
+
+
 def _proposal_from_live(cwd: str) -> dict[str, Any]:
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
 
@@ -205,6 +300,7 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
     target_profile = {
         "runtime_loop_interval_seconds": int(current_profile.get("runtime_loop_interval_seconds", 0) or 0),
         "autonomy_loop_interval_seconds": int(current_profile.get("autonomy_loop_interval_seconds", 0) or 0),
+        "self_repair_minimum_readiness_floor": _derive_self_repair_floor(cwd),
     }
 
     mutations: list[dict[str, Any]] = []
@@ -235,22 +331,23 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
             )
 
     beneficial = bool(mutations)
-    candidate_id = str(uuid.uuid4())[:10]
+    candidate_id = _candidate_id(target_profile, mutations)
     predicted_gain = round(len(mutations) * 3.5, 2)
+    sandbox_patch_targets = [item for item in mutations if str(item.get("path", "")).endswith("zero_ai_control_workflows.py")]
     summary = "learned source defaults already match the promoted runtime profile"
     if missing_files:
         summary = "source evolution is blocked because one or more allowlisted source files are missing"
     elif mutations:
-        summary = "guarded source evolution candidate generated from the promoted runtime profile"
+        summary = "guarded source evolution candidate generated from the promoted runtime profile and sandboxed non-identity patch lane"
     if not ready:
         summary = "guarded source evolution is blocked until bounded evolution settles"
 
     verification_plan = {
         "py_compile": [item["path"] for item in mutations],
-        "tests": ["tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution"],
+        "tests": ["tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution", "tests.test_zero_ai_control_workflows"],
     }
 
-    return {
+    proposal = {
         "ok": True,
         "candidate_id": candidate_id,
         "time_utc": _utc_now(),
@@ -260,10 +357,19 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
         "blocked_reasons": ([] if ready else ready_reasons) + [f"missing allowlisted source file: {path}" for path in missing_files],
         "current_profile": target_profile,
         "mutations": mutations,
+        "sandbox_patch_lane_ready": bool(sandbox_patch_targets),
+        "sandbox_patch_targets": sandbox_patch_targets,
         "predicted_gain": predicted_gain if beneficial else 0.0,
         "summary": summary,
         "verification_plan": verification_plan,
     }
+    patch_review = _build_patch_review(cwd, proposal)
+    proposal["patch_review"] = patch_review
+    proposal["patch_review_path"] = str(patch_review.get("artifact_path", ""))
+    proposal["patch_review_json_path"] = str(patch_review.get("artifact_json_path", ""))
+    proposal["patch_review_summary"] = str(patch_review.get("summary", ""))
+    proposal["patch_review_headlines"] = list(patch_review.get("change_headlines", []))
+    return proposal
 
 
 def _create_checkpoint(cwd: str, kind: str, proposal: dict[str, Any]) -> dict[str, Any]:
@@ -342,7 +448,10 @@ def _verification_commands(cwd: str, changed_paths: list[str]) -> list[list[str]
         repo_root / "tests" / "test_zero_ai_evolution.py",
     ]
     if all(path.exists() for path in required_tests):
-        commands.append([sys.executable, "-m", "unittest", "tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution", "-q"])
+        unittest_targets = ["tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution"]
+        if (repo_root / "tests" / "test_zero_ai_control_workflows.py").exists():
+            unittest_targets.append("tests.test_zero_ai_control_workflows")
+        commands.append([sys.executable, "-m", "unittest", *unittest_targets, "-q"])
     return commands
 
 
@@ -372,6 +481,224 @@ def _run_verification(cwd: str, changed_paths: list[str]) -> dict[str, Any]:
     return {"ok": all(item["ok"] for item in checks), "checks": checks}
 
 
+def _render_patch_review_markdown(review: dict[str, Any]) -> str:
+    lines = [
+        "# Zero AI Guarded Source Evolution Review",
+        "",
+        f"- Candidate ID: `{review.get('candidate_id', '')}`",
+        f"- Ready for canary: `{'yes' if review.get('ready_for_canary', False) else 'no'}`",
+        f"- Safe: `{'yes' if review.get('safe', False) else 'no'}`",
+        f"- Beneficial: `{'yes' if review.get('beneficial', False) else 'no'}`",
+        f"- Mutation count: `{review.get('mutation_count', 0)}`",
+        f"- Predicted gain: `{review.get('predicted_gain', 0.0)}`",
+        "",
+        review.get("summary", ""),
+    ]
+    blocked = list(review.get("blocked_reasons", []))
+    if blocked:
+        lines.extend(["", "## Blocked Reasons", ""])
+        lines.extend([f"- {item}" for item in blocked])
+    changes = list(review.get("changes", []))
+    if changes:
+        lines.extend(["", "## Proposed Changes", ""])
+        for item in changes:
+            lines.append(f"### `{item.get('path', '')}`")
+            lines.append("")
+            lines.append(f"- Label: {item.get('label', '')}")
+            lines.append(f"- Value change: `{item.get('from')}` -> `{item.get('to')}`")
+            lines.append(f"- Line: `{item.get('line_number')}`")
+            lines.append(f"- Before: `{item.get('before_line', '')}`")
+            lines.append(f"- After: `{item.get('after_line', '')}`")
+            lines.append("")
+            lines.append("```diff")
+            lines.append(str(item.get("diff", "")).rstrip())
+            lines.append("```")
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _build_patch_review(cwd: str, proposal: dict[str, Any]) -> dict[str, Any]:
+    spec_map = {spec["key"]: spec for spec in _target_specs(cwd)}
+    changes: list[dict[str, Any]] = []
+    for mutation in proposal.get("mutations", []):
+        spec = spec_map.get(str(mutation.get("key", "")))
+        rel_path = str(mutation.get("path", ""))
+        path = Path(cwd).resolve() / rel_path
+        if spec is None or not path.exists():
+            changes.append(
+                {
+                    "path": rel_path,
+                    "label": str(mutation.get("label", "")),
+                    "from": mutation.get("from"),
+                    "to": mutation.get("to"),
+                    "line_number": None,
+                    "before_line": "",
+                    "after_line": "",
+                    "headline": f"{rel_path}: {mutation.get('from')} -> {mutation.get('to')}",
+                    "diff": "",
+                }
+            )
+            continue
+        before = path.read_text(encoding="utf-8", errors="replace")
+        after, replaced = _replace_value(before, str(spec["pattern"]), int(mutation.get("to", 0) or 0))
+        line_number = _line_number_for_pattern(before, str(spec["pattern"]))
+        diff_text = ""
+        after_line = ""
+        if replaced:
+            diff_text = "".join(
+                difflib.unified_diff(
+                    before.splitlines(True),
+                    after.splitlines(True),
+                    fromfile=rel_path,
+                    tofile=f"{rel_path} (candidate)",
+                    n=2,
+                )
+            )
+            after_line = _line_text(after, line_number)
+        changes.append(
+            {
+                "path": rel_path,
+                "label": str(mutation.get("label", "")),
+                "from": mutation.get("from"),
+                "to": mutation.get("to"),
+                "line_number": line_number,
+                "before_line": _line_text(before, line_number),
+                "after_line": after_line,
+                "headline": f"{rel_path}: {mutation.get('label', '')} {mutation.get('from')} -> {mutation.get('to')}",
+                "diff": diff_text,
+            }
+        )
+
+    change_headlines = [str(item.get("headline", "")) for item in changes if str(item.get("headline", ""))]
+    summary = "No guarded source changes are proposed right now."
+    mutation_count = len(changes)
+    if mutation_count > 0:
+        file_count = len({str(item.get("path", "")) for item in changes})
+        summary = f"{mutation_count} proposed guarded source change(s) across {file_count} file(s)."
+    if proposal.get("blocked_reasons"):
+        summary = f"{summary} Canary is currently blocked."
+
+    review = {
+        "ok": True,
+        "candidate_id": str(proposal.get("candidate_id", "")),
+        "created_utc": _utc_now(),
+        "safe": bool(proposal.get("safe", False)),
+        "beneficial": bool(proposal.get("beneficial", False)),
+        "ready_for_canary": bool(proposal.get("candidate_available", False))
+        and bool(proposal.get("beneficial", False))
+        and bool(proposal.get("safe", False)),
+        "mutation_count": mutation_count,
+        "predicted_gain": float(proposal.get("predicted_gain", 0.0) or 0.0),
+        "blocked_reasons": list(proposal.get("blocked_reasons", [])),
+        "change_headlines": change_headlines,
+        "changes": changes,
+        "summary": summary,
+    }
+
+    artifact_base = _review_root(cwd) / f"source_evolution_review_{review['candidate_id']}"
+    review["artifact_path"] = str(artifact_base.with_suffix(".md"))
+    review["artifact_json_path"] = str(artifact_base.with_suffix(".json"))
+    artifact_json_payload = dict(review)
+    Path(review["artifact_json_path"]).write_text(json.dumps(artifact_json_payload, indent=2) + "\n", encoding="utf-8")
+    Path(review["artifact_path"]).write_text(_render_patch_review_markdown(review), encoding="utf-8")
+    return review
+
+
+def _sync_canary_overlay(source_root: Path, target_root: Path) -> None:
+    ignore_names = {
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        "canary_workspaces",
+        "bin",
+        "obj",
+        "dist",
+        "publish",
+        "installers",
+        "msix",
+    }
+    for name in ("src", "tests", ".zero_os"):
+        source = source_root / name
+        if not source.exists():
+            continue
+        target = target_root / name
+        if source.is_dir():
+            shutil.copytree(
+                source,
+                target,
+                dirs_exist_ok=True,
+                ignore=lambda _dir, names: [item for item in names if item in ignore_names],
+            )
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
+
+def _prepare_canary_workspace(cwd: str, candidate_id: str) -> dict[str, Any]:
+    source_root = Path(cwd).resolve()
+    workspace_root = _canary_workspace_root(cwd)
+    sandbox_path = workspace_root / f"candidate_{candidate_id}"
+    if sandbox_path.exists():
+        shutil.rmtree(sandbox_path, ignore_errors=True)
+
+    repo_root = _git_repo_root(cwd)
+    if repo_root is not None:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "add", "--detach", str(sandbox_path), "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if completed.returncode == 0 and sandbox_path.exists():
+            _sync_canary_overlay(source_root, sandbox_path)
+            return {
+                "ok": True,
+                "mode": "git_worktree",
+                "isolated": True,
+                "path": str(sandbox_path),
+                "repo_root": str(repo_root),
+                "overlay": "workspace_sync",
+            }
+
+    sandbox_path.mkdir(parents=True, exist_ok=True)
+    _sync_canary_overlay(source_root, sandbox_path)
+    return {
+        "ok": True,
+        "mode": "copy_sandbox",
+        "isolated": True,
+        "path": str(sandbox_path),
+        "repo_root": "",
+        "overlay": "workspace_sync",
+    }
+
+
+def _cleanup_canary_workspace(cwd: str, workspace: dict[str, Any]) -> dict[str, Any]:
+    sandbox_path = Path(str(workspace.get("path", ""))).resolve()
+    cleanup = {"ok": True, "removed": False, "mode": str(workspace.get("mode", "")), "path": str(sandbox_path)}
+    if not sandbox_path.exists():
+        cleanup["removed"] = True
+        return cleanup
+    if str(workspace.get("mode", "")) == "git_worktree":
+        repo_root = str(workspace.get("repo_root", "") or cwd)
+        completed = subprocess.run(
+            ["git", "-C", repo_root, "worktree", "remove", "--force", str(sandbox_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        cleanup["git_returncode"] = completed.returncode
+        cleanup["git_stderr_tail"] = "\n".join(completed.stderr.splitlines()[-10:])
+    if sandbox_path.exists():
+        shutil.rmtree(sandbox_path, ignore_errors=True)
+    cleanup["removed"] = not sandbox_path.exists()
+    cleanup["ok"] = bool(cleanup["removed"])
+    return cleanup
+
+
 def zero_ai_source_evolution_status(cwd: str) -> dict[str, Any]:
     state = _load_state(cwd)
     proposal = _proposal_from_live(cwd)
@@ -397,6 +724,7 @@ def zero_ai_source_evolution_status(cwd: str) -> dict[str, Any]:
         "next_auto_run_utc": str(state.get("next_auto_run_utc", "")),
         "due_now": _auto_due(state),
         "source_evolution_ready": bool(proposal.get("safe", False)),
+        "sandboxed_patch_lane_ready": bool(proposal.get("sandbox_patch_lane_ready", False)),
         "recommended_action": recommended_action,
         "proposal": proposal,
         "pending_candidate": dict(state.get("pending_candidate") or {}),
@@ -479,13 +807,16 @@ def zero_ai_source_evolution_canary(cwd: str) -> dict[str, Any]:
         return report
 
     checkpoint = _create_checkpoint(cwd, "canary", simulation)
+    workspace = _prepare_canary_workspace(cwd, str(simulation.get("candidate_id", "") or str(uuid.uuid4())[:10]))
     changed_paths: list[str] = []
     verification = {"ok": False, "checks": []}
+    cleanup = {"ok": False, "removed": False, "mode": str(workspace.get("mode", "")), "path": str(workspace.get("path", ""))}
     try:
-        changed_paths = _apply_mutations(cwd, simulation)
-        verification = _run_verification(cwd, changed_paths)
+        sandbox_cwd = str(workspace.get("path", cwd))
+        changed_paths = _apply_mutations(sandbox_cwd, simulation)
+        verification = _run_verification(sandbox_cwd, changed_paths)
     finally:
-        _restore_files(cwd, checkpoint)
+        cleanup = _cleanup_canary_workspace(cwd, workspace)
 
     passed = bool(verification.get("ok", False))
     canary = {
@@ -493,6 +824,8 @@ def zero_ai_source_evolution_canary(cwd: str) -> dict[str, Any]:
         "time_utc": _utc_now(),
         "passed": passed,
         "checkpoint": checkpoint,
+        "workspace": workspace,
+        "cleanup": cleanup,
         "candidate_id": simulation.get("candidate_id", ""),
         "changed_paths": changed_paths,
         "verification": verification,

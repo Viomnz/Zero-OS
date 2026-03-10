@@ -16,6 +16,7 @@ from zero_os.zero_ai_control_workflows import (
     zero_ai_control_workflow_browser_open,
     zero_ai_control_workflow_install,
     zero_ai_control_workflow_recover,
+    zero_ai_control_workflow_self_repair,
     zero_ai_control_workflows_status,
 )
 
@@ -67,10 +68,11 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         status = zero_ai_control_workflows_status(str(self.base))
 
         self.assertTrue(status["ok"])
-        self.assertEqual(3, status["summary"]["lane_count"])
+        self.assertEqual(4, status["summary"]["lane_count"])
         self.assertEqual("autonomous", status["lanes"]["browser"]["control_level"])
         self.assertEqual("autonomous", status["lanes"]["store_install"]["control_level"])
         self.assertEqual("autonomous", status["lanes"]["recovery"]["control_level"])
+        self.assertEqual("autonomous", status["lanes"]["self_repair"]["control_level"])
 
     def test_browser_workflow_runs_canary_backed_open_and_action(self) -> None:
         with patch("zero_os.browser_session_connector.webbrowser.open", return_value=True):
@@ -110,6 +112,14 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         self.assertTrue(result["canary"]["ok"])
         self.assertEqual("recovery", result["workflow"])
         self.assertTrue(result["result"]["recovery"]["ok"])
+
+    def test_self_repair_workflow_runs_canary_backed_repair(self) -> None:
+        result = zero_ai_control_workflow_self_repair(str(self.base))
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["canary"]["ok"])
+        self.assertEqual("self_repair", result["workflow"])
+        self.assertIn("repair", result["result"])
 
 
 if __name__ == "__main__":

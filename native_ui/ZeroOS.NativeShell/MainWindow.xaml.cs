@@ -1229,7 +1229,9 @@ public partial class MainWindow : Window
             "",
             $"Source evolution ready: {(ReadBool(sourceEvolution, "source_evolution_ready") ? "yes" : "no")}",
             $"Source evolution due now: {(ReadBool(sourceEvolution, "due_now") ? "yes" : "no")}",
-            $"Source evolution action: {ReadString(sourceEvolution, "recommended_action")}"
+            $"Source evolution action: {ReadString(sourceEvolution, "recommended_action")}",
+            $"Source evolution review: {ReadNestedString(sourceEvolution, "proposal", "patch_review_summary")}",
+            $"Source evolution changes: {ReadNestedStringArray(sourceEvolution, "proposal", "patch_review_headlines")}"
         };
 
         if (capabilityMap.ValueKind == JsonValueKind.Object)
@@ -1315,6 +1317,9 @@ public partial class MainWindow : Window
             lines.Add($"- Promotions: {ReadNumber(sourceEvolution, "promoted_count")}");
             lines.Add($"- Rollbacks: {ReadNumber(sourceEvolution, "rollback_count")}");
             lines.Add($"- Candidate gain: {ReadNestedNumber(sourceEvolution, "proposal", "predicted_gain")}");
+            lines.Add($"- Review summary: {ReadNestedString(sourceEvolution, "proposal", "patch_review_summary")}");
+            lines.Add($"- Review changes: {ReadNestedStringArray(sourceEvolution, "proposal", "patch_review_headlines")}");
+            lines.Add($"- Review artifact: {ReadNestedString(sourceEvolution, "proposal", "patch_review_path")}");
             lines.Add($"- Pending candidate: {ReadString(pendingSourceCandidate, "candidate_id")}");
         }
 
@@ -1674,6 +1679,16 @@ public partial class MainWindow : Window
         }
 
         return ReadNumber(nested, valuePropertyName);
+    }
+
+    private static string ReadNestedString(JsonElement element, string objectPropertyName, string valuePropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return "n/a";
+        }
+
+        return ReadString(nested, valuePropertyName);
     }
 
     private static bool ReadBool(JsonElement element, string propertyName)

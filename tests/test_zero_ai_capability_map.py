@@ -73,7 +73,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertTrue(status["ok"])
         self.assertFalse(status["fully_autonomous_control"])
         self.assertGreaterEqual(status["summary"]["autonomous_count"], 6)
-        self.assertGreaterEqual(status["summary"]["approval_gated_count"], 1)
+        self.assertEqual(0, status["summary"]["approval_gated_count"])
         self.assertGreaterEqual(status["summary"]["forbidden_count"], 3)
         self.assertIn("control_workflows", status)
 
@@ -83,7 +83,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertEqual("autonomous", capabilities["browser_control"]["control_level"])
         self.assertEqual("autonomous", capabilities["store_installation"]["control_level"])
         self.assertEqual("autonomous", capabilities["recovery_restore"]["control_level"])
-        self.assertEqual("approval_gated", capabilities["high_risk_self_repair"]["control_level"])
+        self.assertEqual("autonomous", capabilities["high_risk_self_repair"]["control_level"])
         self.assertEqual("forbidden", capabilities["identity_core_rewrite"]["control_level"])
 
     def test_capability_map_writes_status_file(self) -> None:

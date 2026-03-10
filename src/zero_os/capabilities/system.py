@@ -197,6 +197,7 @@ from zero_os.zero_ai_control_workflows import (
     zero_ai_control_workflow_browser_open,
     zero_ai_control_workflow_install,
     zero_ai_control_workflow_recover,
+    zero_ai_control_workflow_self_repair,
     zero_ai_control_workflows_refresh,
     zero_ai_control_workflows_status,
 )
@@ -721,6 +722,7 @@ class SystemCapability:
             "zero ai workflow browser",
             "zero ai workflow install",
             "zero ai workflow recover",
+            "zero ai workflow self repair",
             "zero ai autonomy goals",
             "zero ai autonomy sync",
             "zero ai autonomy run",
@@ -1896,6 +1898,8 @@ class SystemCapability:
         recover_wf = re.match(r"^zero ai workflow recover(?:\s+snapshot=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
         if recover_wf:
             return Result(self.name, json.dumps(zero_ai_control_workflow_recover(task.cwd, recover_wf.group(1) or "latest"), indent=2))
+        if text.strip() == "zero ai workflow self repair":
+            return Result(self.name, json.dumps(zero_ai_control_workflow_self_repair(task.cwd), indent=2))
         if text.strip() in {
             "zero ai self inspect refresh",
             "zero ai auto inspect refresh",
@@ -3553,6 +3557,7 @@ class SystemCapability:
             "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
             "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
             "- zero ai workflow recover [snapshot=<id|latest>]\n"
+            "- zero ai workflow self repair\n"
             "- zero ai conscious architecture\n"
             "- conscious machine architecture phase 2\n"
             "- conscious machine architecture phase 3\n"
@@ -3622,6 +3627,7 @@ class SystemCapability:
             "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
             "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
             "- zero ai workflow recover [snapshot=<id|latest>]\n"
+            "- zero ai workflow self repair\n"
             "- zero ai runtime status\n"
             "- zero ai runtime run\n"
             "- zero ai runtime loop status\n"

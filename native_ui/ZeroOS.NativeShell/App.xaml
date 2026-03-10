@@ -6,7 +6,62 @@
     <SolidColorBrush x:Key="WindowBg" Color="#0D1624" />
     <SolidColorBrush x:Key="PanelBg" Color="#152538" />
     <SolidColorBrush x:Key="HeroBg" Color="#173453" />
+    <SolidColorBrush x:Key="ControlBg" Color="#0D1826" />
+    <SolidColorBrush x:Key="BorderFg" Color="#28435F" />
     <SolidColorBrush x:Key="TextFg" Color="#EEF6FF" />
     <SolidColorBrush x:Key="MutedFg" Color="#BDD0E6" />
+    <SolidColorBrush x:Key="SelectionBg" Color="#2D6DA3" />
+    <SolidColorBrush x:Key="SelectionFg" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="HoverBg" Color="#203247" />
+
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="{StaticResource ControlBg}" />
+      <Setter Property="Foreground" Value="{StaticResource TextFg}" />
+      <Setter Property="CaretBrush" Value="{StaticResource TextFg}" />
+      <Setter Property="SelectionBrush" Value="{StaticResource SelectionBg}" />
+      <Setter Property="SelectionTextBrush" Value="{StaticResource SelectionFg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFg}" />
+    </Style>
+
+    <Style TargetType="ListBox">
+      <Setter Property="Background" Value="{StaticResource ControlBg}" />
+      <Setter Property="Foreground" Value="{StaticResource TextFg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFg}" />
+    </Style>
+
+    <Style TargetType="TreeView">
+      <Setter Property="Background" Value="{StaticResource ControlBg}" />
+      <Setter Property="Foreground" Value="{StaticResource TextFg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFg}" />
+    </Style>
+
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Foreground" Value="{StaticResource TextFg}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{StaticResource HoverBg}" />
+        </Trigger>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{StaticResource SelectionBg}" />
+          <Setter Property="Foreground" Value="{StaticResource SelectionFg}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="TreeViewItem">
+      <Setter Property="Foreground" Value="{StaticResource TextFg}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{StaticResource HoverBg}" />
+        </Trigger>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{StaticResource SelectionBg}" />
+          <Setter Property="Foreground" Value="{StaticResource SelectionFg}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
   </Application.Resources>
 </Application>

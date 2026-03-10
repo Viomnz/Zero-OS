@@ -80,6 +80,7 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         for relative in (
             Path("src/zero_os/phase_runtime.py"),
             Path("src/zero_os/zero_ai_autonomy.py"),
+            Path("src/zero_os/zero_ai_control_workflows.py"),
         ):
             source = ROOT / relative
             target = self.base / relative
@@ -97,6 +98,14 @@ class ZeroAiAutonomyTests(unittest.TestCase):
                 content = re.sub(
                     r'(def _loop_state_default\(\) -> dict:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
                     r"\g<1>300",
+                    content,
+                    count=1,
+                    flags=re.S,
+                )
+            if relative.name == "zero_ai_control_workflows.py":
+                content = re.sub(
+                    r'("self_repair": \{\s+"enabled": True,\s+"mode": "canary_backed",\s+"minimum_readiness_floor": )(\d+)',
+                    r"\g<1>60",
                     content,
                     count=1,
                     flags=re.S,
