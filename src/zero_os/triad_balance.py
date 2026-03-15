@@ -41,7 +41,7 @@ def _utc_now() -> str:
 def triad_ops_status(cwd: str) -> dict:
     default = {
         "enabled": False,
-        "interval_seconds": 180,
+        "interval_seconds": 60,
         "alert_sink": "log+inbox",
         "last_tick_utc": "",
         "last_balanced": None,

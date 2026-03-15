@@ -99,14 +99,75 @@ def _parse_utc(value: str) -> datetime | None:
         return None
 
 
+def _target_spec_definitions() -> list[dict[str, Any]]:
+    return [
+        {
+            "key": "runtime_loop_source_default",
+            "label": "Phase runtime loop default",
+            "relative_path": "src/zero_os/phase_runtime.py",
+            "pattern": r'(def _runtime_loop_default\(\) -> dict:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+            "target_key": "runtime_loop_interval_seconds",
+            "test_hint": "tests.test_phase_runtime",
+            "scope": "src/zero_os/phase_runtime.py:_runtime_loop_default.interval_seconds",
+            "lane_kind": "profile_alignment",
+        },
+        {
+            "key": "autonomy_loop_source_default",
+            "label": "Autonomy loop default",
+            "relative_path": "src/zero_os/zero_ai_autonomy.py",
+            "pattern": r'(def _loop_state_default\(\) -> dict:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+            "target_key": "autonomy_loop_interval_seconds",
+            "test_hint": "tests.test_zero_ai_autonomy",
+            "scope": "src/zero_os/zero_ai_autonomy.py:_loop_state_default.interval_seconds",
+            "lane_kind": "profile_alignment",
+        },
+        {
+            "key": "self_repair_minimum_readiness_floor_source_default",
+            "label": "Self-repair readiness floor default",
+            "relative_path": "src/zero_os/zero_ai_control_workflows.py",
+            "pattern": r'("self_repair": \{\s+"enabled": True,\s+"mode": "canary_backed",\s+"minimum_readiness_floor": )(\d+)',
+            "target_key": "self_repair_minimum_readiness_floor",
+            "test_hint": "tests.test_zero_ai_control_workflows",
+            "scope": "src/zero_os/zero_ai_control_workflows.py:_lane_defaults.self_repair.minimum_readiness_floor",
+            "lane_kind": "sandbox_patch",
+        },
+        {
+            "key": "continuity_governance_interval_source_default",
+            "label": "Continuity governance default interval",
+            "relative_path": "src/zero_os/self_continuity.py",
+            "pattern": r'(def _governance_default\(\) -> dict\[str, Any\]:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+            "target_key": "continuity_governance_interval_seconds",
+            "test_hint": "tests.test_self_continuity",
+            "scope": "src/zero_os/self_continuity.py:_governance_default.interval_seconds",
+            "lane_kind": "sandbox_patch",
+        },
+        {
+            "key": "triad_ops_interval_source_default",
+            "label": "Triad ops default interval",
+            "relative_path": "src/zero_os/triad_balance.py",
+            "pattern": r'(def triad_ops_status\(cwd: str\) -> dict:\s+default = \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+            "target_key": "triad_ops_interval_seconds",
+            "test_hint": "tests.test_triad_balance",
+            "scope": "src/zero_os/triad_balance.py:triad_ops_status.default.interval_seconds",
+            "lane_kind": "sandbox_patch",
+        },
+        {
+            "key": "antivirus_monitor_interval_source_default",
+            "label": "Antivirus monitor default interval",
+            "relative_path": "src/zero_os/antivirus.py",
+            "pattern": r'(def monitor_status\(cwd: str\) -> dict:\s+default = \{"enabled": False, "last_tick_utc": "", "last_scan_path": "\.", "interval_seconds": )(\d+)',
+            "target_key": "antivirus_monitor_interval_seconds",
+            "test_hint": "tests.test_antivirus_system",
+            "scope": "src/zero_os/antivirus.py:monitor_status.default.interval_seconds",
+            "lane_kind": "sandbox_patch",
+        },
+    ]
+
+
 def _state_default() -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "allowed_scopes": [
-            "src/zero_os/phase_runtime.py:_runtime_loop_default.interval_seconds",
-            "src/zero_os/zero_ai_autonomy.py:_loop_state_default.interval_seconds",
-            "src/zero_os/zero_ai_control_workflows.py:_lane_defaults.self_repair.minimum_readiness_floor",
-        ],
+        "allowed_scopes": [str(item.get("scope", "")) for item in _target_spec_definitions()],
         "current_source_generation": 0,
         "promoted_count": 0,
         "rollback_count": 0,
@@ -165,35 +226,13 @@ def _git_repo_root(cwd: str) -> Path | None:
 
 
 def _target_specs(cwd: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "key": "runtime_loop_source_default",
-            "label": "Phase runtime loop default",
-            "relative_path": "src/zero_os/phase_runtime.py",
-            "path": str(Path(cwd).resolve() / "src" / "zero_os" / "phase_runtime.py"),
-            "pattern": r'(def _runtime_loop_default\(\) -> dict:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
-            "target_key": "runtime_loop_interval_seconds",
-            "test_hint": "tests.test_phase_runtime",
-        },
-        {
-            "key": "autonomy_loop_source_default",
-            "label": "Autonomy loop default",
-            "relative_path": "src/zero_os/zero_ai_autonomy.py",
-            "path": str(Path(cwd).resolve() / "src" / "zero_os" / "zero_ai_autonomy.py"),
-            "pattern": r'(def _loop_state_default\(\) -> dict:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
-            "target_key": "autonomy_loop_interval_seconds",
-            "test_hint": "tests.test_zero_ai_autonomy",
-        },
-        {
-            "key": "self_repair_minimum_readiness_floor_source_default",
-            "label": "Self-repair readiness floor default",
-            "relative_path": "src/zero_os/zero_ai_control_workflows.py",
-            "path": str(Path(cwd).resolve() / "src" / "zero_os" / "zero_ai_control_workflows.py"),
-            "pattern": r'("self_repair": \{\s+"enabled": True,\s+"mode": "canary_backed",\s+"minimum_readiness_floor": )(\d+)',
-            "target_key": "self_repair_minimum_readiness_floor",
-            "test_hint": "tests.test_zero_ai_control_workflows",
-        },
-    ]
+    repo_root = Path(cwd).resolve()
+    specs: list[dict[str, Any]] = []
+    for definition in _target_spec_definitions():
+        spec = dict(definition)
+        spec["path"] = str(repo_root / Path(str(spec["relative_path"])))
+        specs.append(spec)
+    return specs
 
 
 def _candidate_id(target_profile: dict[str, Any], mutations: list[dict[str, Any]]) -> str:
@@ -291,21 +330,87 @@ def _derive_self_repair_floor(cwd: str) -> int:
     return max(60, min(90, int(runtime_score) - 10))
 
 
+def _clamp_interval_target(value: int, minimum: int = 60, maximum: int = 3600) -> int:
+    return max(minimum, min(maximum, int(value)))
+
+
+def _derive_continuity_governance_interval(cwd: str) -> int:
+    from zero_os.self_continuity import zero_ai_continuity_governance_auto_status
+
+    governance = zero_ai_continuity_governance_auto_status(cwd)
+    current_enabled = bool(governance.get("current_enabled", False))
+    recommended_enabled = bool(governance.get("recommended_enabled", False))
+    if not current_enabled and not recommended_enabled:
+        return 0
+    if current_enabled:
+        return _clamp_interval_target(int(governance.get("current_interval_seconds", 0) or 0))
+    return _clamp_interval_target(int(governance.get("recommended_interval_seconds", 0) or 0))
+
+
+def _derive_triad_ops_interval(cwd: str) -> int:
+    from zero_os.triad_balance import triad_ops_status
+
+    triad = triad_ops_status(cwd)
+    if not bool(triad.get("enabled", False)):
+        return 0
+    return _clamp_interval_target(int(triad.get("interval_seconds", 0) or 0))
+
+
+def _derive_antivirus_monitor_interval(cwd: str) -> int:
+    from zero_os.antivirus import monitor_status
+
+    monitor = monitor_status(cwd)
+    if not bool(monitor.get("enabled", False)):
+        return 0
+    return _clamp_interval_target(int(monitor.get("interval_seconds", 0) or 0))
+
+
+def _target_profile_from_live(cwd: str, evolution_status: dict[str, Any]) -> dict[str, int]:
+    current_profile = dict(evolution_status.get("current_profile") or {})
+    return {
+        "runtime_loop_interval_seconds": int(current_profile.get("runtime_loop_interval_seconds", 0) or 0),
+        "autonomy_loop_interval_seconds": int(current_profile.get("autonomy_loop_interval_seconds", 0) or 0),
+        "self_repair_minimum_readiness_floor": _derive_self_repair_floor(cwd),
+        "continuity_governance_interval_seconds": _derive_continuity_governance_interval(cwd),
+        "triad_ops_interval_seconds": _derive_triad_ops_interval(cwd),
+        "antivirus_monitor_interval_seconds": _derive_antivirus_monitor_interval(cwd),
+    }
+
+
+def _verification_test_targets(cwd: str, mutations: list[dict[str, Any]]) -> list[str]:
+    repo_root = Path(cwd).resolve()
+    modules = ["tests.test_zero_ai_evolution", "tests.test_zero_ai_source_evolution"]
+    for mutation in mutations:
+        hint = str(mutation.get("test_hint", "")).strip()
+        if hint and hint not in modules:
+            modules.append(hint)
+    existing: list[str] = []
+    for module in modules:
+        module_path = repo_root / Path(*module.split(".")).with_suffix(".py")
+        if module_path.exists():
+            existing.append(module)
+    return existing
+
+
+def _verification_plan(cwd: str, mutations: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "py_compile": [str(item.get("path", "")) for item in mutations if str(item.get("path", "")).strip()],
+        "tests": _verification_test_targets(cwd, mutations),
+    }
+
+
 def _proposal_from_live(cwd: str) -> dict[str, Any]:
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
 
     evolution_status = zero_ai_evolution_status(cwd)
     ready, ready_reasons = _source_ready(evolution_status)
-    current_profile = dict(evolution_status.get("current_profile") or {})
-    target_profile = {
-        "runtime_loop_interval_seconds": int(current_profile.get("runtime_loop_interval_seconds", 0) or 0),
-        "autonomy_loop_interval_seconds": int(current_profile.get("autonomy_loop_interval_seconds", 0) or 0),
-        "self_repair_minimum_readiness_floor": _derive_self_repair_floor(cwd),
-    }
+    target_profile = _target_profile_from_live(cwd, evolution_status)
 
     mutations: list[dict[str, Any]] = []
     missing_files: list[str] = []
-    for spec in _target_specs(cwd):
+    specs = _target_specs(cwd)
+    spec_map = {str(item.get("key", "")): item for item in specs}
+    for spec in specs:
         path = Path(spec["path"])
         if not path.exists():
             missing_files.append(spec["relative_path"])
@@ -327,25 +432,35 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
                     "from": current_value,
                     "to": target_value,
                     "test_hint": spec["test_hint"],
+                    "scope": spec["scope"],
+                    "lane_kind": spec["lane_kind"],
                 }
             )
 
     beneficial = bool(mutations)
     candidate_id = _candidate_id(target_profile, mutations)
     predicted_gain = round(len(mutations) * 3.5, 2)
-    sandbox_patch_targets = [item for item in mutations if str(item.get("path", "")).endswith("zero_ai_control_workflows.py")]
+    sandbox_specs = [item for item in specs if str(item.get("lane_kind", "")) == "sandbox_patch"]
+    sandbox_scope_count = len(sandbox_specs)
+    missing_sandbox_files = [item["relative_path"] for item in sandbox_specs if item["relative_path"] in missing_files]
+    sandbox_patch_targets = [
+        item for item in mutations if str(spec_map.get(str(item.get("key", "")), {}).get("lane_kind", "")) == "sandbox_patch"
+    ]
+    sandbox_patch_lane_ready = ready and sandbox_scope_count > 0 and not missing_sandbox_files
+    expanded_sandbox_patch_lane = sandbox_patch_lane_ready and sandbox_scope_count >= 3
     summary = "learned source defaults already match the promoted runtime profile"
     if missing_files:
         summary = "source evolution is blocked because one or more allowlisted source files are missing"
     elif mutations:
-        summary = "guarded source evolution candidate generated from the promoted runtime profile and sandboxed non-identity patch lane"
+        summary = (
+            "guarded source evolution candidate generated from the promoted runtime profile and expanded sandboxed non-identity patch lane"
+            if expanded_sandbox_patch_lane
+            else "guarded source evolution candidate generated from the promoted runtime profile and sandboxed non-identity patch lane"
+        )
     if not ready:
         summary = "guarded source evolution is blocked until bounded evolution settles"
 
-    verification_plan = {
-        "py_compile": [item["path"] for item in mutations],
-        "tests": ["tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution", "tests.test_zero_ai_control_workflows"],
-    }
+    verification_plan = _verification_plan(cwd, mutations)
 
     proposal = {
         "ok": True,
@@ -357,8 +472,10 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
         "blocked_reasons": ([] if ready else ready_reasons) + [f"missing allowlisted source file: {path}" for path in missing_files],
         "current_profile": target_profile,
         "mutations": mutations,
-        "sandbox_patch_lane_ready": bool(sandbox_patch_targets),
+        "sandbox_patch_lane_ready": sandbox_patch_lane_ready,
         "sandbox_patch_targets": sandbox_patch_targets,
+        "sandbox_patch_scope_count": sandbox_scope_count,
+        "expanded_sandbox_patch_lane": expanded_sandbox_patch_lane,
         "predicted_gain": predicted_gain if beneficial else 0.0,
         "summary": summary,
         "verification_plan": verification_plan,
@@ -437,27 +554,19 @@ def _apply_mutations(cwd: str, proposal: dict[str, Any]) -> list[str]:
     return changed_paths
 
 
-def _verification_commands(cwd: str, changed_paths: list[str]) -> list[list[str]]:
+def _verification_commands(cwd: str, changed_paths: list[str], mutations: list[dict[str, Any]]) -> list[list[str]]:
     commands: list[list[str]] = []
     if changed_paths:
         commands.append([sys.executable, "-m", "py_compile", *changed_paths])
-    repo_root = Path(cwd).resolve()
-    required_tests = [
-        repo_root / "tests" / "test_phase_runtime.py",
-        repo_root / "tests" / "test_zero_ai_autonomy.py",
-        repo_root / "tests" / "test_zero_ai_evolution.py",
-    ]
-    if all(path.exists() for path in required_tests):
-        unittest_targets = ["tests.test_phase_runtime", "tests.test_zero_ai_autonomy", "tests.test_zero_ai_evolution"]
-        if (repo_root / "tests" / "test_zero_ai_control_workflows.py").exists():
-            unittest_targets.append("tests.test_zero_ai_control_workflows")
+    unittest_targets = _verification_test_targets(cwd, mutations)
+    if unittest_targets:
         commands.append([sys.executable, "-m", "unittest", *unittest_targets, "-q"])
     return commands
 
 
-def _run_verification(cwd: str, changed_paths: list[str]) -> dict[str, Any]:
+def _run_verification(cwd: str, changed_paths: list[str], mutations: list[dict[str, Any]]) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
-    for command in _verification_commands(cwd, changed_paths):
+    for command in _verification_commands(cwd, changed_paths, mutations):
         completed = subprocess.run(
             command,
             cwd=str(Path(cwd).resolve()),
@@ -715,6 +824,7 @@ def zero_ai_source_evolution_status(cwd: str) -> dict[str, Any]:
         "history_path": str(_history_path(cwd)),
         "checkpoint_root": str(_checkpoint_root(cwd)),
         "allowed_scopes": state.get("allowed_scopes", []),
+        "allowed_scope_count": len(state.get("allowed_scopes", [])),
         "current_source_generation": int(state.get("current_source_generation", 0)),
         "promoted_count": int(state.get("promoted_count", 0)),
         "rollback_count": int(state.get("rollback_count", 0)),
@@ -725,6 +835,8 @@ def zero_ai_source_evolution_status(cwd: str) -> dict[str, Any]:
         "due_now": _auto_due(state),
         "source_evolution_ready": bool(proposal.get("safe", False)),
         "sandboxed_patch_lane_ready": bool(proposal.get("sandbox_patch_lane_ready", False)),
+        "sandbox_patch_scope_count": int(proposal.get("sandbox_patch_scope_count", 0) or 0),
+        "expanded_sandbox_patch_lane": bool(proposal.get("expanded_sandbox_patch_lane", False)),
         "recommended_action": recommended_action,
         "proposal": proposal,
         "pending_candidate": dict(state.get("pending_candidate") or {}),
@@ -814,7 +926,7 @@ def zero_ai_source_evolution_canary(cwd: str) -> dict[str, Any]:
     try:
         sandbox_cwd = str(workspace.get("path", cwd))
         changed_paths = _apply_mutations(sandbox_cwd, simulation)
-        verification = _run_verification(sandbox_cwd, changed_paths)
+        verification = _run_verification(sandbox_cwd, changed_paths, list(simulation.get("mutations", [])))
     finally:
         cleanup = _cleanup_canary_workspace(cwd, workspace)
 
@@ -869,7 +981,7 @@ def zero_ai_source_evolution_promote(cwd: str) -> dict[str, Any]:
 
     promotion_checkpoint = _create_checkpoint(cwd, "promotion", {"mutations": pending.get("mutations", [])})
     applied_paths = _apply_mutations(cwd, {"mutations": pending.get("mutations", [])})
-    verification = _run_verification(cwd, applied_paths)
+    verification = _run_verification(cwd, applied_paths, list(pending.get("mutations", [])))
     if not bool(verification.get("ok", False)):
         _restore_files(cwd, promotion_checkpoint)
         state["last_canary"] = {

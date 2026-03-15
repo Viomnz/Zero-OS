@@ -38,6 +38,7 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         out = run_task(str(self.base), "check https://example.com")
         self.assertTrue(out["ok"])
         self.assertTrue(any(step["kind"] == "web_verify" for step in out["plan"]["steps"]))
+        self.assertFalse(any(step["kind"] == "system_status" for step in out["plan"]["steps"]))
 
     def test_run_task_autonomy_gate_for_fix(self) -> None:
         out = run_task(str(self.base), "fix runtime issues")
@@ -46,6 +47,7 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
     def test_run_task_fetches_url(self) -> None:
         out = run_task(str(self.base), "fetch https://example.com")
         self.assertTrue(any(step["kind"] == "web_fetch" for step in out["plan"]["steps"]))
+        self.assertEqual(1, sum(1 for step in out["plan"]["steps"] if step["kind"] == "web_verify"))
 
     def test_run_task_store_status(self) -> None:
         out = run_task(str(self.base), "native store status")
@@ -69,6 +71,8 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         out = run_task(str(self.base), "check system status")
         self.assertIn("response", out)
         self.assertIn("summary", out["response"])
+        self.assertIn("contradiction_gate", out["response"])
+        self.assertIn("contradiction_gate", out)
         self.assertIn("task_memory", out)
 
     def test_run_task_can_use_highway_dispatch(self) -> None:
@@ -137,6 +141,67 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
     def test_run_task_cloud_deploy(self) -> None:
         out = run_task(str(self.base), "cloud target set prod provider aws")
         self.assertTrue(any(step["kind"] == "cloud_target_set" for step in out["plan"]["steps"]))
+
+    def test_run_task_find_contradictions_bugs_errors_and_virus_uses_flow_monitor(self) -> None:
+        out = run_task(str(self.base), "find contradiction bugs errors virus anything")
+        self.assertTrue(any(step["kind"] == "flow_monitor" for step in out["plan"]["steps"]))
+        self.assertIn("flow monitor", out["response"]["summary"])
+
+    def test_run_task_smart_workspace_uses_workspace_lane(self) -> None:
+        out = run_task(str(self.base), "smart workspace")
+        self.assertTrue(any(step["kind"] == "smart_workspace" for step in out["plan"]["steps"]))
+        self.assertIn("smart workspace", out["response"]["summary"])
+
+    def test_run_task_contradiction_status_uses_reasoning_subsystem(self) -> None:
+        out = run_task(str(self.base), "contradiction status")
+        self.assertEqual(["contradiction_engine"], [step["kind"] for step in out["plan"]["steps"]])
+        self.assertIn("contradiction gate", out["response"]["summary"])
+
+    def test_run_task_holds_output_when_continuity_has_contradiction(self) -> None:
+        runtime_dir = self.base / ".zero_os" / "runtime"
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        (runtime_dir / "zero_ai_self_continuity.json").write_text(
+            json.dumps(
+                {
+                    "continuity": {"same_system": True, "continuity_score": 82.0},
+                    "contradiction_detection": {
+                        "has_contradiction": True,
+                        "issues": ["self_model_missing_no_contradiction_constraint"],
+                    },
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        out = run_task(str(self.base), "check system status")
+        self.assertFalse(out["ok"])
+        self.assertEqual("hold", out["contradiction_gate"]["decision"])
+        self.assertIn("contradiction gate: hold", out["response"]["summary"])
+
+    def test_run_task_does_not_bleed_previous_playbook_steps_into_new_request(self) -> None:
+        first = run_task(str(self.base), "check system status")
+        self.assertTrue(first["ok"])
+
+        second = run_task(str(self.base), "browser status and inspect page https://example.com")
+        self.assertEqual(
+            ["web_verify", "browser_status", "browser_dom_inspect"],
+            [step["kind"] for step in second["plan"]["steps"]],
+        )
+
+    def test_run_task_deduplicates_repeated_urls_in_one_request(self) -> None:
+        out = run_task(str(self.base), "check https://example.com and open https://example.com and click")
+        self.assertEqual(
+            ["web_verify", "web_fetch", "browser_open", "browser_action"],
+            [step["kind"] for step in out["plan"]["steps"]],
+        )
+
+    def test_run_task_highest_value_steps_uses_controller_registry(self) -> None:
+        out = run_task(str(self.base), "highest value steps")
+        self.assertTrue(out["ok"])
+        self.assertTrue(any(step["kind"] == "controller_registry" for step in out["plan"]["steps"]))
+        self.assertIn("controller registry", out["response"]["summary"])
 
 
 if __name__ == "__main__":

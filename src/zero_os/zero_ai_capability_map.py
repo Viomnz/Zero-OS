@@ -93,6 +93,9 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.agent_permission_policy import policy_status
     from zero_os.approval_workflow import status as approval_status
     from zero_os.assistant_job_runner import status as jobs_status
+    from zero_os.contradiction_engine import contradiction_engine_status
+    from zero_os.flow_monitor import flow_status
+    from zero_os.smart_workspace import workspace_status
     from zero_os.phase_runtime import zero_ai_runtime_agent_status, zero_ai_runtime_loop_status
     from zero_os.self_continuity import zero_ai_self_continuity_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
@@ -105,6 +108,9 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     policy = policy_status(cwd)
     approvals = approval_status(cwd)
     jobs = jobs_status(cwd)
+    contradiction_engine = contradiction_engine_status(cwd)
+    flow_monitor = flow_status(cwd)
+    smart_workspace = workspace_status(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
     continuity = zero_ai_self_continuity_status(cwd)
@@ -199,6 +205,55 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             },
         ),
         _capability(
+            "smart_workspace_map",
+            "Smart workspace map",
+            "observation",
+            "autonomous",
+            active=bool(smart_workspace.get("active", False)),
+            ready=bool(smart_workspace.get("ready", False)),
+            action_kind="workspace_refresh",
+            notes="Maintains an indexed map of the workspace so Zero AI can track structure, symbols, git changes, and live flow state together.",
+            evidence={
+                "indexed": bool((smart_workspace.get("summary") or {}).get("indexed", False)),
+                "search_ready": bool((smart_workspace.get("summary") or {}).get("search_ready", False)),
+                "file_count": int((smart_workspace.get("summary") or {}).get("file_count", 0) or 0),
+                "git_dirty": bool((smart_workspace.get("summary") or {}).get("git_dirty", False)),
+                "git_change_count": int((smart_workspace.get("summary") or {}).get("git_change_count", 0) or 0),
+            },
+        ),
+        _capability(
+            "integrity_flow_monitor",
+            "Integrity flow monitor",
+            "observation",
+            "autonomous",
+            active=bool(flow_monitor.get("active", False)),
+            ready=bool(flow_monitor.get("ready", False)),
+            action_kind="flow_scan",
+            notes="Aggregates contradiction, source bugs/errors, recent execution failures, and antivirus signals into one smooth observation lane.",
+            evidence={
+                "flow_score": float((flow_monitor.get("summary") or {}).get("flow_score", 0.0) or 0.0),
+                "issue_count": int((flow_monitor.get("summary") or {}).get("issue_count", 0) or 0),
+                "highest_severity": str((flow_monitor.get("summary") or {}).get("highest_severity", "")),
+                "source_scan_available": bool((flow_monitor.get("summary") or {}).get("source_scan_available", False)),
+            },
+        ),
+        _capability(
+            "contradiction_gate",
+            "Contradiction gate",
+            "reasoning",
+            "autonomous",
+            active=bool(contradiction_engine.get("active", False)),
+            ready=bool(contradiction_engine.get("ready", False)),
+            action_kind="contradiction_review",
+            notes="Reviews goal, context, evidence, consequence, and self-continuity before output is rendered.",
+            evidence={
+                "last_decision": str(contradiction_engine.get("last_decision", "")),
+                "last_contradiction_count": int(contradiction_engine.get("last_contradiction_count", 0) or 0),
+                "continuity_has_contradiction": bool((contradiction_engine.get("continuity") or {}).get("has_contradiction", False)),
+                "checks": list(contradiction_engine.get("checks", [])),
+            },
+        ),
+        _capability(
             "continuity_guard",
             "Continuity guard",
             "self_model",
@@ -239,6 +294,8 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             evidence={
                 "source_generation": int(source_evolution.get("current_source_generation", 0) or 0),
                 "recommended_action": str(source_evolution.get("recommended_action", "")),
+                "sandbox_patch_scope_count": int(source_evolution.get("sandbox_patch_scope_count", 0) or 0),
+                "expanded_sandbox_patch_lane": bool(source_evolution.get("expanded_sandbox_patch_lane", False)),
             },
         ),
         _capability(
@@ -343,11 +400,25 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     active_autonomous_surface_score = round((active_autonomous_count / max(1, total_count)) * 100.0, 2)
 
     highest_value_steps: list[str] = []
-    if forbidden_count > 0:
+    if not bool((smart_workspace.get("summary") or {}).get("indexed", False)):
+        highest_value_steps.append("Run `zero ai workspace refresh` to build a searchable smart workspace map before broader edits.")
+    else:
+        highest_value_steps.append("Maintain the smart workspace map so search, symbols, git state, and structure stay current.")
+    if not bool((flow_monitor.get("summary") or {}).get("source_scan_available", False)):
+        highest_value_steps.append("Run `zero ai flow scan` so Zero AI can detect contradiction, bugs, errors, and virus signals in one pass.")
+    else:
+        highest_value_steps.append("Maintain the unified flow monitor so contradiction, source, execution, and threat signals stay visible in one lane.")
+    if not bool(contradiction_engine.get("active", False)):
+        highest_value_steps.append("Build the contradiction engine and make it the gate before output.")
+    else:
+        highest_value_steps.append("Maintain the contradiction gate and extend typed reasoning checks across more subsystems.")
+    if not bool(source_evolution.get("expanded_sandbox_patch_lane", False)):
         highest_value_steps.append("Expand guarded source evolution from allowlisted defaults to a sandboxed patch lane for selected non-identity modules.")
+    else:
+        highest_value_steps.append("Maintain the expanded sandboxed patch lane and admit new non-identity modules only through allowlisted canaries.")
     if not bool(store_install_workflow.get("active", False)):
         highest_value_steps.append("Publish or register at least one store package so the autonomous install workflow has a real target.")
-    highest_value_steps.append("Build a subsystem-by-subsystem controller registry so each Zero OS surface has an explicit safe autonomy contract.")
+    highest_value_steps.append("Use the controller registry to expand typed safe autonomy contracts across more Zero OS subsystems.")
 
     status = {
         "ok": True,

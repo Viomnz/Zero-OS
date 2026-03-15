@@ -101,7 +101,7 @@ def _lane_defaults() -> dict[str, dict[str, Any]]:
         "self_repair": {
             "enabled": True,
             "mode": "canary_backed",
-            "minimum_readiness_floor": 60,
+            "minimum_readiness_floor": 90,
             "success_count": 0,
             "failure_count": 0,
             "last_run": {},

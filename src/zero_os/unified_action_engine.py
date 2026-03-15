@@ -8,6 +8,8 @@ from zero_os.browser_session_connector import browser_session_action, browser_se
 from zero_os.autonomous_fix_gate import autonomy_evaluate
 from zero_os.cloud_deploy_integration import configure_target as cloud_target_set, deploy as cloud_deploy, status as cloud_status
 from zero_os.connector_layer import run_recovery, run_self_repair, store_install, store_status, web_fetch
+from zero_os.contradiction_engine import contradiction_engine_status
+from zero_os.flow_monitor import flow_scan
 from zero_os.github_integration_pack import (
     connect_repo as github_connect,
     issue_act as github_issue_act,
@@ -27,6 +29,8 @@ from zero_os.github_integration_pack import (
     status as github_status,
 )
 from zero_os.observation_layer import collect_observations
+from zero_os.smart_workspace import workspace_status
+from zero_os.subsystem_controller_registry import controller_registry_status
 from zero_os.tool_capability_registry import registry_status
 from zero_os.verification_web_flow import verify_web_lookup
 
@@ -53,7 +57,19 @@ def execute_step(cwd: str, step: dict) -> dict:
         return {"ok": True, "kind": kind, "result": collect_observations(cwd)}
     if kind == "tool_registry":
         audit_event(cwd, kind, "executed", {"target": target})
-        return {"ok": True, "kind": kind, "result": registry_status()}
+        return {"ok": True, "kind": kind, "result": registry_status(cwd)}
+    if kind == "controller_registry":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": controller_registry_status(cwd)}
+    if kind == "contradiction_engine":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": contradiction_engine_status(cwd)}
+    if kind == "smart_workspace":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": workspace_status(cwd, str(target or "main"))}
+    if kind == "flow_monitor":
+        audit_event(cwd, kind, "executed", {"target": target})
+        return {"ok": True, "kind": kind, "result": flow_scan(cwd, str(target or "."))}
     if kind == "browser_status":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": browser_session_status(cwd)}

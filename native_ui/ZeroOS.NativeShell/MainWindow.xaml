@@ -250,6 +250,60 @@
           </Grid>
         </TabItem>
 
+        <TabItem Header="Zero Control">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.1*" />
+              <ColumnDefinition Width="1.9*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <StackPanel>
+                <TextBlock Text="Zero Control"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBlock Text="See the highest-value next steps, subsystem contracts, and tool gaps without typing commands."
+                           Margin="0,6,0,16"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedFg}" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Control Map" Click="RefreshControlMap_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Run Zero AI Next" Click="ZeroAiNext_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Tool Registry" Click="ZeroAiToolsStatus_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Capability Map" Click="ZeroAiCapabilityMapStatus_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Refresh Control Workflows" Click="ZeroAiControlWorkflowsStatus_Click" />
+                <TextBlock Text="Fast path"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <Button Height="38" Margin="0,0,0,8" Content="Start Background Agent" Click="ZeroAiRuntimeAgentStart_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Run Runtime Now" Click="ZeroAiRuntimeRun_Click" />
+                <Button Height="38" Content="Open Shell UI" Click="OpenShellUi_Click" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Control Summary"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="ControlMapBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading control map..." />
+              </DockPanel>
+            </Border>
+          </Grid>
+        </TabItem>
+
         <TabItem Header="Artifacts">
           <Grid Margin="12">
             <Grid.ColumnDefinitions>

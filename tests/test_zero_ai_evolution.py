@@ -121,6 +121,34 @@ class ZeroAiEvolutionTests(unittest.TestCase):
         self.assertEqual(240, status["current_profile"]["runtime_loop_interval_seconds"])
         self.assertEqual(360, status["current_profile"]["autonomy_loop_interval_seconds"])
 
+    def test_status_recovers_promoted_generation_from_history(self) -> None:
+        self._prime_stable_evolution_ready()
+        promoted = zero_ai_evolution_auto_run(str(self.base))
+        self.assertTrue(promoted["ok"])
+
+        evolution_dir = self.base / ".zero_os" / "evolution"
+        (evolution_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "current_generation": 0,
+                    "promoted_count": 0,
+                    "last_promotion": {},
+                    "active_profile": {},
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status = zero_ai_evolution_status(str(self.base))
+
+        self.assertEqual(1, status["current_generation"])
+        self.assertEqual(1, status["promoted_count"])
+        self.assertEqual(240, status["current_profile"]["runtime_loop_interval_seconds"])
+        self.assertEqual(360, status["current_profile"]["autonomy_loop_interval_seconds"])
+
     def test_canary_failure_keeps_baseline_profile(self) -> None:
         self._prime_stable_evolution_ready()
         stable_snapshot = _runtime_snapshot(str(self.base))

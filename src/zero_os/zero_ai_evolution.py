@@ -88,13 +88,13 @@ def _append_history(cwd: str, payload: dict[str, Any]) -> None:
         handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
-def _history_tail(cwd: str, limit: int = 10) -> list[dict[str, Any]]:
+def _history_entries(cwd: str) -> list[dict[str, Any]]:
     path = _history_path(cwd)
     if not path.exists():
         return []
     rows = [line.strip() for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
     out: list[dict[str, Any]] = []
-    for row in rows[-limit:]:
+    for row in rows:
         try:
             payload = json.loads(row)
         except json.JSONDecodeError:
@@ -102,6 +102,11 @@ def _history_tail(cwd: str, limit: int = 10) -> list[dict[str, Any]]:
         if isinstance(payload, dict):
             out.append(payload)
     return out
+
+
+def _history_tail(cwd: str, limit: int = 10) -> list[dict[str, Any]]:
+    entries = _history_entries(cwd)
+    return entries[-limit:]
 
 
 def _runtime_loop_default() -> dict[str, Any]:
@@ -330,6 +335,51 @@ def _bounded_ready(snapshot: dict[str, Any]) -> tuple[bool, list[str]]:
     return (len(reasons) == 0, reasons)
 
 
+def _current_profile_from_snapshot(snapshot: dict[str, Any]) -> dict[str, int]:
+    profile = dict(snapshot.get("profile") or {})
+    return {
+        "runtime_loop_interval_seconds": int(profile.get("runtime_loop_interval_seconds", 180) or 180),
+        "autonomy_loop_interval_seconds": int(profile.get("autonomy_loop_interval_seconds", 300) or 300),
+    }
+
+
+def _reconcile_promoted_state(cwd: str, state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
+    changed = False
+    current_profile = _current_profile_from_snapshot(snapshot)
+    if dict(state.get("active_profile") or {}) != current_profile:
+        state["active_profile"] = current_profile
+        changed = True
+
+    promote_events = [item for item in _history_entries(cwd) if str(item.get("action", "")) == "promote"]
+    if not promote_events:
+        return changed
+
+    promote_count = len(promote_events)
+    latest = promote_events[-1]
+    highest_generation = max(int(item.get("generation", 0) or 0) for item in promote_events)
+    recovered_generation = highest_generation if highest_generation > 0 else promote_count
+
+    if int(state.get("current_generation", 0) or 0) < recovered_generation:
+        state["current_generation"] = recovered_generation
+        changed = True
+    if int(state.get("promoted_count", 0) or 0) < promote_count:
+        state["promoted_count"] = promote_count
+        changed = True
+
+    if not dict(state.get("last_promotion") or {}):
+        state["last_promotion"] = {
+            "ok": True,
+            "time_utc": str(latest.get("time_utc", "")),
+            "generation": recovered_generation,
+            "candidate_profile": dict(latest.get("candidate_profile") or current_profile),
+            "checkpoint": {},
+            "summary": "bounded evolution promotion recovered from history",
+        }
+        changed = True
+
+    return changed
+
+
 def _proposal_from_live(cwd: str) -> dict[str, Any]:
     state = _load_state(cwd)
     snapshot = _runtime_snapshot(cwd)
@@ -436,6 +486,8 @@ def _load_checkpoint(cwd: str, checkpoint_id: str) -> dict[str, Any] | None:
 def zero_ai_evolution_status(cwd: str) -> dict[str, Any]:
     state = _load_state(cwd)
     snapshot = _runtime_snapshot(cwd)
+    if _reconcile_promoted_state(cwd, state, snapshot):
+        _save_state(cwd, state)
     current_fitness = _fitness(snapshot, state)
     proposal = _proposal_from_live(cwd)
     ready, ready_reasons = _bounded_ready(snapshot)
@@ -466,10 +518,7 @@ def zero_ai_evolution_status(cwd: str) -> dict[str, Any]:
         "self_evolution_ready": ready,
         "blocked_reasons": ready_reasons,
         "recommended_action": recommended_action,
-        "current_profile": {
-            "runtime_loop_interval_seconds": snapshot["profile"]["runtime_loop_interval_seconds"],
-            "autonomy_loop_interval_seconds": snapshot["profile"]["autonomy_loop_interval_seconds"],
-        },
+        "current_profile": _current_profile_from_snapshot(snapshot),
         "live_health": {
             "runtime_ready": snapshot["profile"]["runtime_ready"],
             "runtime_score": snapshot["profile"]["runtime_score"],

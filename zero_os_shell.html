@@ -812,6 +812,14 @@
         ]
       },
       {
+        title: "Zero Control",
+        items: [
+          { label: "Zero AI Next", desc: "Show the highest-value next actions across Zero AI subsystems.", command: "zero ai next" },
+          { label: "Zero AI Tools", desc: "Inspect tools, gaps, and safe action lanes.", command: "zero ai tools status" },
+          { label: "Capability Map", desc: "Review the current autonomous, gated, and forbidden control surface.", command: "zero ai capability map status" }
+        ]
+      },
+      {
         title: "GitHub",
         items: [
           { label: "GitHub Status", desc: "Show connected GitHub repositories.", command: "github status" },
@@ -840,6 +848,7 @@
       { label: "Zero Files", icon: "F", desc: "File workspace and desktop storage view.", favorite: true, installed: true, command: "native desktop window open app=Zero Files layer=top" },
       { label: "Zero Security", icon: "S", desc: "Security posture and protection review.", favorite: true, installed: true, command: "zero ai security status" },
       { label: "Zero Runtime", icon: "R", desc: "Kernel and runtime inspection.", favorite: false, installed: true, command: "kernel stack status" },
+      { label: "Zero Control", icon: "C", desc: "Highest-value steps, subsystem contracts, and tool gaps.", favorite: true, installed: true, command: "zero ai next" },
       { label: "System Status", icon: "P", desc: "Platform readiness and health checks.", favorite: true, installed: true, command: "native platform status" },
       { label: "GitHub Inbox", icon: "G", desc: "Connected GitHub repos, issues, and PR intake.", favorite: false, installed: true, command: "github status" },
       { label: "Share Zero OS", icon: "Z", desc: "Copy, export, zip, and share Zero OS easily.", favorite: true, installed: true, command: "zero os share package" }
@@ -1255,6 +1264,7 @@
         { id: "apps", label: "Apps" },
         { id: "security", label: "Security" },
         { id: "runtime", label: "Runtime" },
+        { id: "control", label: "Zero Control" },
         { id: "recovery", label: "Recovery" },
         { id: "github", label: "GitHub" },
         { id: "chat", label: "Zero AI Chat" },
@@ -1559,7 +1569,132 @@
       `;
     }
 
-    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) {
+    function arrayItems(value) {
+      return Array.isArray(value) ? value.filter((item) => item !== null && item !== undefined && String(item).trim() !== "") : [];
+    }
+
+    function renderControlPriorityPanel(controllerRegistry, toolRegistry) {
+      const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
+      const toolSummary = (toolRegistry && toolRegistry.summary) || {};
+      const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
+      return `
+        <section class="panel">
+          <div class="panel-title">Logic Priorities</div>
+          ${renderSummaryCards([
+            { label: "Subsystems", value: String(controllerSummary.subsystem_count || 0) },
+            { label: "Missing Functions", value: String(controllerSummary.missing_function_count || 0) },
+            { label: "Missing Tools", value: String(toolSummary.missing_tool_count || 0) },
+            { label: "Next Priority", value: priorities[0] || "Run Zero AI Next" }
+          ])}
+          <div class="action-list">
+            ${(priorities.length ? priorities.slice(0, 3) : ["Run `zero ai next` to generate the current highest-value action list."]).map((step, index) => `
+              <div class="action-chip">
+                <div class="chip-title">Priority ${index + 1}</div>
+                <div class="chip-copy">${escapeHtml(step)}</div>
+              </div>
+            `).join("")}
+            <div class="action-chip">
+              <div class="chip-title">Open Zero Control</div>
+              <div class="chip-copy">Inspect subsystem contracts, tool gaps, and recommended next actions.</div>
+              <div class="task-actions">
+                <button class="btn" data-layer-page="control">Open Control Map</button>
+                <button class="btn" data-home-command="zero ai next" data-home-label="Zero AI Next">Refresh</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap) {
+      const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
+      const toolSummary = (toolRegistry && toolRegistry.summary) || {};
+      const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
+      const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
+      const subsystems = arrayItems(controllerRegistry && controllerRegistry.subsystems);
+      const missingTools = arrayItems(toolRegistry && toolRegistry.missing_tools);
+      return `
+        <section class="panel">
+          <div class="panel-title">Zero Control Map</div>
+          ${renderSummaryCards([
+            { label: "Subsystems", value: String(controllerSummary.subsystem_count || 0) },
+            { label: "Active", value: String(controllerSummary.active_subsystem_count || 0) },
+            { label: "Missing Functions", value: String(controllerSummary.missing_function_count || 0) },
+            { label: "Missing Tools", value: String(toolSummary.missing_tool_count || 0) },
+            { label: "Tool Count", value: String(toolSummary.tool_count || 0) },
+            { label: "Autonomous Surface", value: capabilitySummary.autonomous_surface_score !== undefined ? `${capabilitySummary.autonomous_surface_score}%` : "n/a" }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">Refresh Registry</div>
+              <div class="chip-copy">Generate the latest next-step map, tool status, and capability surface without leaving the UI.</div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai next" data-home-label="Zero AI Next">Refresh Next</button>
+                <button class="btn" data-home-command="zero ai tools status" data-home-label="Zero AI Tools">Refresh Tools</button>
+                <button class="btn" data-home-command="zero ai capability map refresh" data-home-label="Capability Map">Refresh Capabilities</button>
+              </div>
+            </div>
+            ${(priorities.length ? priorities : ["Run `zero ai next` to generate the first control-map snapshot."]).map((step, index) => `
+              <div class="action-chip">
+                <div class="chip-title">Highest-Value Step ${index + 1}</div>
+                <div class="chip-copy">${escapeHtml(step)}</div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-title">Subsystem Contracts</div>
+          <div class="action-list">
+            ${subsystems.length ? subsystems.map((item) => `
+              <div class="action-chip">
+                <div class="chip-title">${escapeHtml(item.label || item.key || "Subsystem")}</div>
+                <div class="chip-copy">
+                  Control: ${escapeHtml(item.control_level || "n/a")} · Contract: ${escapeHtml(item.contract_state || "n/a")}
+                  <br/>${escapeHtml(item.highest_value_step || "No next action recorded.")}
+                </div>
+                <div class="state-badges">
+                  <span class="mini-badge">Missing ${arrayItems(item.missing_functions).length}</span>
+                  <span class="mini-badge">Commands ${arrayItems(item.commands).length}</span>
+                </div>
+                <div class="task-actions">
+                  ${arrayItems(item.commands).slice(0, 2).map((command, idx) => `
+                    <button class="btn" data-home-command="${escapeHtml(command)}" data-home-label="${escapeHtml(item.label || item.key || `Command ${idx + 1}`)}">${idx === 0 ? "Run" : "More"}</button>
+                  `).join("")}
+                </div>
+              </div>
+            `).join("") : `
+              <div class="action-chip">
+                <div class="chip-title">No controller registry yet</div>
+                <div class="chip-copy">Run Zero AI Next to build the subsystem control map.</div>
+              </div>
+            `}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-title">Tool Gaps</div>
+          <div class="action-list">
+            ${missingTools.length ? missingTools.map((item) => `
+              <div class="action-chip">
+                <div class="chip-title">${escapeHtml(item.tool || "tool")}</div>
+                <div class="chip-copy">${arrayItems(item.gaps).map((gap) => escapeHtml(gap)).join(" · ")}</div>
+              </div>
+            `).join("") : `
+              <div class="action-chip">
+                <div class="chip-title">No urgent tool gaps</div>
+                <div class="chip-copy">The current tool surface is active. Use the subsystem contracts above to decide what to improve next.</div>
+              </div>
+            `}
+          </div>
+          ${renderDetails("Show raw control data", {
+            controller_registry: controllerRegistry || {},
+            tool_registry: toolRegistry || {},
+            capability_map: capabilityMap || {}
+          })}
+        </section>
+      `;
+    }
+
+    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry) {
       const notices = [];
       if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
       if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
@@ -1608,6 +1743,7 @@
               `).join("")}
             </div>
           </section>
+          ${renderControlPriorityPanel(controllerRegistry, toolRegistry)}
           <section class="panel">
             <div class="panel-title">Recent Actions</div>
             <div class="recent-list">
@@ -1635,7 +1771,7 @@
       `;
     }
 
-    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github) {
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap) {
       const notices = renderNotifications(sec, backup, triad, desktop);
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -1646,7 +1782,7 @@
         `</div>`,
         `<div class="layer-view ${activePage === "home" ? "active" : ""}" data-layer-view="home">` +
           renderOnboarding(onboarding) +
-          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry) +
+          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry) +
           renderTaskSwitcher(desktop) +
         `</div>`,
         `<div class="layer-view ${activePage === "apps" ? "active" : ""}" data-layer-view="apps">` +
@@ -1658,6 +1794,9 @@
         `</div>`,
         `<div class="layer-view ${activePage === "runtime" ? "active" : ""}" data-layer-view="runtime">` +
           renderRuntimePanel(triadValue, kernel, runtime, backup) +
+        `</div>`,
+        `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
+          renderControlPanel(controllerRegistry, toolRegistry, capabilityMap) +
         `</div>`,
         `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
           renderRecoveryPanel(onboarding, backup, notices) +
@@ -1803,6 +1942,11 @@
         loadJson(".zero_os/store/registry.json"),
         loadJson(".zero_os/integrations/github.json")
       ]);
+      const [toolRegistry, controllerRegistry, capabilityMap] = await Promise.all([
+        loadJson(".zero_os/runtime/tool_registry_status.json"),
+        loadJson(".zero_os/assistant/controller_registry.json"),
+        loadJson(".zero_os/assistant/capability_map.json")
+      ]);
 
       const coreValue = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -1830,7 +1974,7 @@
 
       const activePage = readLayerPage();
       $("startLayer").innerHTML = [
-        renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github),
+        renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap),
         renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
       ].join("");
       $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {

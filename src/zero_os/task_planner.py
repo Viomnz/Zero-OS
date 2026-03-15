@@ -5,18 +5,57 @@ from zero_os.playbook_memory import lookup
 from zero_os.structured_intent import extract_intent
 
 
-def build_plan(request: str) -> dict:
+def build_plan(request: str, cwd: str = ".") -> dict:
     text = request.strip()
     lowered = text.lower()
     intent = extract_intent(request)
-    remembered = lookup(".", intent["intent"])
     steps: list[dict] = []
+    should_resume = str(intent.get("constraints", {}).get("resume", "")).lower() == "true"
+    remembered = lookup(cwd, intent["intent"]) if should_resume else {"ok": False}
     if remembered.get("ok", False):
         steps.extend(list(remembered["plan"].get("steps", [])))
     if intent["intent"] == "tools" or any(token in lowered for token in ("tools", "capabilities", "what can you do")):
         steps.append({"kind": "tool_registry", "target": "registry"})
+    if intent["intent"] == "planning" or any(token in lowered for token in ("highest value", "highest-value", "next step", "next steps", "what should improve", "recommend")):
+        steps.append({"kind": "controller_registry", "target": "next_steps"})
+    if intent["intent"] == "reasoning" or any(token in lowered for token in ("contradiction engine", "contradiction gate", "reasoning gate", "contradiction status")):
+        steps.append({"kind": "contradiction_engine", "target": "status"})
+    if any(
+        token in lowered
+        for token in (
+            "smart workspace",
+            "workspace status",
+            "workspace map",
+            "workspace overview",
+            "understand workspace",
+            "repo overview",
+        )
+    ):
+        steps.append({"kind": "smart_workspace", "target": "main"})
+    if any(
+        token in lowered
+        for token in (
+            "find contradiction",
+            "find bug",
+            "find bugs",
+            "find error",
+            "find errors",
+            "find virus",
+            "find viruses",
+            "find malware",
+            "scan for bug",
+            "scan for bugs",
+            "scan for error",
+            "scan for virus",
+            "scan workspace",
+            "scan system",
+            "virus",
+            "malware",
+        )
+    ):
+        steps.append({"kind": "flow_monitor", "target": "."})
     if intent["intent"] == "web" or "http://" in lowered or "https://" in lowered:
-        urls = re.findall(r"https?://\S+", text)
+        urls = list(dict.fromkeys(re.findall(r"https?://\S+", text)))
         for url in urls:
             steps.append({"kind": "web_verify", "target": url})
             if any(token in lowered for token in ("fetch", "open", "read", "load")):
@@ -25,12 +64,12 @@ def build_plan(request: str) -> dict:
                     steps.append({"kind": "browser_open", "target": url})
                 if any(token in lowered for token in ("click", "submit", "type")):
                     steps.append({"kind": "browser_action", "target": {"action": "click", "selector": "body"}})
-    if intent["intent"] == "status" or any(token in lowered for token in ("status", "diagnostic", "health", "check")):
+    if intent["intent"] == "status" or any(token in lowered for token in ("system status", "diagnostic", "health check", "system health")):
         steps.append({"kind": "system_status", "target": "health"})
     if any(token in lowered for token in ("browser status", "tabs", "session")):
         steps.append({"kind": "browser_status", "target": "browser"})
     if any(token in lowered for token in ("inspect page", "dom inspect")) and ("http://" in lowered or "https://" in lowered):
-        for url in re.findall(r"https?://\S+", text):
+        for url in list(dict.fromkeys(re.findall(r"https?://\S+", text))):
             steps.append({"kind": "browser_dom_inspect", "target": url})
     if intent["intent"] == "store_status" or "native store status" in lowered or "store status" in lowered:
         steps.append({"kind": "store_status", "target": "native_store"})

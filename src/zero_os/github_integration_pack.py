@@ -324,7 +324,7 @@ def issue_plan(cwd: str, repo: str, issue_number: int) -> dict:
     if not issue.get("ok", False):
         return issue
     request_text = issue["issue"].get("request_text", "")
-    plan = build_plan(request_text)
+    plan = build_plan(request_text, cwd)
     return {
         "ok": True,
         "repo": repo,
@@ -341,7 +341,7 @@ def pr_plan(cwd: str, repo: str, pr_number: int) -> dict:
     if not pr.get("ok", False):
         return pr
     request_text = pr["pull_request"].get("request_text", "")
-    plan = build_plan(request_text)
+    plan = build_plan(request_text, cwd)
     return {
         "ok": True,
         "repo": repo,
@@ -380,7 +380,15 @@ def issue_act(cwd: str, repo: str, issue_number: int, execute: bool = False) -> 
         "plan": planned["plan"],
         "actionable_steps": actionable,
         "execution": run,
-        "summary": synthesize_result(run),
+        "summary": synthesize_result(
+            {
+                "cwd": cwd,
+                "ok": run["ok"],
+                "request": planned["issue"].get("request_text", ""),
+                "plan": planned["plan"],
+                "results": results,
+            }
+        ),
         "mode": "local_actions_only",
     }
 
@@ -414,7 +422,15 @@ def pr_act(cwd: str, repo: str, pr_number: int, execute: bool = False) -> dict:
         "plan": planned["plan"],
         "actionable_steps": actionable,
         "execution": run,
-        "summary": synthesize_result(run),
+        "summary": synthesize_result(
+            {
+                "cwd": cwd,
+                "ok": run["ok"],
+                "request": planned["pull_request"].get("request_text", ""),
+                "plan": planned["plan"],
+                "results": results,
+            }
+        ),
         "mode": "local_actions_only",
     }
 

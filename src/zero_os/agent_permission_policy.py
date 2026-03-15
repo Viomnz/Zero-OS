@@ -16,7 +16,16 @@ def _policy_path(cwd: str) -> Path:
         path.write_text(
             json.dumps(
                 {
-                    "allow": ["web_verify", "web_fetch", "system_status", "tool_registry", "store_status", "api_request", "api_workflow"],
+                    "allow": [
+                        "web_verify",
+                        "web_fetch",
+                        "system_status",
+                        "tool_registry",
+                        "controller_registry",
+                        "store_status",
+                        "api_request",
+                        "api_workflow",
+                    ],
                     "approval_required": ["browser_action", "store_install", "recover", "self_repair"],
                     "deny": [],
                 },

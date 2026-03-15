@@ -72,7 +72,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
 
         self.assertTrue(status["ok"])
         self.assertFalse(status["fully_autonomous_control"])
-        self.assertGreaterEqual(status["summary"]["autonomous_count"], 6)
+        self.assertGreaterEqual(status["summary"]["autonomous_count"], 10)
         self.assertEqual(0, status["summary"]["approval_gated_count"])
         self.assertGreaterEqual(status["summary"]["forbidden_count"], 3)
         self.assertIn("control_workflows", status)
@@ -80,6 +80,12 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         capabilities = {item["key"]: item for item in status["capabilities"]}
         self.assertEqual("autonomous", capabilities["runtime_orchestrator"]["control_level"])
         self.assertTrue(capabilities["runtime_orchestrator"]["active"])
+        self.assertEqual("autonomous", capabilities["smart_workspace_map"]["control_level"])
+        self.assertTrue(capabilities["smart_workspace_map"]["active"])
+        self.assertEqual("autonomous", capabilities["integrity_flow_monitor"]["control_level"])
+        self.assertTrue(capabilities["integrity_flow_monitor"]["active"])
+        self.assertEqual("autonomous", capabilities["contradiction_gate"]["control_level"])
+        self.assertTrue(capabilities["contradiction_gate"]["active"])
         self.assertEqual("autonomous", capabilities["browser_control"]["control_level"])
         self.assertEqual("autonomous", capabilities["store_installation"]["control_level"])
         self.assertEqual("autonomous", capabilities["recovery_restore"]["control_level"])

@@ -192,6 +192,12 @@ from zero_os.zero_ai_capability_map import (
     zero_ai_capability_map_refresh,
     zero_ai_capability_map_status,
 )
+from zero_os.contradiction_engine import (
+    contradiction_engine_refresh as zero_ai_contradiction_engine_refresh,
+    contradiction_engine_status as zero_ai_contradiction_engine_status,
+)
+from zero_os.flow_monitor import flow_refresh as zero_ai_flow_refresh, flow_scan as zero_ai_flow_scan, flow_status as zero_ai_flow_status
+from zero_os.smart_workspace import workspace_refresh as zero_ai_workspace_refresh, workspace_status as zero_ai_workspace_status
 from zero_os.zero_ai_control_workflows import (
     zero_ai_control_workflow_browser_act,
     zero_ai_control_workflow_browser_open,
@@ -554,6 +560,10 @@ from zero_os.native_app_store import (
 )
 from zero_os.task_executor import run_task as zero_ai_run_task, run_task_resume as zero_ai_run_task_resume
 from zero_os.task_memory import status as zero_ai_task_memory_status
+from zero_os.subsystem_controller_registry import (
+    controller_registry_refresh as zero_ai_controller_registry_refresh,
+    controller_registry_status as zero_ai_controller_registry_status,
+)
 from zero_os.tool_capability_registry import registry_status as zero_ai_registry_status
 from zero_os.auto_completion import auto_max_fix_upgrade_everything
 
@@ -716,6 +726,20 @@ class SystemCapability:
             "zero ai capability map",
             "zero ai capability map status",
             "zero ai capability map refresh",
+            "smart workspace",
+            "zero ai smart workspace",
+            "zero ai workspace",
+            "zero ai workspace status",
+            "zero ai workspace refresh",
+            "zero os workspace",
+            "zero os workspace status",
+            "zero ai flow status",
+            "zero ai flow scan",
+            "zero ai contradiction status",
+            "zero ai contradiction refresh",
+            "zero ai controller registry",
+            "zero ai controller registry status",
+            "zero ai controller registry refresh",
             "zero ai control workflows",
             "zero ai control workflows status",
             "zero ai control workflows refresh",
@@ -761,6 +785,7 @@ class SystemCapability:
             "zero ai playbooks",
             "zero ai tasks",
             "zero ai tools",
+            "zero ai next",
             "zero ai observe",
             "cover gap",
             "enterprise key",
@@ -1850,6 +1875,32 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_capability_map_status(task.cwd), indent=2))
         if text.strip() == "zero ai capability map refresh":
             return Result(self.name, json.dumps(zero_ai_capability_map_refresh(task.cwd), indent=2))
+        if text.strip() in {
+            "smart workspace",
+            "zero ai smart workspace",
+            "zero ai workspace",
+            "zero ai workspace status",
+            "zero os workspace",
+            "zero os workspace status",
+        }:
+            return Result(self.name, json.dumps(zero_ai_workspace_status(task.cwd), indent=2))
+        if text.strip() == "zero ai workspace refresh":
+            return Result(self.name, json.dumps(zero_ai_workspace_refresh(task.cwd), indent=2))
+        if text.strip() in {"zero ai flow", "zero ai flow status", "zero os flow", "zero os flow status"}:
+            return Result(self.name, json.dumps(zero_ai_flow_status(task.cwd), indent=2))
+        flow_scan_match = re.match(r"^(?:zero ai|zero os)\s+flow\s+scan(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
+        if flow_scan_match:
+            return Result(self.name, json.dumps(zero_ai_flow_scan(task.cwd, flow_scan_match.group(1) or "."), indent=2))
+        if text.strip() == "zero ai flow refresh":
+            return Result(self.name, json.dumps(zero_ai_flow_refresh(task.cwd), indent=2))
+        if text.strip() in {"zero ai contradiction", "zero ai contradiction status"}:
+            return Result(self.name, json.dumps(zero_ai_contradiction_engine_status(task.cwd), indent=2))
+        if text.strip() == "zero ai contradiction refresh":
+            return Result(self.name, json.dumps(zero_ai_contradiction_engine_refresh(task.cwd), indent=2))
+        if text.strip() in {"zero ai controller registry", "zero ai controller registry status"}:
+            return Result(self.name, json.dumps(zero_ai_controller_registry_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai controller registry refresh", "zero ai next", "zero ai highest-value steps"}:
+            return Result(self.name, json.dumps(zero_ai_controller_registry_refresh(task.cwd), indent=2))
         if text.strip() in {"zero ai control workflows", "zero ai control workflows status"}:
             return Result(self.name, json.dumps(zero_ai_control_workflows_status(task.cwd), indent=2))
         if text.strip() == "zero ai control workflows refresh":
@@ -1903,7 +1954,6 @@ class SystemCapability:
         if text.strip() in {
             "zero ai self inspect refresh",
             "zero ai auto inspect refresh",
-            "zero ai highest-value steps",
             "zero ai inspect and refresh",
         }:
             return Result(self.name, json.dumps(zero_ai_self_inspect_refresh(task.cwd), indent=2))
@@ -1982,7 +2032,7 @@ class SystemCapability:
         if text.strip() in {"zero ai autonomy gate status", "zero ai autonomy review status"}:
             return Result(self.name, json.dumps(autonomy_status(task.cwd), indent=2))
         if text.strip() == "zero ai tools status":
-            return Result(self.name, json.dumps(zero_ai_registry_status(), indent=2))
+            return Result(self.name, json.dumps(zero_ai_registry_status(task.cwd), indent=2))
         if text.strip() == "zero ai observe":
             return Result(self.name, json.dumps(collect_observations(task.cwd), indent=2))
         if text.strip() == "zero ai browser status":
@@ -3551,6 +3601,14 @@ class SystemCapability:
             "- zero ai source evolution auto run\n"
             "- zero ai capability map status\n"
             "- zero ai capability map refresh\n"
+            "- zero ai workspace status\n"
+            "- zero ai workspace refresh\n"
+            "- zero ai flow status\n"
+            "- zero ai flow scan [path]\n"
+            "- zero ai contradiction status\n"
+            "- zero ai contradiction refresh\n"
+            "- zero ai controller registry status\n"
+            "- zero ai controller registry refresh\n"
             "- zero ai control workflows status\n"
             "- zero ai control workflows refresh\n"
             "- zero ai workflow browser open url=<url>\n"
@@ -3621,6 +3679,14 @@ class SystemCapability:
             "- zero ai source evolution auto run\n"
             "- zero ai capability map status\n"
             "- zero ai capability map refresh\n"
+            "- zero ai workspace status\n"
+            "- zero ai workspace refresh\n"
+            "- zero ai flow status\n"
+            "- zero ai flow scan [path]\n"
+            "- zero ai contradiction status\n"
+            "- zero ai contradiction refresh\n"
+            "- zero ai controller registry status\n"
+            "- zero ai controller registry refresh\n"
             "- zero ai control workflows status\n"
             "- zero ai control workflows refresh\n"
             "- zero ai workflow browser open url=<url>\n"
@@ -3656,6 +3722,8 @@ class SystemCapability:
             "- zero ai autonomy gate status\n"
             "- zero ai autonomy evaluate action=<text> radius=<scope> reversible=<on|off> evidence=<n> contradictions=<n> verifiers=<n>\n"
             "- zero ai tools status\n"
+            "- zero ai next\n"
+            "- zero ai highest-value steps\n"
             "- zero ai observe\n"
             "- zero ai browser status\n"
             "- zero ai api profile status\n"

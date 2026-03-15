@@ -16,12 +16,23 @@ def _execute_plan(cwd: str, request: str, plan: dict, start_index: int = 0, exis
             break
         if step.get("kind") == "autonomy_gate" and result.get("result", {}).get("decision") == "hold_for_review":
             break
+    run_ok = all(item.get("ok", False) for item in results)
+    response = synthesize_result(
+        {
+            "cwd": cwd,
+            "ok": run_ok,
+            "request": request,
+            "plan": plan,
+            "results": results,
+        }
+    )
     out = {
-        "ok": all(item.get("ok", False) for item in results),
+        "ok": bool(response.get("ok", False)),
         "request": request,
         "plan": plan,
         "results": results,
-        "response": synthesize_result({"ok": all(item.get("ok", False) for item in results), "results": results}),
+        "response": response,
+        "contradiction_gate": dict(response.get("contradiction_gate") or {}),
     }
     remember(cwd, str(plan.get("intent", {}).get("intent", "observe")), plan)
     save_task_run(cwd, request, out)
@@ -30,7 +41,7 @@ def _execute_plan(cwd: str, request: str, plan: dict, start_index: int = 0, exis
 
 
 def run_task(cwd: str, request: str) -> dict:
-    plan = build_plan(request)
+    plan = build_plan(request, cwd)
     return _execute_plan(cwd, request, plan, start_index=0, existing_results=[])
 
 

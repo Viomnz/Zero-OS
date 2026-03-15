@@ -82,6 +82,7 @@ public partial class MainWindow : Window
         RefreshRuntimeContinuityStatus();
         RefreshSystemHealth();
         RefreshAutonomyStatus();
+        RefreshControlMapStatus();
         ApplyRuntimeLoopStartupPreference();
         SetStatus("Ready");
         AppendLog("Application started");
@@ -155,6 +156,12 @@ public partial class MainWindow : Window
     {
         RefreshAutonomyStatus();
         SetStatus("Autonomy refreshed.");
+    }
+
+    private void RefreshControlMap_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshControlMapStatus();
+        SetStatus("Control map refreshed.");
     }
 
     private void CopyPublishCommand_Click(object sender, RoutedEventArgs e) => CopyText(PublishCommand, "publish command");
@@ -258,6 +265,14 @@ public partial class MainWindow : Window
         => RunBackendTask("zero ai source evolution auto run", "Zero AI guarded source evolution run complete");
     private void ZeroAiSourceEvolutionRollback_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai source evolution rollback", "Zero AI guarded source evolution rollback complete");
+    private void ZeroAiNext_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai next", "Zero AI highest-value control map loaded");
+    private void ZeroAiToolsStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai tools status", "Zero AI tool registry loaded");
+    private void ZeroAiCapabilityMapStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai capability map status", "Zero AI capability map loaded");
+    private void ZeroAiControlWorkflowsStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai control workflows status", "Zero AI control workflows status loaded");
     private void RememberRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
         => SetRuntimeLoopStartupPreference(true);
     private void ForgetRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
@@ -779,14 +794,21 @@ public partial class MainWindow : Window
             RefreshSystemHealth();
             RefreshQuickStartStatus();
             RefreshAutonomyStatus();
+            RefreshControlMapStatus();
         }
         else if (command.Trim().StartsWith("zero ai autonomy", StringComparison.OrdinalIgnoreCase))
         {
             RefreshAutonomyStatus();
+            RefreshControlMapStatus();
         }
         else if (command.Trim().StartsWith("zero ai source evolution", StringComparison.OrdinalIgnoreCase))
         {
             RefreshAutonomyStatus();
+            RefreshControlMapStatus();
+        }
+        else if (ShouldRefreshControlMapStatus(command))
+        {
+            RefreshControlMapStatus();
         }
     }
 
@@ -1037,6 +1059,14 @@ public partial class MainWindow : Window
         AutonomyBox.Text = BuildAutonomySummary(result);
     }
 
+    private void RefreshControlMapStatus()
+    {
+        var controllerResult = _backend.RunTask("zero ai controller registry status");
+        var toolResult = _backend.RunTask("zero ai tools status");
+        var capabilityResult = _backend.RunTask("zero ai capability map status");
+        ControlMapBox.Text = BuildControlMapSummary(controllerResult, toolResult, capabilityResult);
+    }
+
     private void RefreshRuntimeContinuityStatus()
     {
         var result = _backend.RunTask("zero ai runtime status");
@@ -1095,6 +1125,7 @@ public partial class MainWindow : Window
         SaveRuntimeStartupPreference();
         RefreshRuntimeContinuityStatus();
         RefreshAutonomyStatus();
+        RefreshControlMapStatus();
         SetStatus(enabled ? "Runtime loop will auto-enable on launch." : "Runtime loop will no longer auto-enable on launch.");
         AppendLog(enabled ? "Enabled runtime loop auto-start on launch" : "Disabled runtime loop auto-start on launch");
     }
@@ -1126,6 +1157,7 @@ public partial class MainWindow : Window
         }
         RefreshRuntimeContinuityStatus();
         RefreshAutonomyStatus();
+        RefreshControlMapStatus();
     }
 
     private static bool ShouldRefreshRuntimeContinuityStatus(string command)
@@ -1136,6 +1168,24 @@ public partial class MainWindow : Window
             || normalized.StartsWith("zero ai jobs continuity governance", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai source evolution", StringComparison.Ordinal)
             || normalized == "zero ai jobs tick"
+            || normalized == "zero ai self inspect refresh"
+            || normalized == "zero ai self repair restore continuity"
+            || normalized == "zero ai know everything"
+            || normalized == "zero os complete all";
+    }
+
+    private static bool ShouldRefreshControlMapStatus(string command)
+    {
+        var normalized = command.Trim().ToLowerInvariant();
+        return normalized == "zero ai next"
+            || normalized.StartsWith("zero ai controller registry", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai tools", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai capability map", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai control workflows", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai autonomy", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai runtime", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai source evolution", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai workflow", StringComparison.Ordinal)
             || normalized == "zero ai self inspect refresh"
             || normalized == "zero ai self repair restore continuity"
             || normalized == "zero ai know everything"
@@ -1362,6 +1412,102 @@ public partial class MainWindow : Window
         return string.Join(Environment.NewLine, lines);
     }
 
+    private static string BuildControlMapSummary(
+        NativeCommandResult controllerResult,
+        NativeCommandResult toolResult,
+        NativeCommandResult capabilityResult)
+    {
+        var lines = new List<string>
+        {
+            "Zero AI Control Map",
+            ""
+        };
+
+        if (controllerResult.Payload.HasValue && controllerResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var controller = controllerResult.Payload.Value;
+            lines.Add("Controller registry:");
+            lines.Add($"- Subsystems: {ReadNestedNumber(controller, "summary", "subsystem_count")}");
+            lines.Add($"- Active subsystems: {ReadNestedNumber(controller, "summary", "active_subsystem_count")}");
+            lines.Add($"- Missing functions: {ReadNestedNumber(controller, "summary", "missing_function_count")}");
+            lines.Add($"- Missing tools: {ReadNestedNumber(controller, "tool_summary", "missing_tool_count")}");
+            lines.Add("");
+            lines.Add("Next priorities:");
+            if (controller.TryGetProperty("next_priority", out var nextPriority) && nextPriority.ValueKind == JsonValueKind.Array && nextPriority.GetArrayLength() > 0)
+            {
+                var index = 1;
+                foreach (var item in nextPriority.EnumerateArray().Take(3))
+                {
+                    lines.Add($"{index}. {item}");
+                    index++;
+                }
+            }
+            else
+            {
+                lines.Add("1. Run `zero ai next` to generate the current highest-value action list.");
+            }
+
+            if (controller.TryGetProperty("subsystems", out var subsystems) && subsystems.ValueKind == JsonValueKind.Array)
+            {
+                lines.Add("");
+                lines.Add("Subsystem contracts:");
+                foreach (var subsystem in subsystems.EnumerateArray().Take(6))
+                {
+                    lines.Add($"- {ReadString(subsystem, "label")} [{ReadString(subsystem, "control_level")} / {ReadString(subsystem, "contract_state")}]");
+                    lines.Add($"  Missing: {ReadStringArray(subsystem, "missing_functions")}");
+                    lines.Add($"  Step: {ReadString(subsystem, "highest_value_step")}");
+                    lines.Add($"  Commands: {ReadArrayPreview(subsystem, "commands", 2)}");
+                }
+            }
+        }
+        else
+        {
+            lines.Add("Controller registry:");
+            lines.Add(controllerResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (toolResult.Payload.HasValue && toolResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var tools = toolResult.Payload.Value;
+            lines.Add("Tool registry:");
+            lines.Add($"- Tool count: {ReadNestedNumber(tools, "summary", "tool_count")}");
+            lines.Add($"- Active tools: {ReadNestedNumber(tools, "summary", "active_count")}");
+            lines.Add($"- Missing tools: {ReadNestedNumber(tools, "summary", "missing_tool_count")}");
+            if (tools.TryGetProperty("missing_tools", out var missingTools) && missingTools.ValueKind == JsonValueKind.Array && missingTools.GetArrayLength() > 0)
+            {
+                foreach (var item in missingTools.EnumerateArray().Take(4))
+                {
+                    lines.Add($"  - {ReadString(item, "tool")}: {ReadStringArray(item, "gaps")}");
+                }
+            }
+        }
+        else
+        {
+            lines.Add("Tool registry:");
+            lines.Add(toolResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (capabilityResult.Payload.HasValue && capabilityResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var capability = capabilityResult.Payload.Value;
+            lines.Add("Capability surface:");
+            lines.Add($"- Autonomous surface: {ReadNestedNumber(capability, "summary", "autonomous_surface_score")}%");
+            lines.Add($"- Active autonomous surface: {ReadNestedNumber(capability, "summary", "active_autonomous_surface_score")}%");
+            lines.Add($"- Approval-gated count: {ReadNestedNumber(capability, "summary", "approval_gated_count")}");
+            lines.Add($"- Forbidden count: {ReadNestedNumber(capability, "summary", "forbidden_count")}");
+            lines.Add($"- Highest-value steps: {ReadArrayPreview(capability, "highest_value_steps", 2)}");
+        }
+        else
+        {
+            lines.Add("Capability surface:");
+            lines.Add(capabilityResult.DisplayText());
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
     private string BuildSystemHealthSummary(NativeCommandResult runtimeResult, NativeCommandResult continuityResult)
     {
         if (!runtimeResult.Payload.HasValue || runtimeResult.Payload.Value.ValueKind != JsonValueKind.Object)
@@ -1541,6 +1687,7 @@ public partial class MainWindow : Window
         RefreshSystemHealth();
         RefreshQuickStartStatus();
         RefreshAutonomyStatus();
+        RefreshControlMapStatus();
     }
 
     private void SyncRuntimeLoopTimer(NativeCommandResult result)
@@ -1631,6 +1778,7 @@ public partial class MainWindow : Window
                     RefreshSystemHealth();
                     RefreshQuickStartStatus();
                     RefreshAutonomyStatus();
+                    RefreshControlMapStatus();
                 }
             }
             else if (!status.Ok)
@@ -1757,6 +1905,33 @@ public partial class MainWindow : Window
             .ToList();
 
         return items.Count == 0 ? "none" : string.Join(", ", items);
+    }
+
+    private static string ReadArrayPreview(JsonElement element, string propertyName, int maxItems = 3)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "none";
+        }
+
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            return string.IsNullOrWhiteSpace(value.ToString()) ? "none" : value.ToString();
+        }
+
+        var items = value.EnumerateArray()
+            .Take(maxItems)
+            .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            return "none";
+        }
+
+        var suffix = value.GetArrayLength() > items.Count ? $" (+{value.GetArrayLength() - items.Count} more)" : string.Empty;
+        return string.Join(" | ", items) + suffix;
     }
 
     private static string FirstNonEmpty(params string[] values)

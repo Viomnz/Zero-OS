@@ -428,7 +428,7 @@ def _smart_logic_antivirus(findings: list[dict], process_findings: list[dict], h
     }
 
 
-def scan_target(cwd: str, target: str) -> dict:
+def _scan_target_impl(cwd: str, target: str, *, mutate: bool) -> dict:
     base = Path(cwd).resolve()
     feed = threat_feed_status(cwd)
     policy = policy_status(cwd)
@@ -500,12 +500,21 @@ def scan_target(cwd: str, target: str) -> dict:
     with _incident_path(cwd).open("a", encoding="utf-8") as f:
         f.write(json.dumps({"time_utc": _utc_now(), "kind": "scan", "report": report}, sort_keys=True) + "\n")
 
-    if policy.get("auto_quarantine"):
+    if mutate and policy.get("auto_quarantine"):
         for item in findings[:100]:
             quarantine_file(cwd, item["path"], reason="auto_quarantine")
-    _auto_response(cwd, report)
+    if mutate:
+        _auto_response(cwd, report)
 
     return report
+
+
+def scan_target(cwd: str, target: str) -> dict:
+    return _scan_target_impl(cwd, target, mutate=True)
+
+
+def scan_target_readonly(cwd: str, target: str) -> dict:
+    return _scan_target_impl(cwd, target, mutate=False)
 
 
 def _auto_response(cwd: str, report: dict) -> None:

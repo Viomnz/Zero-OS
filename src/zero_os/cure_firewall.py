@@ -1,4 +1,4 @@
-﻿"""Lightweight, self-contained recursive logic filter."""
+"""Lightweight, self-contained recursive logic filter."""
 
 from __future__ import annotations
 
