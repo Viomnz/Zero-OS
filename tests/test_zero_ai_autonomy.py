@@ -81,6 +81,9 @@ class ZeroAiAutonomyTests(unittest.TestCase):
             Path("src/zero_os/phase_runtime.py"),
             Path("src/zero_os/zero_ai_autonomy.py"),
             Path("src/zero_os/zero_ai_control_workflows.py"),
+            Path("src/zero_os/self_continuity.py"),
+            Path("src/zero_os/triad_balance.py"),
+            Path("src/zero_os/antivirus.py"),
         ):
             source = ROOT / relative
             target = self.base / relative
@@ -106,6 +109,30 @@ class ZeroAiAutonomyTests(unittest.TestCase):
                 content = re.sub(
                     r'("self_repair": \{\s+"enabled": True,\s+"mode": "canary_backed",\s+"minimum_readiness_floor": )(\d+)',
                     r"\g<1>60",
+                    content,
+                    count=1,
+                    flags=re.S,
+                )
+            if relative.name == "self_continuity.py":
+                content = re.sub(
+                    r'(def _governance_default\(\) -> dict\[str, Any\]:\s+return \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+                    r"\g<1>180",
+                    content,
+                    count=1,
+                    flags=re.S,
+                )
+            if relative.name == "triad_balance.py":
+                content = re.sub(
+                    r'(def triad_ops_status\(cwd: str\) -> dict:\s+default = \{\s+"enabled": False,\s+"interval_seconds": )(\d+)',
+                    r"\g<1>180",
+                    content,
+                    count=1,
+                    flags=re.S,
+                )
+            if relative.name == "antivirus.py":
+                content = re.sub(
+                    r'(def monitor_status\(cwd: str\) -> dict:\s+default = \{"enabled": False, "last_tick_utc": "", "last_scan_path": "\.", "interval_seconds": )(\d+)',
+                    r"\g<1>120",
                     content,
                     count=1,
                     flags=re.S,

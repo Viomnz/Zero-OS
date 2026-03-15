@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -47,21 +47,21 @@ jobs:
           powershell -ExecutionPolicy Bypass -File .\native_ui\ZeroOS.NativeShell\package_msix.ps1
 
       - name: Upload native shell artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: zero-os-native-shell-windows
           path: native_ui/ZeroOS.NativeShell/publish
           if-no-files-found: error
 
       - name: Upload portable installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: zero-os-native-shell-portable
           path: native_ui/ZeroOS.NativeShell/installers
           if-no-files-found: error
 
       - name: Upload MSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: zero-os-native-shell-msix
           path: native_ui/ZeroOS.NativeShell/msix/*.msix

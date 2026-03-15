@@ -11,6 +11,7 @@ from pathlib import Path
 
 from zero_os.smart_logic_governance import apply_governance
 
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -150,12 +151,26 @@ def threat_feed_import_signed(cwd: str, in_path: str) -> dict:
     return {"ok": True, "version": int(feed.get("version", 0)), "signature_valid": True}
 
 
+def _default_exclude_paths() -> list[str]:
+    return [
+        ".git",
+        ".zero_os/antivirus",
+        ".zero_os/production/snapshots",
+        "src/zero_os/antivirus.py",
+        "tests/test_antivirus_system.py",
+    ]
+
+
+def _default_exclude_extensions() -> list[str]:
+    return [".png", ".jpg", ".jpeg", ".mp3", ".mp4", ".pyc"]
+
+
 def policy_status(cwd: str) -> dict:
     default = {
         "heuristic_threshold": 65,
         "auto_quarantine": False,
-        "exclude_paths": [".git", ".zero_os/production/snapshots"],
-        "exclude_extensions": [".png", ".jpg", ".jpeg", ".mp3", ".mp4"],
+        "exclude_paths": _default_exclude_paths(),
+        "exclude_extensions": _default_exclude_extensions(),
         "max_files_per_scan": 5000,
         "max_file_mb": 8,
         "archive_max_depth": 2,
@@ -169,7 +184,17 @@ def policy_status(cwd: str) -> dict:
         return default
     cur = _load(path, default)
     for k, v in default.items():
-        cur.setdefault(k, v)
+        if k in {"exclude_paths", "exclude_extensions"}:
+            existing = cur.get(k, [])
+            if not isinstance(existing, list):
+                existing = []
+            merged = list(existing)
+            for item in v:
+                if item not in merged:
+                    merged.append(item)
+            cur[k] = merged
+        else:
+            cur.setdefault(k, v)
     _save(path, cur)
     return cur
 
@@ -246,8 +271,18 @@ def _is_suppressed(cwd: str, rel_path: str, sig_id: str) -> bool:
     return False
 
 
+def _self_protected_path(rel: str) -> bool:
+    normalized = rel.replace("\\", "/")
+    return normalized in {
+        "src/zero_os/antivirus.py",
+        "tests/test_antivirus_system.py",
+    }
+
+
 def _excluded(base: Path, target: Path, policy: dict) -> bool:
     rel = str(target.resolve().relative_to(base)).replace("\\", "/")
+    if _self_protected_path(rel):
+        return True
     if target.suffix.lower() in {x.lower() for x in policy.get("exclude_extensions", [])}:
         return True
     for pref in policy.get("exclude_paths", []):

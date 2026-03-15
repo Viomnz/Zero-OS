@@ -159,6 +159,21 @@ class AntivirusSystemTests(unittest.TestCase):
         qd = json.loads(qlist.summary)
         self.assertGreaterEqual(qd["count"], 1)
 
+    def test_antivirus_does_not_quarantine_its_own_source_surface(self) -> None:
+        antivirus_source = self.base / "src" / "zero_os" / "antivirus.py"
+        antivirus_source.parent.mkdir(parents=True, exist_ok=True)
+        antivirus_source.write_text(
+            "powershell -enc AAAA\nquantum-virus-signature\n",
+            encoding="utf-8",
+        )
+
+        run = self.highway.dispatch("antivirus agent run src auto_quarantine=true", cwd=str(self.base))
+        data = json.loads(run.summary)
+
+        self.assertTrue(data["ok"])
+        self.assertEqual(0, data["finding_count"])
+        self.assertTrue(antivirus_source.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
