@@ -1,15 +1,41 @@
 from __future__ import annotations
 
+from zero_os.contradiction_engine import select_stable_branch
 from zero_os.playbook_memory import remember
 from zero_os.result_synthesizer import synthesize_result
 from zero_os.task_memory import latest_resumable, save_task_run, status as task_memory_status
-from zero_os.task_planner import build_plan
+from zero_os.task_planner import build_candidate_plans, build_plan
 from zero_os.unified_action_engine import execute_step
 
 
 def _execute_plan(cwd: str, request: str, plan: dict, start_index: int = 0, existing_results: list[dict] | None = None) -> dict:
+    candidate_bundle = build_candidate_plans(request, cwd, base_plan=plan)
+    branch_selection = select_stable_branch(cwd, request, list(candidate_bundle.get("candidates", [])))
+    selected_plan = dict(branch_selection.get("selected_plan") or {})
+    active_plan = selected_plan or dict(plan)
+    if not selected_plan:
+        gate = dict((branch_selection.get("blocked_branch") or {}).copy())
+        response = {
+            "summary": gate.get("boundary_summary", "contradiction gate: hold"),
+            "ok": False,
+            "contradiction_gate": gate,
+        }
+        out = {
+            "ok": False,
+            "request": request,
+            "plan": active_plan,
+            "results": list(existing_results or []),
+            "response": response,
+            "contradiction_gate": gate,
+            "branch_selection": branch_selection,
+        }
+        remember(cwd, str(active_plan.get("intent", {}).get("intent", "observe")), active_plan)
+        save_task_run(cwd, request, out)
+        out["task_memory"] = task_memory_status(cwd)
+        return out
+
     results = list(existing_results or [])
-    for step in plan.get("steps", [])[start_index:]:
+    for step in active_plan.get("steps", [])[start_index:]:
         result = execute_step(cwd, step)
         results.append(result)
         if not result.get("ok", False):
@@ -22,19 +48,21 @@ def _execute_plan(cwd: str, request: str, plan: dict, start_index: int = 0, exis
             "cwd": cwd,
             "ok": run_ok,
             "request": request,
-            "plan": plan,
+            "plan": active_plan,
             "results": results,
+            "branch_selection": branch_selection,
         }
     )
     out = {
         "ok": bool(response.get("ok", False)),
         "request": request,
-        "plan": plan,
+        "plan": active_plan,
         "results": results,
         "response": response,
         "contradiction_gate": dict(response.get("contradiction_gate") or {}),
+        "branch_selection": branch_selection,
     }
-    remember(cwd, str(plan.get("intent", {}).get("intent", "observe")), plan)
+    remember(cwd, str(active_plan.get("intent", {}).get("intent", "observe")), active_plan)
     save_task_run(cwd, request, out)
     out["task_memory"] = task_memory_status(cwd)
     return out

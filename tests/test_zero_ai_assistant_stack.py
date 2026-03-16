@@ -73,6 +73,7 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         self.assertIn("summary", out["response"])
         self.assertIn("contradiction_gate", out["response"])
         self.assertIn("contradiction_gate", out)
+        self.assertIn("branch_selection", out)
         self.assertIn("task_memory", out)
 
     def test_run_task_can_use_highway_dispatch(self) -> None:
@@ -202,6 +203,25 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertTrue(any(step["kind"] == "controller_registry" for step in out["plan"]["steps"]))
         self.assertIn("controller registry", out["response"]["summary"])
+
+    def test_run_task_regenerates_conflicting_recovery_request_into_single_branch(self) -> None:
+        zero_ai_backup_create(str(self.base))
+        out = run_task(str(self.base), "recover system and self repair runtime")
+
+        remediation_kinds = [step["kind"] for step in out["plan"]["steps"] if step["kind"] in {"recover", "self_repair"}]
+        self.assertEqual(["recover"], remediation_kinds)
+        self.assertGreaterEqual(out["branch_selection"]["discarded_count"], 1)
+        self.assertEqual("single_recover", out["branch_selection"]["selected_branch"]["branch"]["id"])
+
+    def test_run_task_surfaces_memory_weighted_branch_support(self) -> None:
+        first = run_task(str(self.base), "check system status")
+        self.assertTrue(first["ok"])
+
+        second = run_task(str(self.base), "check system status")
+        selected = second["branch_selection"]["selected_branch"]
+
+        self.assertGreater(float(selected["evidence"]["memory_weight"]), 0.0)
+        self.assertGreater(float(selected["memory_context"]["memory_confidence"]), 0.0)
 
 
 if __name__ == "__main__":

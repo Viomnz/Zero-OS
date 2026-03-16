@@ -15,10 +15,61 @@ _MUTATING_STEP_KINDS = {
     "self_repair",
     "store_install",
 }
-_STATUS_INTENTS = {"planning", "status", "tools"}
+_STATUS_INTENTS = {"planning", "reasoning", "status", "tools"}
 _HIGH_RISK_REMEDIATION_KINDS = {"recover", "self_repair"}
 _PRIORITY_ORDER = ("truth", "consistency", "goal_fit", "consequence", "efficiency", "style")
 _CHECKS = ("self_model", "goal", "context", "evidence", "consequence")
+_KNOWN_STEP_KINDS = {
+    "api_request",
+    "api_workflow",
+    "autonomy_gate",
+    "browser_action",
+    "browser_dom_inspect",
+    "browser_open",
+    "browser_status",
+    "cloud_deploy",
+    "cloud_target_set",
+    "controller_registry",
+    "contradiction_engine",
+    "flow_monitor",
+    "github_connect",
+    "github_issue_act",
+    "github_issue_comments",
+    "github_issue_plan",
+    "github_issue_read",
+    "github_issue_reply_draft",
+    "github_issue_reply_post",
+    "github_issues",
+    "github_pr_act",
+    "github_pr_comments",
+    "github_pr_plan",
+    "github_pr_read",
+    "github_pr_reply_draft",
+    "github_pr_reply_post",
+    "github_prs",
+    "highway_dispatch",
+    "observe",
+    "recover",
+    "self_repair",
+    "smart_workspace",
+    "store_install",
+    "store_status",
+    "system_status",
+    "tool_registry",
+    "web_fetch",
+    "web_verify",
+}
+_INTENT_STEP_EXPECTATIONS = {
+    "planning": {"controller_registry"},
+    "reasoning": {"contradiction_engine"},
+    "recover": {"recover"},
+    "self_repair": {"self_repair"},
+    "status": {"observe", "system_status"},
+    "store_install": {"store_install"},
+    "store_status": {"store_status"},
+    "tools": {"tool_registry"},
+    "web": {"browser_action", "browser_dom_inspect", "browser_open", "browser_status", "web_fetch", "web_verify"},
+}
 
 
 def _utc_now() -> str:
@@ -66,6 +117,7 @@ def _default_state() -> dict[str, Any]:
         "last_request": "",
         "last_plan_intent": "",
         "last_issues": [],
+        "last_mode": "",
         "history": [],
     }
 
@@ -117,6 +169,39 @@ def build_claim_graph(request: str, plan: dict[str, Any] | None, results: list[d
         _claim_node("intent", "intent", str(intent.get("intent", "observe"))),
     ]
     edges: list[dict[str, str]] = [{"source": "request", "target": "intent", "relation": "implies"}]
+
+    branch = dict((plan or {}).get("branch") or {})
+    if branch:
+        nodes.append(_claim_node("branch", "branch", str(branch.get("source", "primary")), note=str(branch.get("note", ""))))
+        edges.append({"source": "intent", "target": "branch", "relation": "materializes_as"})
+
+    evidence = dict((plan or {}).get("evidence") or {})
+    if evidence:
+        nodes.append(
+            _claim_node(
+                "evidence",
+                "evidence",
+                float(evidence.get("total_weight", 0.0) or 0.0),
+                memory_weight=float(evidence.get("memory_weight", 0.0) or 0.0),
+                core_law_weight=float(evidence.get("core_law_weight", 0.0) or 0.0),
+            )
+        )
+        edges.append({"source": "intent", "target": "evidence", "relation": "supported_by"})
+
+    for index, goal in enumerate(list(intent.get("goals", []))):
+        node_id = f"goal_{index}"
+        nodes.append(_claim_node(node_id, "goal", str(goal)))
+        edges.append({"source": "request", "target": node_id, "relation": "expands_to"})
+
+    for key, value in dict(intent.get("constraints") or {}).items():
+        node_id = f"constraint_{key}"
+        nodes.append(_claim_node(node_id, "constraint", str(value), key=key))
+        edges.append({"source": "intent", "target": node_id, "relation": "bounded_by"})
+
+    for index, claim in enumerate(list(intent.get("claims", []))):
+        node_id = f"claim_{index}"
+        nodes.append(_claim_node(node_id, "claim", str(claim.get("value", "")), claim_type=str(claim.get("type", ""))))
+        edges.append({"source": "request", "target": node_id, "relation": "states"})
 
     for index, step in enumerate(list((plan or {}).get("steps", []))):
         node_id = f"step_{index}"
@@ -259,6 +344,32 @@ def _detect_consequence_conflicts(plan: dict[str, Any] | None, results: list[dic
     ]
 
 
+def _detect_plan_contract_conflicts(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for step in list((plan or {}).get("steps", [])):
+        kind = str(step.get("kind", "")).strip()
+        if not kind:
+            issues.append(
+                _issue(
+                    "evidence",
+                    "missing_step_kind",
+                    "A candidate branch contains a step with no kind.",
+                    details={"step": step},
+                )
+            )
+            continue
+        if kind not in _KNOWN_STEP_KINDS:
+            issues.append(
+                _issue(
+                    "evidence",
+                    "unknown_step_kind",
+                    "A candidate branch contains a step with no typed execution contract.",
+                    details={"kind": kind},
+                )
+            )
+    return issues
+
+
 def _stable_claims(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     for item in results:
@@ -278,6 +389,96 @@ def _stable_claims(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return claims
 
 
+def _stable_branch_claims(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    claims: list[dict[str, Any]] = []
+    intent = dict((plan or {}).get("intent") or {})
+    branch = dict((plan or {}).get("branch") or {})
+    steps = list((plan or {}).get("steps", []))
+    if branch:
+        claims.append(
+            {
+                "kind": "branch",
+                "claim": f"Candidate branch {branch.get('id', 'primary')} survives contradiction pressure before execution.",
+            }
+        )
+    if steps:
+        claims.append({"kind": "steps", "claim": f"Candidate branch keeps {len(steps)} typed step(s) attached to the goal."})
+    else:
+        claims.append({"kind": "observe", "claim": "Candidate branch compresses to observation only."})
+    if intent:
+        claims.append({"kind": "intent", "claim": f"Candidate branch matches intent={intent.get('intent', 'observe')}."})
+    return claims
+
+
+def _coverage_targets(request: str, plan: dict[str, Any] | None) -> tuple[int, int]:
+    intent = dict((plan or {}).get("intent") or {})
+    serialized_targets = json.dumps(
+        [step.get("target") for step in list((plan or {}).get("steps", []))],
+        sort_keys=True,
+        default=str,
+    )
+    covered = 0
+    total = 0
+
+    for url in _urls_in_request(request):
+        total += 1
+        if url in serialized_targets:
+            covered += 1
+
+    expected_steps = set(_INTENT_STEP_EXPECTATIONS.get(str(intent.get("intent", "observe")), set()))
+    if expected_steps:
+        total += 1
+        step_kinds = {str(step.get("kind", "")).strip() for step in list((plan or {}).get("steps", []))}
+        if step_kinds & expected_steps:
+            covered += 1
+
+    if total == 0:
+        total = 1
+        covered = 1 if list((plan or {}).get("steps", [])) else 0
+    return covered, total
+
+
+def _branch_scores(request: str, plan: dict[str, Any] | None, issues: list[dict[str, Any]]) -> dict[str, int]:
+    contradiction_count = sum(1 for item in issues if item.get("blocking", True))
+    issue_types = {str(item.get("type", "")) for item in issues}
+    covered, total = _coverage_targets(request, plan)
+    step_count = len(list((plan or {}).get("steps", [])))
+    evidence = dict((plan or {}).get("evidence") or {})
+    evidence_weight = float(evidence.get("total_weight", 0.0) or 0.0)
+    memory_weight = float(evidence.get("memory_weight", 0.0) or 0.0)
+    core_law_weight = float(evidence.get("core_law_weight", 0.0) or 0.0)
+    truth_base = 100 if "self_model" not in issue_types and "evidence" not in issue_types else 0
+    truth = int(round((truth_base * 0.7) + (evidence_weight * 100.0 * 0.3)))
+    consistency = max(0, 100 - (contradiction_count * 30))
+    consistency = int(round((consistency * 0.8) + (memory_weight * 100.0 * 0.2)))
+    goal_fit = int(round((((covered / max(total, 1)) * 100.0) * 0.75) + (evidence_weight * 100.0 * 0.25)))
+    consequence = 100 if "consequence" not in issue_types else 0
+    consequence = int(round((consequence * 0.85) + (core_law_weight * 100.0 * 0.15)))
+    return {
+        "truth": truth,
+        "consistency": consistency,
+        "goal_fit": goal_fit,
+        "consequence": consequence,
+        "efficiency": max(0, 100 - max(step_count - 1, 0) * 8),
+        "style": 100,
+    }
+
+
+def _branch_sort_key(review: dict[str, Any]) -> tuple[Any, ...]:
+    scores = dict(review.get("scores") or {})
+    branch = dict(review.get("branch") or {})
+    evidence = dict(review.get("evidence") or {})
+    return tuple(
+        list(scores.get(name, 0) for name in _PRIORITY_ORDER)
+        + [
+            int(round(float(evidence.get("total_weight", 0.0) or 0.0) * 1000)),
+            int(round(float(evidence.get("memory_weight", 0.0) or 0.0) * 1000)),
+            1 if branch.get("preferred", False) else 0,
+            -int(branch.get("step_count", 0) or 0),
+        ]
+    )
+
+
 def _recommended_action(issues: list[dict[str, Any]]) -> str:
     codes = {item["code"] for item in issues}
     if "self_contradiction_active" in codes or "identity_continuity_broken" in codes:
@@ -288,6 +489,8 @@ def _recommended_action(issues: list[dict[str, Any]]) -> str:
         return "Rebuild the branch so every explicit request target remains attached to at least one step."
     if "conflicting_recovery_branches" in codes:
         return "Choose one guarded remediation branch and rerun instead of mixing recovery and self-repair."
+    if "unknown_step_kind" in codes or "missing_step_kind" in codes:
+        return "Regenerate the branch from typed steps only before execution."
     if "policy_contract_violation" in codes:
         return "Route the action through a typed safe workflow instead of a denied raw action."
     if "unknown_step_executed" in codes:
@@ -302,6 +505,8 @@ def review_run(
     results: list[dict[str, Any]] | None,
     *,
     run_ok: bool | None = None,
+    persist: bool = True,
+    mode: str = "run",
 ) -> dict[str, Any]:
     result_list = list(results or [])
     graph = build_claim_graph(request, plan, result_list)
@@ -311,13 +516,15 @@ def review_run(
         _detect_self_conflicts(cwd)
         + _detect_goal_conflicts(request, plan, result_list)
         + _detect_context_conflicts(request, plan, result_list)
+        + _detect_plan_contract_conflicts(plan)
         + _detect_evidence_conflicts(effective_ok, result_list)
         + _detect_consequence_conflicts(plan, result_list)
     )
     contradiction_count = sum(1 for item in issues if item.get("blocking", True))
     decision = "allow" if contradiction_count == 0 else "hold"
-    stable_claim_set = _stable_claims(result_list)
+    stable_claim_set = _stable_branch_claims(plan) if mode == "branch" else _stable_claims(result_list)
     recommended_action = _recommended_action(issues)
+    scores = _branch_scores(request, plan, issues)
     boundary_summary = ""
     if decision != "allow":
         reason = issues[0]["message"] if issues else "Unresolved contradiction detected."
@@ -339,13 +546,24 @@ def review_run(
         "issues": issues,
         "stable_claims": stable_claim_set,
         "claim_graph": graph,
+        "scores": scores,
+        "evidence": dict((plan or {}).get("evidence") or {}),
+        "memory_context": dict((plan or {}).get("memory_context") or {}),
         "recommended_action": recommended_action,
         "boundary_summary": boundary_summary,
         "continuity": _continuity_signals(cwd),
         "last_checked_utc": _utc_now(),
+        "mode": mode,
+        "branch": {
+            "id": str(((plan or {}).get("branch") or {}).get("id", "primary")),
+            "source": str(((plan or {}).get("branch") or {}).get("source", "direct_plan")),
+            "note": str(((plan or {}).get("branch") or {}).get("note", "")),
+            "preferred": bool(((plan or {}).get("branch") or {}).get("preferred", False)),
+            "step_count": len(list((plan or {}).get("steps", []))),
+        },
     }
 
-    if cwd:
+    if cwd and persist:
         path = _path(cwd)
         state = _load(path, _default_state())
         state["enabled"] = True
@@ -355,6 +573,7 @@ def review_run(
         state["last_request"] = request.strip()
         state["last_plan_intent"] = str(((plan or {}).get("intent") or {}).get("intent", "observe"))
         state["last_issues"] = issues[:8]
+        state["last_mode"] = mode
         history = list(state.get("history", []))
         history.append(
             {
@@ -362,12 +581,47 @@ def review_run(
                 "decision": decision,
                 "contradiction_count": contradiction_count,
                 "request": request.strip(),
+                "mode": mode,
             }
         )
         state["history"] = history[-20:]
         _save(path, state)
         review["path"] = str(path)
     return review
+
+
+def review_branch(cwd: str, request: str, plan: dict[str, Any] | None, *, persist: bool = False) -> dict[str, Any]:
+    return review_run(cwd, request, plan, [], run_ok=True, persist=persist, mode="branch")
+
+
+def select_stable_branch(cwd: str, request: str, candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    reviews: list[dict[str, Any]] = []
+    for candidate in candidates:
+        plan = dict(candidate)
+        review = review_branch(cwd, request, plan, persist=False)
+        review["plan"] = plan
+        reviews.append(review)
+
+    allowed = [review for review in reviews if review.get("decision") == "allow"]
+    allowed.sort(key=_branch_sort_key, reverse=True)
+    selected = allowed[0] if allowed else None
+    discarded = [review for review in reviews if review is not selected]
+    blocked = None
+    if not selected and reviews:
+        ranked = sorted(reviews, key=_branch_sort_key, reverse=True)
+        blocked = ranked[0]
+        review_branch(cwd, request, dict(blocked.get("plan") or {}), persist=True)
+
+    return {
+        "ok": True,
+        "candidate_count": len(reviews),
+        "selected_branch": selected,
+        "selected_plan": dict(selected.get("plan") or {}) if selected else None,
+        "discarded_branches": discarded,
+        "discarded_count": len(discarded),
+        "blocked_branch": blocked,
+        "reviews": reviews,
+    }
 
 
 def contradiction_engine_status(cwd: str) -> dict[str, Any]:
@@ -397,6 +651,7 @@ def contradiction_engine_status(cwd: str) -> dict[str, Any]:
         "last_contradiction_count": int(state.get("last_contradiction_count", 0) or 0),
         "last_request": str(state.get("last_request", "")),
         "last_plan_intent": str(state.get("last_plan_intent", "")),
+        "last_mode": str(state.get("last_mode", "")),
         "last_issues": list(state.get("last_issues", [])),
         "history_count": len(list(state.get("history", []))),
         "continuity": continuity,

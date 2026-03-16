@@ -1,8 +1,183 @@
 from __future__ import annotations
 
+import json
 import re
+from zero_os.memory_tier_filter import build_memory_context, score_branch_support
 from zero_os.playbook_memory import lookup
 from zero_os.structured_intent import extract_intent
+
+
+_MUTATING_STEP_KINDS = {
+    "browser_action",
+    "browser_open",
+    "cloud_deploy",
+    "recover",
+    "self_repair",
+    "store_install",
+}
+_READ_ONLY_INTENTS = {"planning", "reasoning", "status", "tools"}
+_HIGH_RISK_REMEDIATION_KINDS = {"recover", "self_repair"}
+
+
+def _step_signature(step: dict) -> str:
+    return json.dumps(
+        {"kind": step.get("kind", ""), "target": step.get("target", "")},
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _dedupe_steps(steps: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for step in steps:
+        signature = _step_signature(step)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        deduped.append(dict(step))
+    return deduped
+
+
+def _clone_plan(plan: dict, steps: list[dict], *, branch_id: str, source: str, note: str, preferred: bool = False) -> dict:
+    cloned = dict(plan)
+    cloned["steps"] = [dict(step) for step in steps]
+    cloned["branch"] = {
+        "id": branch_id,
+        "source": source,
+        "note": note,
+        "preferred": bool(preferred),
+    }
+    return cloned
+
+
+def _candidate_signature(plan: dict) -> str:
+    return json.dumps(
+        {
+            "steps": [
+                {"kind": step.get("kind", ""), "target": step.get("target", "")}
+                for step in list(plan.get("steps", []))
+            ]
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _add_candidate(candidates: list[dict], seen: set[str], plan: dict) -> None:
+    signature = _candidate_signature(plan)
+    if signature in seen:
+        return
+    seen.add(signature)
+    candidates.append(plan)
+
+
+def _memory_context_summary(memory_context: dict) -> dict:
+    return {
+        "intent": memory_context.get("intent", "observe"),
+        "memory_confidence": memory_context.get("memory_confidence", 0.0),
+        "same_system": memory_context.get("same_system", False),
+        "contradiction_free": memory_context.get("contradiction_free", False),
+        "support_by_kind": dict(memory_context.get("support_by_kind", {})),
+        "core_constraints": list(memory_context.get("core_constraints", [])),
+        "core_goals": list(memory_context.get("core_goals", [])),
+        "items": list(memory_context.get("items", [])),
+        "filtered_out": dict(memory_context.get("filtered_out", {})),
+    }
+
+
+def _attach_branch_support(plan: dict, memory_context: dict) -> dict:
+    enriched = dict(plan)
+    enriched["memory_context"] = _memory_context_summary(memory_context)
+    enriched["evidence"] = score_branch_support(enriched, memory_context)
+    return enriched
+
+
+def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None = None) -> dict:
+    primary = dict(base_plan or build_plan(request, cwd))
+    steps = _dedupe_steps(list(primary.get("steps", [])))
+    intent_name = str((primary.get("intent") or {}).get("intent", "observe"))
+    memory_context = build_memory_context(cwd, request, dict(primary.get("intent", {})))
+    candidates: list[dict] = []
+    seen: set[str] = set()
+
+    _add_candidate(
+        candidates,
+        seen,
+        _attach_branch_support(
+            _clone_plan(
+                primary,
+                steps,
+                branch_id="primary",
+                source="direct_plan",
+                note="Primary planning branch generated from the request.",
+                preferred=True,
+            ),
+            memory_context,
+        ),
+    )
+
+    if intent_name in _READ_ONLY_INTENTS and any(str(step.get("kind", "")) in _MUTATING_STEP_KINDS for step in steps):
+        safe_steps = [dict(step) for step in steps if str(step.get("kind", "")) not in _MUTATING_STEP_KINDS]
+        if not safe_steps:
+            safe_steps = [{"kind": "observe", "target": request.strip()}]
+        _add_candidate(
+            candidates,
+            seen,
+            _attach_branch_support(
+                _clone_plan(
+                    primary,
+                    safe_steps,
+                    branch_id="read_only_fallback",
+                    source="regenerated_read_only",
+                    note="Read-only fallback branch regenerated after mutating steps conflicted with a read-only request.",
+                ),
+                memory_context,
+            ),
+        )
+
+    remediation_order: list[str] = []
+    for step in steps:
+        kind = str(step.get("kind", ""))
+        if kind in _HIGH_RISK_REMEDIATION_KINDS and kind not in remediation_order:
+            remediation_order.append(kind)
+    if len(remediation_order) > 1:
+        support_by_kind = dict(memory_context.get("support_by_kind", {}))
+        preferred = max(
+            remediation_order,
+            key=lambda kind: (
+                1 if kind == intent_name else 0,
+                float(support_by_kind.get(kind, 0.0)),
+                -remediation_order.index(kind),
+            ),
+        )
+        ordered = [preferred] + [kind for kind in remediation_order if kind != preferred]
+        for kind in ordered:
+            branch_steps = [dict(step) for step in steps if str(step.get("kind", "")) not in _HIGH_RISK_REMEDIATION_KINDS or str(step.get("kind", "")) == kind]
+            _add_candidate(
+                candidates,
+                seen,
+                _attach_branch_support(
+                    _clone_plan(
+                        primary,
+                        branch_steps,
+                        branch_id=f"single_{kind}",
+                        source="regenerated_single_remediation",
+                        note=f"Single remediation branch regenerated to avoid mixing {', '.join(remediation_order)} in one run.",
+                        preferred=(kind == preferred),
+                    ),
+                    memory_context,
+                ),
+            )
+
+    return {
+        "ok": True,
+        "request": request.strip(),
+        "intent": dict(primary.get("intent", {})),
+        "memory_context": _memory_context_summary(memory_context),
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+    }
 
 
 def build_plan(request: str, cwd: str = ".") -> dict:

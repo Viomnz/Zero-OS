@@ -10,7 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from zero_os.contradiction_engine import contradiction_engine_status, review_run
+from zero_os.contradiction_engine import contradiction_engine_status, review_branch, review_run, select_stable_branch
 
 
 class ContradictionEngineTests(unittest.TestCase):
@@ -89,6 +89,77 @@ class ContradictionEngineTests(unittest.TestCase):
         self.assertEqual("allow", status["last_decision"])
         self.assertEqual(0, status["last_contradiction_count"])
         self.assertTrue(Path(status["path"]).exists())
+
+    def test_review_branch_holds_mutating_status_candidate_before_execution(self) -> None:
+        review = review_branch(
+            str(self.base),
+            "check system status",
+            {
+                "intent": {"intent": "status", "goals": ["check system status"]},
+                "branch": {"id": "primary", "source": "direct_plan", "note": "unstable", "preferred": True},
+                "steps": [
+                    {"kind": "system_status", "target": "health"},
+                    {"kind": "recover", "target": "runtime"},
+                ],
+            },
+        )
+
+        self.assertEqual("hold", review["decision"])
+        self.assertEqual("branch", review["mode"])
+        self.assertGreater(review["contradiction_count"], 0)
+        self.assertIn("read-only request", review["issues"][0]["message"].lower())
+
+    def test_select_stable_branch_discards_conflicting_recovery_branch(self) -> None:
+        selection = select_stable_branch(
+            str(self.base),
+            "recover system and self repair runtime",
+            [
+                {
+                    "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
+                    "branch": {"id": "primary", "source": "direct_plan", "note": "conflicting", "preferred": True},
+                    "steps": [
+                        {"kind": "self_repair", "target": "runtime"},
+                        {"kind": "recover", "target": "runtime"},
+                        {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
+                    ],
+                },
+                {
+                    "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
+                    "branch": {"id": "single_recover", "source": "regenerated_single_remediation", "note": "recover only", "preferred": True},
+                    "steps": [
+                        {"kind": "recover", "target": "runtime"},
+                        {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
+                    ],
+                },
+            ],
+        )
+
+        self.assertTrue(selection["ok"])
+        self.assertIsNotNone(selection["selected_branch"])
+        self.assertEqual("single_recover", selection["selected_branch"]["branch"]["id"])
+        self.assertGreaterEqual(selection["discarded_count"], 1)
+
+    def test_select_stable_branch_prefers_higher_evidence_weight(self) -> None:
+        selection = select_stable_branch(
+            str(self.base),
+            "check system status",
+            [
+                {
+                    "intent": {"intent": "status", "goals": ["check system status"]},
+                    "branch": {"id": "low_evidence", "source": "direct_plan", "note": "low", "preferred": False},
+                    "steps": [{"kind": "system_status", "target": "health"}],
+                    "evidence": {"total_weight": 0.35, "memory_weight": 0.1, "core_law_weight": 1.0},
+                },
+                {
+                    "intent": {"intent": "status", "goals": ["check system status"]},
+                    "branch": {"id": "high_evidence", "source": "memory_weighted", "note": "high", "preferred": False},
+                    "steps": [{"kind": "system_status", "target": "health"}],
+                    "evidence": {"total_weight": 0.95, "memory_weight": 0.8, "core_law_weight": 1.0},
+                },
+            ],
+        )
+
+        self.assertEqual("high_evidence", selection["selected_branch"]["branch"]["id"])
 
 
 if __name__ == "__main__":
