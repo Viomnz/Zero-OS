@@ -251,7 +251,7 @@
         </TabItem>
 
         <TabItem Header="Zero Control">
-          <Grid Margin="12">
+            <Grid Margin="12">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="1.1*" />
               <ColumnDefinition Width="1.9*" />
@@ -301,11 +301,90 @@
                          Text="Loading control map..." />
               </DockPanel>
             </Border>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Local Mods">
+          <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.15*" />
+              <ColumnDefinition Width="1.85*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="0,0,10,0">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <TextBlock Text="Private Local Mods"
+                             FontSize="18"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource TextFg}" />
+                  <TextBlock Text="Install and manage private-local Zero OS modifications without editing the shared core."
+                             Margin="0,6,0,16"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedFg}" />
+
+                  <TextBlock Text="Local mod path"
+                             FontSize="15"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="LocalModPathBox"
+                           Margin="0,8,0,8"
+                           Height="36"
+                           Padding="10,6"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           Text="plugins" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Browse Mod File" Click="BrowseLocalModFile_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Browse Mod Folder" Click="BrowseLocalModFolder_Click" />
+                  <Button Height="42" Margin="0,0,0,12" Content="Install Local Mod Path" Click="InstallLocalModPath_Click" />
+
+                  <TextBlock Text="Plugin name"
+                             FontSize="15"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource TextFg}" />
+                  <TextBox x:Name="LocalModNameBox"
+                           Margin="0,8,0,8"
+                           Height="36"
+                           Padding="10,6"
+                           Background="#0D1826"
+                           Foreground="{StaticResource TextFg}"
+                           BorderThickness="0"
+                           Text="" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Scaffold New Local Mod" Click="ScaffoldLocalMod_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Enable Selected Mod" Click="EnableLocalMod_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Disable Selected Mod" Click="DisableLocalMod_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Verify Selected Mod" Click="VerifyLocalMod_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Sign Selected Mod" Click="SignLocalMod_Click" />
+                  <Button Height="38" Margin="0,0,0,8" Content="Refresh Local Mods" Click="RefreshLocalMods_Click" />
+                  <Button Height="38" Content="Open Plugins Folder" Click="OpenPluginsFolder_Click" />
+                </StackPanel>
+              </ScrollViewer>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource PanelBg}" CornerRadius="16" Padding="16" Margin="10,0,0,0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Local Mods Summary"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <TextBox x:Name="LocalModsBox"
+                         Margin="0,12,0,0"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#0D1826"
+                         Foreground="{StaticResource TextFg}"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         Text="Loading local mods..." />
+              </DockPanel>
+            </Border>
           </Grid>
         </TabItem>
 
         <TabItem Header="Artifacts">
-          <Grid Margin="12">
+            <Grid Margin="12">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="1.2*" />
               <ColumnDefinition Width="1.8*" />

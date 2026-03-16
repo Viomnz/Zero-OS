@@ -67,6 +67,9 @@ def test_zero_os_shell_renders_launcher_state_in_browser():
         assert re.search(r"Published 1[.]0", dom)
         assert re.search(r"Update available", dom)
         assert re.search(r">Pin<|>Unpin<", dom)
+        assert re.search(r"Local Mods", dom)
+        assert re.search(r"Install Path", dom)
+        assert re.search(r"Open Plugins", dom)
     finally:
         httpd.shutdown()
         httpd.server_close()

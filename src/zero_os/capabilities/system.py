@@ -57,8 +57,6 @@ from zero_os.production_core import (
     process_start,
     playbook_init,
     playbook_show,
-    plugin_sign,
-    plugin_verify,
     release_bump,
     release_init,
     freedom_mode_set,
@@ -169,6 +167,7 @@ from zero_os.knowledge_map import build_knowledge_index, knowledge_find, knowled
 from zero_os.large_code_index import index_status as large_index_status, index_workspace as large_index_workspace, list_workspaces as large_list_workspaces, register_workspace as large_register_workspace, search_code as large_search_code, search_symbols as large_search_symbols, symbol_status as large_symbol_status, watcher_set as large_watcher_set, watcher_status as large_watcher_status, watcher_tick as large_watcher_tick
 from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
 from zero_os.brain_awareness import brain_awareness_status, build_brain_awareness
+from zero_os.plugins import plugin_disable, plugin_enable, plugin_install_local, plugin_scaffold, plugin_sign, plugin_status, plugin_validate, plugin_verify
 from zero_os.zero_ai_sync import zero_ai_sync_all
 from zero_os.zero_ai_evolution import (
     zero_ai_evolution_auto_run,
@@ -587,11 +586,16 @@ class SystemCapability:
             "pwd",
             "whoami",
             "date",
-            "time",
-            "auto upgrade",
-            "plugin scaffold",
-            "law status",
-            "law export",
+              "time",
+              "auto upgrade",
+              "plugin scaffold",
+              "plugin status",
+              "plugin validate",
+              "plugin install",
+              "plugin enable",
+              "plugin disable",
+              "law status",
+              "law export",
             "cure firewall",
             "cure firewall agent",
             "mark strict",
@@ -609,9 +613,9 @@ class SystemCapability:
             "jobs ",
             "agent isolate",
             "observability",
-            "snapshot ",
-            "plugin sign",
-            "plugin verify",
+              "snapshot ",
+              "plugin sign",
+              "plugin verify",
             "api token",
             "benchmark run",
             "error playbook",
@@ -2958,6 +2962,21 @@ class SystemCapability:
         if snap_restore_m:
             return Result(self.name, json.dumps(snapshot_restore(task.cwd, snap_restore_m.group(1)), indent=2))
 
+        plugin_status_m = re.match(r"^plugin status(?:\s+([A-Za-z0-9._-]+))?$", raw.strip(), flags=re.IGNORECASE)
+        if plugin_status_m:
+            return Result(self.name, json.dumps(plugin_status(task.cwd, plugin_status_m.group(1)), indent=2))
+        plugin_validate_m = re.match(r"^plugin validate(?:\s+([A-Za-z0-9._-]+))?$", raw.strip(), flags=re.IGNORECASE)
+        if plugin_validate_m:
+            return Result(self.name, json.dumps(plugin_validate(task.cwd, plugin_validate_m.group(1)), indent=2))
+        plugin_install_local_m = re.match(r"^plugin install local\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+        if plugin_install_local_m:
+            return Result(self.name, json.dumps(plugin_install_local(task.cwd, plugin_install_local_m.group(1)), indent=2))
+        plugin_enable_m = re.match(r"^plugin enable\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if plugin_enable_m:
+            return Result(self.name, json.dumps(plugin_enable(task.cwd, plugin_enable_m.group(1)), indent=2))
+        plugin_disable_m = re.match(r"^plugin disable\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
+        if plugin_disable_m:
+            return Result(self.name, json.dumps(plugin_disable(task.cwd, plugin_disable_m.group(1)), indent=2))
         plugin_sign_m = re.match(r"^plugin sign\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
         if plugin_sign_m:
             return Result(self.name, json.dumps(plugin_sign(task.cwd, plugin_sign_m.group(1)), indent=2))
@@ -3253,27 +3272,9 @@ class SystemCapability:
             valid, reason = verify_beacon_net(task.cwd, url)
             return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
 
-        scaffold = re.match(r"^plugin scaffold\s+([a-zA-Z0-9_-]+)$", text.strip())
+        scaffold = re.match(r"^plugin scaffold\s+([A-Za-z0-9._-]+)$", text.strip())
         if scaffold:
-            plugin_name = scaffold.group(1)
-            plugin_dir = cwd / "plugins"
-            plugin_dir.mkdir(parents=True, exist_ok=True)
-            plugin_path = plugin_dir / f"{plugin_name}.py"
-            if plugin_path.exists():
-                return Result(self.name, f"Plugin already exists: {plugin_path}")
-            template = (
-                "from zero_os.types import Result\n\n"
-                f"class {plugin_name.title().replace('_', '').replace('-', '')}Capability:\n"
-                f"    name = \"{plugin_name}\"\n\n"
-                "    def can_handle(self, task):\n"
-                f"        return task.text.lower().startswith(\"{plugin_name} \")\n\n"
-                "    def run(self, task):\n"
-                f"        return Result(self.name, \"{plugin_name} plugin executed\")\n\n"
-                "def get_capability():\n"
-                f"    return {plugin_name.title().replace('_', '').replace('-', '')}Capability()\n"
-            )
-            plugin_path.write_text(template, encoding="utf-8")
-            return Result(self.name, f"Plugin scaffold created: {plugin_path}")
+            return Result(self.name, json.dumps(plugin_scaffold(task.cwd, scaffold.group(1)), indent=2))
 
         if "current dir" in text or "current directory" in text or "pwd" in text:
             return Result(self.name, str(cwd))
@@ -3304,13 +3305,20 @@ class SystemCapability:
             "- smart merge policy decide left=<path> right=<path>\n"
             "- smart merge files left=<path> right=<path> [out=<path>]\n"
             "- ai files smart status\n"
-            "- ai files smart on [interval=<minutes>]\n"
-            "- ai files smart off\n"
-            "- ai files smart optimize\n"
-            "- auto upgrade\n"
-            "- plugin scaffold <name>\n"
-            "- law status\n"
-            "- law export\n"
+              "- ai files smart on [interval=<minutes>]\n"
+              "- ai files smart off\n"
+              "- ai files smart optimize\n"
+              "- auto upgrade\n"
+              "- plugin scaffold <name>\n"
+              "- plugin status [name]\n"
+              "- plugin validate [name]\n"
+              "- plugin install local <path>\n"
+              "- plugin enable <name>\n"
+              "- plugin disable <name>\n"
+              "- plugin sign <name>\n"
+              "- plugin verify <name>\n"
+              "- law status\n"
+              "- law export\n"
             "- cure firewall run <path> pressure <0-100>\n"
             "- cure firewall verify <path>\n"
             "- cure firewall restore <path>\n"

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable
 
 from zero_os.cure_firewall import run_cure_firewall_net, verify_beacon_net
+from zero_os.plugins import plugin_sign as native_plugin_sign, plugin_verify as native_plugin_verify
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -368,31 +369,11 @@ def snapshot_restore(cwd: str, snapshot_id: str) -> dict:
 
 
 def plugin_sign(cwd: str, name: str) -> dict:
-    p = Path(cwd).resolve() / "plugins" / f"{name}.py"
-    if not p.exists():
-        return {"ok": False, "reason": "plugin missing"}
-    data = p.read_bytes()
-    digest = hashlib.sha256(data).hexdigest()
-    sig = hmac.new(_key(cwd, "plugin_sign"), digest.encode("utf-8"), hashlib.sha256).hexdigest()
-    rec = {"plugin": name, "sha256": digest, "signature": sig, "signed_utc": _utc_now()}
-    db = _state_root(cwd) / "plugin_signatures.json"
-    records = _load(db, {"plugins": {}})
-    records["plugins"][name] = rec
-    _save(db, records)
-    return {"ok": True, **rec}
+    return native_plugin_sign(cwd, name)
 
 
 def plugin_verify(cwd: str, name: str) -> dict:
-    db = _load(_state_root(cwd) / "plugin_signatures.json", {"plugins": {}})
-    rec = db.get("plugins", {}).get(name)
-    if not rec:
-        return {"ok": False, "reason": "no signature"}
-    p = Path(cwd).resolve() / "plugins" / f"{name}.py"
-    if not p.exists():
-        return {"ok": False, "reason": "plugin missing"}
-    digest = hashlib.sha256(p.read_bytes()).hexdigest()
-    sig = hmac.new(_key(cwd, "plugin_sign"), digest.encode("utf-8"), hashlib.sha256).hexdigest()
-    return {"ok": hmac.compare_digest(sig, rec.get("signature", "")), "plugin": name}
+    return native_plugin_verify(cwd, name)
 
 
 def api_token_create(cwd: str) -> dict:

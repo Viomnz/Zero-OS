@@ -83,6 +83,7 @@ public partial class MainWindow : Window
         RefreshSystemHealth();
         RefreshAutonomyStatus();
         RefreshControlMapStatus();
+        RefreshLocalModsStatus();
         ApplyRuntimeLoopStartupPreference();
         SetStatus("Ready");
         AppendLog("Application started");
@@ -162,6 +163,138 @@ public partial class MainWindow : Window
     {
         RefreshControlMapStatus();
         SetStatus("Control map refreshed.");
+    }
+
+    private void RefreshLocalMods_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshLocalModsStatus();
+        SetStatus("Local mods refreshed.");
+    }
+
+    private void BrowseLocalModFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select local Zero OS mod file",
+            Filter = "Python files (*.py)|*.py|All files (*.*)|*.*",
+            InitialDirectory = Directory.Exists(Path.Combine(_repoRoot, "plugins")) ? Path.Combine(_repoRoot, "plugins") : _repoRoot,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        LocalModPathBox.Text = dialog.FileName;
+        if (string.IsNullOrWhiteSpace(LocalModNameBox.Text))
+        {
+            LocalModNameBox.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
+        }
+        SetStatus("Selected local mod file.");
+        AppendLog($"Selected local mod file {dialog.FileName}");
+    }
+
+    private void BrowseLocalModFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select local Zero OS mod folder",
+            InitialDirectory = Directory.Exists(Path.Combine(_repoRoot, "plugins")) ? Path.Combine(_repoRoot, "plugins") : _repoRoot,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        LocalModPathBox.Text = dialog.FolderName;
+        if (string.IsNullOrWhiteSpace(LocalModNameBox.Text))
+        {
+            LocalModNameBox.Text = Path.GetFileName(dialog.FolderName.TrimEnd(Path.DirectorySeparatorChar));
+        }
+        SetStatus("Selected local mod folder.");
+        AppendLog($"Selected local mod folder {dialog.FolderName}");
+    }
+
+    private void InstallLocalModPath_Click(object sender, RoutedEventArgs e)
+    {
+        var path = string.IsNullOrWhiteSpace(LocalModPathBox.Text) ? null : LocalModPathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            SetStatus("Enter or browse to a local mod path first.");
+            return;
+        }
+
+        RunBackendTask($"plugin install local {QuoteCommandArgument(path)}", "Local mod install complete");
+    }
+
+    private void ScaffoldLocalMod_Click(object sender, RoutedEventArgs e)
+    {
+        var proposed = string.IsNullOrWhiteSpace(LocalModNameBox.Text) ? "my_local_mod" : LocalModNameBox.Text.Trim();
+        var pluginName = PromptForText("Scaffold Local Mod", "Enter the private-local mod name:", proposed);
+        if (string.IsNullOrWhiteSpace(pluginName))
+        {
+            return;
+        }
+
+        LocalModNameBox.Text = pluginName.Trim();
+        RunBackendTask($"plugin scaffold {pluginName.Trim()}", "Local mod scaffold complete");
+    }
+
+    private void EnableLocalMod_Click(object sender, RoutedEventArgs e)
+    {
+        var pluginName = SelectedLocalModName();
+        if (pluginName == null)
+        {
+            return;
+        }
+
+        RunBackendTask($"plugin enable {pluginName}", "Local mod enabled");
+    }
+
+    private void DisableLocalMod_Click(object sender, RoutedEventArgs e)
+    {
+        var pluginName = SelectedLocalModName();
+        if (pluginName == null)
+        {
+            return;
+        }
+
+        RunBackendTask($"plugin disable {pluginName}", "Local mod disabled");
+    }
+
+    private void VerifyLocalMod_Click(object sender, RoutedEventArgs e)
+    {
+        var pluginName = SelectedLocalModName();
+        if (pluginName == null)
+        {
+            return;
+        }
+
+        RunBackendTask($"plugin verify {pluginName}", "Local mod verification complete");
+    }
+
+    private void SignLocalMod_Click(object sender, RoutedEventArgs e)
+    {
+        var pluginName = SelectedLocalModName();
+        if (pluginName == null)
+        {
+            return;
+        }
+
+        RunBackendTask($"plugin sign {pluginName}", "Local mod signature refreshed");
+    }
+
+    private void OpenPluginsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var pluginsRoot = Path.Combine(_repoRoot, "plugins");
+        Directory.CreateDirectory(pluginsRoot);
+        OpenPath(pluginsRoot);
+        SetStatus("Opened plugins folder.");
+        AppendLog("Opened plugins folder");
     }
 
     private void CopyPublishCommand_Click(object sender, RoutedEventArgs e) => CopyText(PublishCommand, "publish command");
@@ -810,6 +943,11 @@ public partial class MainWindow : Window
         {
             RefreshControlMapStatus();
         }
+
+        if (ShouldRefreshLocalModsStatus(command))
+        {
+            RefreshLocalModsStatus();
+        }
     }
 
     private void RunContinuitySimulationTask(bool apply)
@@ -1067,6 +1205,12 @@ public partial class MainWindow : Window
         ControlMapBox.Text = BuildControlMapSummary(controllerResult, toolResult, capabilityResult);
     }
 
+    private void RefreshLocalModsStatus()
+    {
+        var result = _backend.RunTask("plugin status");
+        LocalModsBox.Text = BuildLocalModsSummary(result);
+    }
+
     private void RefreshRuntimeContinuityStatus()
     {
         var result = _backend.RunTask("zero ai runtime status");
@@ -1186,10 +1330,15 @@ public partial class MainWindow : Window
             || normalized.StartsWith("zero ai runtime", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai source evolution", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai workflow", StringComparison.Ordinal)
-            || normalized == "zero ai self inspect refresh"
-            || normalized == "zero ai self repair restore continuity"
-            || normalized == "zero ai know everything"
-            || normalized == "zero os complete all";
+              || normalized == "zero ai self inspect refresh"
+              || normalized == "zero ai self repair restore continuity"
+              || normalized == "zero ai know everything"
+              || normalized == "zero os complete all";
+    }
+
+    private static bool ShouldRefreshLocalModsStatus(string command)
+    {
+        return command.Trim().StartsWith("plugin ", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildRuntimeContinuitySummary(NativeCommandResult result)
@@ -1503,6 +1652,54 @@ public partial class MainWindow : Window
         {
             lines.Add("Capability surface:");
             lines.Add(capabilityResult.DisplayText());
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildLocalModsSummary(NativeCommandResult result)
+    {
+        if (!result.Payload.HasValue || result.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            return "Private Local Mods" + Environment.NewLine + Environment.NewLine + result.DisplayText();
+        }
+
+        var payload = result.Payload.Value;
+        var lines = new List<string>
+        {
+            "Private Local Mods",
+            "",
+            $"Plugin count: {ReadNumber(payload, "plugin_count")}",
+            $"Loadable count: {ReadNumber(payload, "loadable_count")}",
+            $"Signed count: {ReadNumber(payload, "signed_count")}",
+            $"Invalid count: {ReadNumber(payload, "invalid_count")}",
+        };
+
+        if (payload.TryGetProperty("plugins", out var plugins)
+            && plugins.ValueKind == JsonValueKind.Array
+            && plugins.GetArrayLength() > 0)
+        {
+            foreach (var plugin in plugins.EnumerateArray().Take(10))
+            {
+                lines.Add("");
+                lines.Add($"- {ReadString(plugin, "name")} [{ReadString(plugin, "kind")}]");
+                lines.Add($"  Enabled: {(ReadBool(plugin, "enabled") ? "yes" : "no")}");
+                lines.Add($"  Load allowed: {(ReadBool(plugin, "load_allowed") ? "yes" : "no")}");
+                lines.Add($"  Trust: {ReadString(plugin, "trust")}");
+                lines.Add($"  Signature valid: {ReadString(plugin, "signature_valid")}");
+                lines.Add($"  Distribution: {ReadString(plugin, "distribution")}");
+                lines.Add($"  Local only: {(ReadBool(plugin, "local_only") ? "yes" : "no")}");
+                lines.Add($"  Mutable: {(ReadBool(plugin, "mutable") ? "yes" : "no")}");
+                lines.Add($"  Version: {ReadString(plugin, "version")}");
+                lines.Add($"  Path: {ReadString(plugin, "path")}");
+                lines.Add($"  Issues: {ReadStringArray(plugin, "issues")}");
+            }
+        }
+        else
+        {
+            lines.Add("");
+            lines.Add("No private-local mods are installed yet.");
+            lines.Add("Use Browse File or Browse Folder, then Install Local Mod Path.");
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -2540,5 +2737,22 @@ public partial class MainWindow : Window
         inputBox.SelectAll();
 
         return dialog.ShowDialog() == true ? result : null;
+    }
+
+    private string? SelectedLocalModName()
+    {
+        var pluginName = string.IsNullOrWhiteSpace(LocalModNameBox.Text) ? null : LocalModNameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(pluginName))
+        {
+            SetStatus("Enter a plugin name first.");
+            return null;
+        }
+
+        return pluginName;
+    }
+
+    private static string QuoteCommandArgument(string value)
+    {
+        return $"\"{value.Replace("\"", "\\\"")}\"";
     }
 }

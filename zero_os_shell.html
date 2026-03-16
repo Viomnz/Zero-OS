@@ -794,6 +794,8 @@
     const OUTPUT_KEY = "zero_os_shell_output_v1";
     const SAVED_OUTPUTS_KEY = "zero_os_shell_saved_outputs_v1";
     const VIEWER_KEY = "zero_os_shell_viewer_v1";
+    const LOCAL_MOD_PATH_KEY = "zero_os_shell_local_mod_path_v1";
+    const LOCAL_MOD_NAME_KEY = "zero_os_shell_local_mod_name_v1";
     const menuSections = [
       {
         title: "Everyday",
@@ -1003,13 +1005,29 @@
       localStorage.setItem(PIN_KEY, JSON.stringify(labels));
     }
 
-    function readLayerPage() {
-      return localStorage.getItem(LAYER_PAGE_KEY) || "start";
-    }
+      function readLayerPage() {
+        return localStorage.getItem(LAYER_PAGE_KEY) || "start";
+      }
 
-    function writeLayerPage(page) {
-      localStorage.setItem(LAYER_PAGE_KEY, page);
-    }
+      function writeLayerPage(page) {
+        localStorage.setItem(LAYER_PAGE_KEY, page);
+      }
+
+      function readLocalModPath() {
+        return localStorage.getItem(LOCAL_MOD_PATH_KEY) || "";
+      }
+
+      function writeLocalModPath(value) {
+        localStorage.setItem(LOCAL_MOD_PATH_KEY, value || "");
+      }
+
+      function readLocalModName() {
+        return localStorage.getItem(LOCAL_MOD_NAME_KEY) || "";
+      }
+
+      function writeLocalModName(value) {
+        localStorage.setItem(LOCAL_MOD_NAME_KEY, value || "");
+      }
 
     function readChatHistory() {
       try {
@@ -1209,12 +1227,29 @@
       return `<details class="details"><summary>${title}</summary><pre>${JSON.stringify(data, null, 2)}</pre></details>`;
     }
 
-    function escapeHtml(text) {
-      return String(text || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    }
+      function escapeHtml(text) {
+        return String(text || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function escapeAttr(text) {
+        return escapeHtml(text).replace(/"/g, "&quot;");
+      }
+
+      function quoteCommandArg(text) {
+        return `"${String(text || "").replace(/"/g, '\\"')}"`;
+      }
+
+      function parseBridgeSummaryJson(result) {
+        if (!result || !result.ok || typeof result.summary !== "string") return null;
+        try {
+          return JSON.parse(result.summary);
+        } catch {
+          return null;
+        }
+      }
 
     function renderJsonScalar(value) {
       if (value === null) return '<span class="json-null">null</span>';
@@ -1606,12 +1641,69 @@
       `;
     }
 
-    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap) {
-      const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
-      const toolSummary = (toolRegistry && toolRegistry.summary) || {};
-      const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
-      const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
-      const subsystems = arrayItems(controllerRegistry && controllerRegistry.subsystems);
+    function renderLocalModsPanel(pluginRegistry) {
+      const plugins = arrayItems(pluginRegistry && pluginRegistry.plugins);
+      const loadableCount = pluginRegistry && pluginRegistry.loadable_count !== undefined ? pluginRegistry.loadable_count : 0;
+      const signedCount = pluginRegistry && pluginRegistry.signed_count !== undefined ? pluginRegistry.signed_count : 0;
+      const invalidCount = pluginRegistry && pluginRegistry.invalid_count !== undefined ? pluginRegistry.invalid_count : 0;
+      const pluginCount = pluginRegistry && pluginRegistry.plugin_count !== undefined ? pluginRegistry.plugin_count : 0;
+      return `
+        <section class="panel">
+          <div class="panel-title">Local Mods</div>
+          ${renderSummaryCards([
+            { label: "Installed", value: String(pluginCount) },
+            { label: "Loadable", value: String(loadableCount) },
+            { label: "Signed", value: String(signedCount) },
+            { label: "Invalid", value: String(invalidCount) }
+          ])}
+          <div class="inline-form">
+            <input id="localModPathInput" placeholder="C:\\path\\to\\mod folder or plugin.py" value="${escapeAttr(readLocalModPath())}" />
+            <button class="btn" id="localModInstallBtn">Install Path</button>
+            <button class="btn" id="localModRefreshBtn">Refresh</button>
+          </div>
+          <div class="inline-form">
+            <input id="localModNameInput" placeholder="my_local_mod" value="${escapeAttr(readLocalModName())}" />
+            <button class="btn" id="localModScaffoldBtn">Scaffold</button>
+            <button class="btn" id="localModFolderBtn">Open Plugins</button>
+          </div>
+          <div class="action-list">
+            ${plugins.length ? plugins.map((item) => `
+              <div class="action-chip">
+                <div class="chip-title">${escapeHtml(item.name || "plugin")}</div>
+                <div class="chip-copy">
+                  ${escapeHtml(item.description || "Private-local Zero OS mod")}
+                  <br/>Trust: ${escapeHtml(item.trust || "unsigned")} · Load: ${item.load_allowed ? "allowed" : "blocked"} · Path: ${escapeHtml(item.path || "n/a")}
+                </div>
+                <div class="state-badges">
+                  <span class="mini-badge">${escapeHtml(item.kind || "native")}</span>
+                  <span class="mini-badge">${escapeHtml(item.distribution || "private-local")}</span>
+                  <span class="mini-badge">${item.enabled ? "Enabled" : "Disabled"}</span>
+                  <span class="mini-badge">${item.mutable ? "Mutable" : "Locked"}</span>
+                </div>
+                <div class="task-actions">
+                  <button class="btn" data-home-command="plugin ${item.enabled ? "disable" : "enable"} ${escapeHtml(item.name || "")}" data-home-label="${escapeHtml(item.enabled ? "Disable" : "Enable")} ${escapeHtml(item.name || "plugin")}">${item.enabled ? "Disable" : "Enable"}</button>
+                  <button class="btn" data-home-command="plugin verify ${escapeHtml(item.name || "")}" data-home-label="Verify ${escapeHtml(item.name || "plugin")}">Verify</button>
+                  <button class="btn" data-home-command="plugin sign ${escapeHtml(item.name || "")}" data-home-label="Sign ${escapeHtml(item.name || "plugin")}">Sign</button>
+                </div>
+              </div>
+            `).join("") : `
+              <div class="action-chip">
+                <div class="chip-title">No local mods yet</div>
+                <div class="chip-copy">Install a local mod folder or Python file. The shell bridge must be running to load live plugin status.</div>
+              </div>
+            `}
+          </div>
+          ${renderDetails("Show raw local mods", { plugin_status: pluginRegistry || { missing: true } })}
+        </section>
+      `;
+    }
+
+    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry) {
+        const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
+        const toolSummary = (toolRegistry && toolRegistry.summary) || {};
+        const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
+        const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
+        const subsystems = arrayItems(controllerRegistry && controllerRegistry.subsystems);
       const missingTools = arrayItems(toolRegistry && toolRegistry.missing_tools);
       return `
         <section class="panel">
@@ -1685,14 +1777,15 @@
               </div>
             `}
           </div>
-          ${renderDetails("Show raw control data", {
-            controller_registry: controllerRegistry || {},
-            tool_registry: toolRegistry || {},
-            capability_map: capabilityMap || {}
-          })}
-        </section>
-      `;
-    }
+            ${renderDetails("Show raw control data", {
+              controller_registry: controllerRegistry || {},
+              tool_registry: toolRegistry || {},
+              capability_map: capabilityMap || {}
+            })}
+          </section>
+          ${renderLocalModsPanel(pluginRegistry)}
+        `;
+      }
 
     function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry) {
       const notices = [];
@@ -1771,7 +1864,7 @@
       `;
     }
 
-    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap) {
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry) {
       const notices = renderNotifications(sec, backup, triad, desktop);
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -1794,10 +1887,10 @@
         `</div>`,
         `<div class="layer-view ${activePage === "runtime" ? "active" : ""}" data-layer-view="runtime">` +
           renderRuntimePanel(triadValue, kernel, runtime, backup) +
-        `</div>`,
-        `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
-          renderControlPanel(controllerRegistry, toolRegistry, capabilityMap) +
-        `</div>`,
+          `</div>`,
+          `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
+            renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry) +
+          `</div>`,
         `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
           renderRecoveryPanel(onboarding, backup, notices) +
         `</div>`,
@@ -1942,11 +2035,13 @@
         loadJson(".zero_os/store/registry.json"),
         loadJson(".zero_os/integrations/github.json")
       ]);
-      const [toolRegistry, controllerRegistry, capabilityMap] = await Promise.all([
-        loadJson(".zero_os/runtime/tool_registry_status.json"),
-        loadJson(".zero_os/assistant/controller_registry.json"),
-        loadJson(".zero_os/assistant/capability_map.json")
-      ]);
+        const [toolRegistry, controllerRegistry, capabilityMap, pluginBridge] = await Promise.all([
+          loadJson(".zero_os/runtime/tool_registry_status.json"),
+          loadJson(".zero_os/assistant/controller_registry.json"),
+          loadJson(".zero_os/assistant/capability_map.json"),
+          bridgeCommand("plugin status")
+        ]);
+        const pluginRegistry = parseBridgeSummaryJson(pluginBridge);
 
       const coreValue = platform && platform.status ? `${platform.status.score}/${platform.status.total} ready` : (resilience && resilience.ok ? "Trusted" : "Check required");
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -1972,11 +2067,11 @@
         button.addEventListener("click", async () => openSavedPath(button.dataset.savedOpen));
       });
 
-      const activePage = readLayerPage();
-      $("startLayer").innerHTML = [
-        renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap),
-        renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
-      ].join("");
+        const activePage = readLayerPage();
+        $("startLayer").innerHTML = [
+          renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry),
+          renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
+        ].join("");
       $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {
         button.addEventListener("click", async () => {
           writeLayerPage(button.dataset.layerPage || "home");
@@ -2032,11 +2127,55 @@
       if (copyOutputBtn) copyOutputBtn.addEventListener("click", copyActionOutput);
       if (clearOutputBtn) clearOutputBtn.addEventListener("click", clearActionOutput);
       if (saveOutputBtn) saveOutputBtn.addEventListener("click", saveActionOutput);
-      if (viewerCopyBtn) viewerCopyBtn.addEventListener("click", copyViewerContent);
-      if (viewerClearBtn) viewerClearBtn.addEventListener("click", clearViewerContent);
-      $("startLayer").querySelectorAll("[data-pin-label]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const label = button.dataset.pinLabel || "";
+        if (viewerCopyBtn) viewerCopyBtn.addEventListener("click", copyViewerContent);
+        if (viewerClearBtn) viewerClearBtn.addEventListener("click", clearViewerContent);
+        const localModPathInput = $("localModPathInput");
+        const localModNameInput = $("localModNameInput");
+        const localModInstallBtn = $("localModInstallBtn");
+        const localModRefreshBtn = $("localModRefreshBtn");
+        const localModScaffoldBtn = $("localModScaffoldBtn");
+        const localModFolderBtn = $("localModFolderBtn");
+        if (localModPathInput) {
+          localModPathInput.addEventListener("input", () => writeLocalModPath(localModPathInput.value || ""));
+        }
+        if (localModNameInput) {
+          localModNameInput.addEventListener("input", () => writeLocalModName(localModNameInput.value || ""));
+        }
+        if (localModInstallBtn && localModPathInput) {
+          localModInstallBtn.addEventListener("click", async () => {
+            const path = String(localModPathInput.value || "").trim();
+            if (!path) {
+              setActionFeedback("Local Mods", "Path is required");
+              return;
+            }
+            writeLocalModPath(path);
+            await runShellAction("Install Local Mod", `plugin install local ${quoteCommandArg(path)}`);
+          });
+        }
+        if (localModRefreshBtn) {
+          localModRefreshBtn.addEventListener("click", async () => {
+            await runShellAction("Local Mods", "plugin status");
+          });
+        }
+        if (localModScaffoldBtn && localModNameInput) {
+          localModScaffoldBtn.addEventListener("click", async () => {
+            const name = String(localModNameInput.value || "").trim();
+            if (!name) {
+              setActionFeedback("Local Mods", "Plugin name is required");
+              return;
+            }
+            writeLocalModName(name);
+            await runShellAction("Scaffold Local Mod", `plugin scaffold ${name}`);
+          });
+        }
+        if (localModFolderBtn) {
+          localModFolderBtn.addEventListener("click", async () => {
+            await runShellAction("Open Plugins Folder", "shell run Start-Process .\\plugins");
+          });
+        }
+        $("startLayer").querySelectorAll("[data-pin-label]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const label = button.dataset.pinLabel || "";
           if (!label) return;
           togglePinned(label);
           setActionFeedback(isPinned({ label }) ? `Pinned ${label}` : `Unpinned ${label}`, "Launcher favorites updated");
