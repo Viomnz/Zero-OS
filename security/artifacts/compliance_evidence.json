@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "time_utc": "2026-03-08T06:21:29.913707+00:00",
+  "time_utc": "2026-03-16T03:11:30.314167+00:00",
   "checks": [
     {
       "path": "security/artifacts/sbom.json",
       "exists": true,
-      "size": 315860
+      "size": 2017195
     },
     {
       "path": "security/artifacts/vuln_scan.json",
@@ -15,7 +15,7 @@
     {
       "path": "security/artifacts/artifact_signatures.json",
       "exists": true,
-      "size": 1216
+      "size": 1001
     }
   ],
   "ci_gate": "tools/security_gate.py",
