@@ -46,14 +46,24 @@ def _execute_plan(
         return out
 
     results = list(existing_results or [])
+    completed_all_steps = True
     for step in active_plan.get("steps", [])[start_index:]:
         result = execute_step(cwd, step, run_id=run_id)
         results.append(result)
         if not result.get("ok", False):
+            completed_all_steps = False
+            break
+        if (
+            step.get("kind") == "self_repair"
+            and str((result.get("result", {}).get("smart_logic") or {}).get("decision_action", "")).strip().lower() == "hold_for_review"
+        ):
+            completed_all_steps = False
             break
         if step.get("kind") == "autonomy_gate" and result.get("result", {}).get("decision") == "hold_for_review":
+            completed_all_steps = False
             break
-    run_ok = all(item.get("ok", False) for item in results)
+    planned_steps = list(active_plan.get("steps", []))[start_index:]
+    run_ok = completed_all_steps and len(results) == len(existing_results or []) + len(planned_steps) and all(item.get("ok", False) for item in results)
     response = synthesize_result(
         {
             "cwd": cwd,

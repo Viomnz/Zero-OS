@@ -1,16 +1,21 @@
 {
   "ok": true,
-  "time_utc": "2026-03-16T03:09:40.205414+00:00",
+  "time_utc": "2026-03-18T23:43:44.538927+00:00",
   "records": [
     {
       "file": "artifact_signatures.json",
-      "sha256": "f2f10c3eeb8e56edfcd8c25dee43c2ade00da0725d6c69c948cb24cea9555b01",
-      "signature": "866b767e7c246d97e2d96b859154c6b9eb753024864b7d9cbd0b89dd9c8313d1"
+      "sha256": "753dfed314fc0b9ca8face4222478ad3f30c5ea832c922114866d05d66be7b2f",
+      "signature": "a7e5be85e607dd71344385e1f3479d3d17ec5518fb3bfe9a5f866770354f01c9"
     },
     {
       "file": "compliance_evidence.json",
-      "sha256": "75ff5cedc3eba489f48c9e61fdbf30df0bd7bd793cc98e11ed968e00a934edc4",
-      "signature": "0d174778523c1a05c3aae60fd0343875f40dc1104346f20f74354ff99ebeb2b0"
+      "sha256": "13acd1a8db1e1cd6bfdb572172659863ee832fd7550c6aee0b0c5003149dae4e",
+      "signature": "c439d0b1fdc6b6d18bc1018652bc95ee90594faa42eb861aaef96a9f82944e34"
+    },
+    {
+      "file": "sbom.json",
+      "sha256": "6817b9968e7c7a1069cc2346b45b4b1813e91350fc42cce81eb8e8b970647477",
+      "signature": "d46011d49a119cc48dbf39496be42ca150244da4596006791cbfb97d12f50283"
     },
     {
       "file": "security_benchmark.json",
@@ -19,8 +24,8 @@
     },
     {
       "file": "vuln_scan.json",
-      "sha256": "bd0712ed303fd5f50f8367fd2fd948e9087ca041219da0b9e8c63d7128979403",
-      "signature": "e7346a8e099824c83ab297cbd3478dad54af4a0ec5eadeff789e67c5f8766580"
+      "sha256": "8b6fa001fae705dde87608982a60c41d4122f5dfb237dcb5eff3f906cfd50ef5",
+      "signature": "b7b301d31db6e488fe8e00a82322388f9e174a642c48db44c36b563d9f668009"
     }
   ]
 }

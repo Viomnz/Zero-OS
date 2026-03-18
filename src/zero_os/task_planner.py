@@ -321,7 +321,13 @@ def build_plan(request: str, cwd: str = ".") -> dict:
     cloud_dep = re.search(r"deploy\s+artifact\s+([a-z0-9._/-]+)\s+to\s+([a-z0-9._-]+)", lowered)
     if cloud_dep:
         steps.append({"kind": "cloud_deploy", "target": {"artifact": cloud_dep.group(1), "target": cloud_dep.group(2)}})
-    if any(token in lowered for token in ("read file", "show ", "whoami", "date", "time")):
+    if (
+        "read file" in lowered
+        or "show " in lowered
+        or re.search(r"\bwhoami\b", lowered)
+        or re.search(r"\bdate\b", lowered)
+        or re.search(r"\btime\b", lowered)
+    ):
         steps.append({"kind": "highway_dispatch", "target": text})
     if any(token in lowered for token in ("fix", "repair", "recover")):
         steps.append({"kind": "autonomy_gate", "target": text})

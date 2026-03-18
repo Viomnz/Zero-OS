@@ -398,13 +398,14 @@ def _detect_workflow_conflicts(cwd: str, plan: dict[str, Any] | None, results: l
             )
         )
 
-    if {"recover", "self_repair", "store_install"} & step_kinds and not bool(runtime.get("runtime_ready", False)):
+    runtime_missing = bool(runtime.get("missing", False))
+    if {"recover", "self_repair", "store_install"} & step_kinds and not runtime_missing and not bool(runtime.get("runtime_ready", False)):
         issues.append(
             _issue(
                 "workflow",
                 "runtime_not_ready_for_mutation",
                 "High-impact workflow steps were selected while the runtime control plane is not ready.",
-                details={"runtime_ready": bool(runtime.get("runtime_ready", False))},
+                details={"runtime_ready": bool(runtime.get("runtime_ready", False)), "runtime_missing": runtime_missing},
             )
         )
     return issues
