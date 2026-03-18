@@ -1608,10 +1608,131 @@
       return Array.isArray(value) ? value.filter((item) => item !== null && item !== undefined && String(item).trim() !== "") : [];
     }
 
-    function renderControlPriorityPanel(controllerRegistry, toolRegistry) {
+    function objectPairs(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      return Object.entries(value).filter(([key]) => String(key || "").trim() !== "");
+    }
+
+    function benchmarkData(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
+      const dashboardStatus = benchmarkDashboard || {};
+      const dashboard = (dashboardStatus && dashboardStatus.dashboard) || {};
+      const latestRun = (dashboard && dashboard.latest_run) || {};
+      const routedAlerts = (dashboardStatus && dashboardStatus.alert_routes) || benchmarkAlerts || {};
+      const familySlices = arrayItems(dashboard && dashboard.family_slices);
+      const remediationStatus = benchmarkRemediation || (dashboardStatus && dashboardStatus.remediation) || (dashboard && dashboard.remediation) || {};
+      return { dashboardStatus, dashboard, latestRun, routedAlerts, familySlices, remediationStatus };
+    }
+
+    function renderBenchmarkPanel(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
+      const { dashboardStatus, dashboard, latestRun, routedAlerts, familySlices, remediationStatus } = benchmarkData(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation);
+      const routeList = arrayItems(routedAlerts.routes);
+      const remediationProposal = (remediationStatus && remediationStatus.proposal) || {};
+      const remediationApproval = (remediationStatus && remediationStatus.approval) || {};
+      const remediationExecution = ((remediationStatus && remediationStatus.execution) || {}).latest || {};
+      const noDashboard = !dashboardStatus || !Object.keys(dashboardStatus).length || dashboardStatus.missing;
+      if (noDashboard) {
+        return `
+          <section class="panel">
+            <div class="panel-title">Benchmark Dashboard</div>
+            ${renderSummaryCards([
+              { label: "History", value: "0" },
+              { label: "Gate", value: "Missing" },
+              { label: "Alert Routes", value: "0" },
+              { label: "Next Step", value: "Capture first benchmark run" }
+            ])}
+            <div class="action-list">
+              <div class="action-chip">
+                <div class="chip-title">No benchmark history yet</div>
+                <div class="chip-copy">Run the model benchmark history flow first, then refresh this panel to load live dashboard and alert routing data.</div>
+                <div class="task-actions">
+                  <button class="btn" data-home-command="zero ai benchmark dashboard refresh" data-home-label="Benchmark Dashboard">Refresh Dashboard</button>
+                  <button class="btn" data-home-command="zero ai benchmark alerts refresh" data-home-label="Benchmark Alerts">Refresh Alerts</button>
+                  <button class="btn" data-home-command="zero ai benchmark remediation refresh" data-home-label="Benchmark Remediation">Refresh Remediation</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      return `
+        <section class="panel">
+          <div class="panel-title">Benchmark Dashboard</div>
+          ${renderSummaryCards([
+            { label: "History", value: String(dashboardStatus.history_count || 0) },
+            { label: "Gate", value: String((dashboardStatus.gate || {}).status || latestRun.gate_status || "n/a").toUpperCase() },
+            { label: "Primary PPL", value: latestRun.primary_perplexity !== undefined ? String(latestRun.primary_perplexity) : "n/a" },
+            { label: "Alert Routes", value: String(routedAlerts.route_count || 0) },
+            { label: "Remediation", value: String((remediationStatus && remediationStatus.status) || "n/a").toUpperCase() }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">${escapeHtml(dashboardStatus.latest_run_label || latestRun.run_label || "Latest benchmark run")}</div>
+              <div class="chip-copy">
+                Cohort: ${escapeHtml(latestRun.cohort || "n/a")}<br/>
+                Split: ${escapeHtml(latestRun.primary_split || "n/a")} · Valid: ${escapeHtml(String(latestRun.valid_perplexity ?? "n/a"))} · Train: ${escapeHtml(String(latestRun.train_perplexity ?? "n/a"))}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String((dashboardStatus.gate || {}).status || latestRun.gate_status || "n/a"))}</span>
+                <span class="mini-badge">${escapeHtml(String(routedAlerts.highest_severity || "info"))}</span>
+                <span class="mini-badge">${escapeHtml(String(routedAlerts.alert_count || 0))} alerts</span>
+              </div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai benchmark dashboard refresh" data-home-label="Benchmark Dashboard">Refresh Dashboard</button>
+                <button class="btn" data-home-command="zero ai benchmark alerts refresh" data-home-label="Benchmark Alerts">Refresh Alerts</button>
+                <button class="btn" data-home-command="zero ai benchmark remediation refresh" data-home-label="Benchmark Remediation">Refresh Remediation</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Remediation</div>
+              <div class="chip-copy">
+                Status: ${escapeHtml(String(remediationStatus.status || "n/a"))}
+                <br/>Targeted families: ${escapeHtml(arrayItems(remediationStatus.targeted_families).join(", ") || "(none)")}
+                <br/>Candidate: ${escapeHtml(remediationProposal.candidate_checkpoint || "n/a")}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String(remediationStatus.status || "n/a"))}</span>
+                <span class="mini-badge">${remediationApproval.pending && remediationApproval.pending.state === "pending" ? "Approval Pending" : "No Pending Approval"}</span>
+                <span class="mini-badge">${remediationApproval.approved_ready ? "Approved Ready" : "Not Approved"}</span>
+                <span class="mini-badge">${remediationExecution.ok ? "Last Run OK" : (remediationExecution.stage ? "Last Run Failed" : "No Run Yet")}</span>
+              </div>
+              <div class="task-actions">
+                ${String(remediationStatus.status || "") === "proposed" && !(remediationApproval.pending && remediationApproval.pending.state === "pending") ? `<button class="btn" data-home-command="zero ai benchmark remediation request" data-home-label="Benchmark Remediation Approval">Request Approval</button>` : ""}
+                ${remediationApproval.pending && remediationApproval.pending.state === "pending" ? `<button class="btn" data-home-command="zero ai benchmark remediation approve" data-home-label="Approve Benchmark Remediation">Approve</button>` : ""}
+                ${remediationApproval.pending && remediationApproval.pending.state === "pending" ? `<button class="btn" data-home-command="zero ai benchmark remediation reject" data-home-label="Reject Benchmark Remediation">Reject</button>` : ""}
+                ${remediationApproval.approved_ready ? `<button class="btn" data-home-command="zero ai benchmark remediation execute" data-home-label="Execute Benchmark Remediation">Execute Approved</button>` : ""}
+                <button class="btn" data-home-command="zero ai approvals status" data-home-label="Zero AI Approvals">Approvals</button>
+              </div>
+            </div>
+            ${familySlices.slice(0, 3).map((item) => `
+              <div class="action-chip">
+                <div class="chip-title">${escapeHtml(item.family || "family")}</div>
+                <div class="chip-copy">
+                  Primary: ${escapeHtml(String(item.primary_perplexity ?? "n/a"))} · Valid: ${escapeHtml(String((item.valid || {}).perplexity ?? "n/a"))} · Train: ${escapeHtml(String((item.train || {}).perplexity ?? "n/a"))}
+                </div>
+              </div>
+            `).join("")}
+            ${routeList.slice(0, 3).map((item) => `
+              <div class="action-chip">
+                <div class="chip-title">${escapeHtml(item.route || "route")}</div>
+                <div class="chip-copy">Severity: ${escapeHtml(item.severity || "n/a")} · Count: ${escapeHtml(String(item.count || 0))} · Action: ${escapeHtml(item.action || "review_signal")}</div>
+              </div>
+            `).join("")}
+          </div>
+          ${renderDetails("Show raw benchmark dashboard", {
+            benchmark_dashboard: benchmarkDashboard || {},
+            benchmark_alert_routes: benchmarkAlerts || {},
+            benchmark_remediation: benchmarkRemediation || {}
+          })}
+        </section>
+      `;
+    }
+
+    function renderControlPriorityPanel(controllerRegistry, toolRegistry, benchmarkDashboard) {
       const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
       const toolSummary = (toolRegistry && toolRegistry.summary) || {};
       const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
+      const latestRun = ((benchmarkDashboard || {}).dashboard || {}).latest_run || {};
       return `
         <section class="panel">
           <div class="panel-title">Logic Priorities</div>
@@ -1619,7 +1740,7 @@
             { label: "Subsystems", value: String(controllerSummary.subsystem_count || 0) },
             { label: "Missing Functions", value: String(controllerSummary.missing_function_count || 0) },
             { label: "Missing Tools", value: String(toolSummary.missing_tool_count || 0) },
-            { label: "Next Priority", value: priorities[0] || "Run Zero AI Next" }
+            { label: "Benchmark Gate", value: String((((benchmarkDashboard || {}).gate) || {}).status || latestRun.gate_status || "n/a").toUpperCase() }
           ])}
           <div class="action-list">
             ${(priorities.length ? priorities.slice(0, 3) : ["Run `zero ai next` to generate the current highest-value action list."]).map((step, index) => `
@@ -1698,7 +1819,7 @@
       `;
     }
 
-    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry) {
+    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
         const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
         const toolSummary = (toolRegistry && toolRegistry.summary) || {};
         const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
@@ -1780,14 +1901,18 @@
             ${renderDetails("Show raw control data", {
               controller_registry: controllerRegistry || {},
               tool_registry: toolRegistry || {},
-              capability_map: capabilityMap || {}
+              capability_map: capabilityMap || {},
+              benchmark_dashboard: benchmarkDashboard || {},
+              benchmark_alert_routes: benchmarkAlerts || {},
+              benchmark_remediation: benchmarkRemediation || {}
             })}
           </section>
+          ${renderBenchmarkPanel(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation)}
           ${renderLocalModsPanel(pluginRegistry)}
         `;
       }
 
-    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry) {
+    function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
       const notices = [];
       if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
       if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
@@ -1836,7 +1961,8 @@
               `).join("")}
             </div>
           </section>
-          ${renderControlPriorityPanel(controllerRegistry, toolRegistry)}
+          ${renderControlPriorityPanel(controllerRegistry, toolRegistry, benchmarkDashboard)}
+          ${renderBenchmarkPanel(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation)}
           <section class="panel">
             <div class="panel-title">Recent Actions</div>
             <div class="recent-list">
@@ -1864,7 +1990,7 @@
       `;
     }
 
-    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry) {
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
       const notices = renderNotifications(sec, backup, triad, desktop);
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -1875,7 +2001,7 @@
         `</div>`,
         `<div class="layer-view ${activePage === "home" ? "active" : ""}" data-layer-view="home">` +
           renderOnboarding(onboarding) +
-          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry) +
+          renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) +
           renderTaskSwitcher(desktop) +
         `</div>`,
         `<div class="layer-view ${activePage === "apps" ? "active" : ""}" data-layer-view="apps">` +
@@ -1889,7 +2015,7 @@
           renderRuntimePanel(triadValue, kernel, runtime, backup) +
           `</div>`,
           `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
-            renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry) +
+            renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) +
           `</div>`,
         `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
           renderRecoveryPanel(onboarding, backup, notices) +
@@ -2035,10 +2161,13 @@
         loadJson(".zero_os/store/registry.json"),
         loadJson(".zero_os/integrations/github.json")
       ]);
-        const [toolRegistry, controllerRegistry, capabilityMap, pluginBridge] = await Promise.all([
+        const [toolRegistry, controllerRegistry, capabilityMap, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, pluginBridge] = await Promise.all([
           loadJson(".zero_os/runtime/tool_registry_status.json"),
           loadJson(".zero_os/assistant/controller_registry.json"),
           loadJson(".zero_os/assistant/capability_map.json"),
+          loadJson(".zero_os/benchmarks/model/dashboard_latest.json"),
+          loadJson(".zero_os/benchmarks/model/alert_routes.json"),
+          loadJson(".zero_os/assistant/benchmark_remediation_workflow.json"),
           bridgeCommand("plugin status")
         ]);
         const pluginRegistry = parseBridgeSummaryJson(pluginBridge);
@@ -2069,7 +2198,7 @@
 
         const activePage = readLayerPage();
         $("startLayer").innerHTML = [
-          renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry),
+          renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation),
           renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
         ].join("");
       $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {

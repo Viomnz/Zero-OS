@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -110,29 +111,41 @@ class ContradictionEngineTests(unittest.TestCase):
         self.assertIn("read-only request", review["issues"][0]["message"].lower())
 
     def test_select_stable_branch_discards_conflicting_recovery_branch(self) -> None:
-        selection = select_stable_branch(
-            str(self.base),
-            "recover system and self repair runtime",
-            [
-                {
-                    "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
-                    "branch": {"id": "primary", "source": "direct_plan", "note": "conflicting", "preferred": True},
-                    "steps": [
-                        {"kind": "self_repair", "target": "runtime"},
-                        {"kind": "recover", "target": "runtime"},
-                        {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
-                    ],
+        with patch(
+            "zero_os.contradiction_engine._workflow_signals",
+            return_value={
+                "runtime": {"runtime_ready": True},
+                "workflows": {
+                    "lanes": {
+                        "recovery": {"ready": True, "active": True},
+                        "self_repair": {"ready": True, "active": True},
+                    }
                 },
-                {
-                    "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
-                    "branch": {"id": "single_recover", "source": "regenerated_single_remediation", "note": "recover only", "preferred": True},
-                    "steps": [
-                        {"kind": "recover", "target": "runtime"},
-                        {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
-                    ],
-                },
-            ],
-        )
+            },
+        ):
+            selection = select_stable_branch(
+                str(self.base),
+                "recover system and self repair runtime",
+                [
+                    {
+                        "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
+                        "branch": {"id": "primary", "source": "direct_plan", "note": "conflicting", "preferred": True},
+                        "steps": [
+                            {"kind": "self_repair", "target": "runtime"},
+                            {"kind": "recover", "target": "runtime"},
+                            {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
+                        ],
+                    },
+                    {
+                        "intent": {"intent": "recover", "goals": ["recover system and self repair runtime"]},
+                        "branch": {"id": "single_recover", "source": "regenerated_single_remediation", "note": "recover only", "preferred": True},
+                        "steps": [
+                            {"kind": "recover", "target": "runtime"},
+                            {"kind": "autonomy_gate", "target": "recover system and self repair runtime"},
+                        ],
+                    },
+                ],
+            )
 
         self.assertTrue(selection["ok"])
         self.assertIsNotNone(selection["selected_branch"])
@@ -160,6 +173,49 @@ class ContradictionEngineTests(unittest.TestCase):
         )
 
         self.assertEqual("high_evidence", selection["selected_branch"]["branch"]["id"])
+
+    @patch(
+        "zero_os.contradiction_engine._workflow_signals",
+        return_value={
+            "runtime": {"runtime_ready": True},
+            "workflows": {"lanes": {"self_repair": {"ready": False, "active": False}}},
+        },
+    )
+    def test_review_branch_holds_when_typed_workflow_lane_is_not_ready(self, _mock_workflow) -> None:
+        review = review_branch(
+            str(self.base),
+            "self repair runtime",
+            {
+                "intent": {"intent": "self_repair", "goals": ["self repair runtime"]},
+                "steps": [{"kind": "self_repair", "target": "runtime"}],
+            },
+        )
+
+        self.assertEqual("hold", review["decision"])
+        self.assertIn("typed_workflow_not_ready", {issue["code"] for issue in review["issues"]})
+
+    @patch(
+        "zero_os.contradiction_engine._evolution_signals",
+        return_value={
+            "bounded": {"self_evolution_ready": True, "blocked_reasons": []},
+            "source": {
+                "source_evolution_ready": False,
+                "proposal": {"blocked_reasons": ["bounded evolution safety preconditions are not satisfied"]},
+            },
+        },
+    )
+    def test_review_branch_holds_when_source_evolution_is_not_ready(self, _mock_evolution) -> None:
+        review = review_branch(
+            str(self.base),
+            "align source defaults",
+            {
+                "intent": {"intent": "reasoning", "goals": ["align source defaults"]},
+                "steps": [{"kind": "source_evolution_auto_run", "target": "defaults"}],
+            },
+        )
+
+        self.assertEqual("hold", review["decision"])
+        self.assertIn("source_evolution_not_ready", {issue["code"] for issue in review["issues"]})
 
 
 if __name__ == "__main__":

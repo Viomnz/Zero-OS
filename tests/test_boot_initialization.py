@@ -23,6 +23,7 @@ class BootInitializationTests(unittest.TestCase):
         self.assertFalse(out["safe_mode"])
         self.assertIn(out["model_integrity"]["reason"], {"checkpoint auto-restored", "checkpoint restored from backup"})
         self.assertTrue((self.base / "ai_from_scratch" / "checkpoint.json").exists())
+        self.assertEqual("zero_native_char_attention_v1", out["model_integrity"]["architecture"])
 
     def test_boot_passes_with_valid_checkpoint_and_memory(self) -> None:
         (self.base / "ai_from_scratch" / "checkpoint.json").write_text(

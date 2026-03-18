@@ -1,0 +1,67 @@
+{
+  "suite": "zero_default_laws_v1",
+  "description": "Default Zero AI benchmark suite across local law corpora.",
+  "tokenizer_mode": "",
+  "lowercase": null,
+  "valid_fraction": 0.1,
+  "training": {
+    "family_sampling": "weighted",
+    "adaptive": {
+      "enabled": true,
+      "history_dir": ".zero_os/benchmarks/model",
+      "window": 3,
+      "min_runs": 2,
+      "max_focus_families": 2,
+      "max_stage_weight_scale": 3,
+      "min_regression_delta": 0.0,
+      "min_regression_ratio": 0.0
+    },
+    "curriculum": [
+      {
+        "name": "law_core_focus",
+        "weight_scale": 1,
+        "family_weights": {
+          "law_core": 1.2,
+          "strategy_context": 0.9
+        }
+      },
+      {
+        "name": "family_balance",
+        "weight_scale": 1,
+        "family_sampling": "balanced"
+      }
+    ]
+  },
+  "corpora": [
+    {
+      "name": "recursion_law",
+      "path": "laws/recursion_law.txt",
+      "weight": 1.0,
+      "family": "law_core"
+    },
+    {
+      "name": "universe_laws",
+      "path": "laws/universe_laws_canonical_123.txt",
+      "weight": 1.0,
+      "family": "law_core"
+    },
+    {
+      "name": "core_cycle",
+      "path": "laws/universal_law_core_cycle_123.txt",
+      "weight": 0.8,
+      "family": "law_core"
+    },
+    {
+      "name": "third_law",
+      "path": "laws/third_universe_law.txt",
+      "weight": 0.7,
+      "family": "law_core"
+    },
+    {
+      "name": "strategic_context",
+      "path": "laws/strategic_context_awareness.txt",
+      "weight": 0.8,
+      "family": "strategy_context"
+    }
+  ]
+}

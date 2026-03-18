@@ -18,7 +18,7 @@ _MUTATING_STEP_KINDS = {
 _STATUS_INTENTS = {"planning", "reasoning", "status", "tools"}
 _HIGH_RISK_REMEDIATION_KINDS = {"recover", "self_repair"}
 _PRIORITY_ORDER = ("truth", "consistency", "goal_fit", "consequence", "efficiency", "style")
-_CHECKS = ("self_model", "goal", "context", "evidence", "consequence")
+_CHECKS = ("self_model", "goal", "context", "workflow", "evolution", "evidence", "consequence")
 _KNOWN_STEP_KINDS = {
     "api_request",
     "api_workflow",
@@ -31,6 +31,9 @@ _KNOWN_STEP_KINDS = {
     "cloud_target_set",
     "controller_registry",
     "contradiction_engine",
+    "pressure_harness",
+    "evolution_auto_run",
+    "source_evolution_auto_run",
     "flow_monitor",
     "github_connect",
     "github_issue_act",
@@ -61,6 +64,7 @@ _KNOWN_STEP_KINDS = {
 }
 _INTENT_STEP_EXPECTATIONS = {
     "planning": {"controller_registry"},
+    "pressure": {"pressure_harness"},
     "reasoning": {"contradiction_engine"},
     "recover": {"recover"},
     "self_repair": {"self_repair"},
@@ -344,6 +348,97 @@ def _detect_consequence_conflicts(plan: dict[str, Any] | None, results: list[dic
     ]
 
 
+def _workflow_signals(cwd: str) -> dict[str, Any]:
+    from zero_os.phase_runtime import zero_ai_runtime_status
+    from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
+
+    return {
+        "runtime": zero_ai_runtime_status(cwd),
+        "workflows": zero_ai_control_workflows_status(cwd),
+    }
+
+
+def _evolution_signals(cwd: str) -> dict[str, Any]:
+    from zero_os.zero_ai_evolution import zero_ai_evolution_status
+    from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
+
+    return {
+        "bounded": zero_ai_evolution_status(cwd),
+        "source": zero_ai_source_evolution_status(cwd),
+    }
+
+
+def _detect_workflow_conflicts(cwd: str, plan: dict[str, Any] | None, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    step_kinds = _step_kind_set(plan, results)
+    if not step_kinds:
+        return []
+    signals = _workflow_signals(cwd)
+    runtime = dict(signals.get("runtime") or {})
+    lanes = dict((signals.get("workflows") or {}).get("lanes") or {})
+    issues: list[dict[str, Any]] = []
+
+    lane_checks = {
+        "browser": {"step_kinds": {"browser_action", "browser_open", "browser_dom_inspect", "browser_status"}, "label": "browser"},
+        "store_install": {"step_kinds": {"store_install", "store_status"}, "label": "store_install"},
+        "recovery": {"step_kinds": {"recover"}, "label": "recovery"},
+        "self_repair": {"step_kinds": {"self_repair"}, "label": "self_repair"},
+    }
+    for lane_key, spec in lane_checks.items():
+        if not step_kinds & set(spec["step_kinds"]):
+            continue
+        lane = dict(lanes.get(lane_key) or {})
+        if lane and bool(lane.get("ready", False)) and bool(lane.get("active", False)):
+            continue
+        issues.append(
+            _issue(
+                "workflow",
+                "typed_workflow_not_ready",
+                "A selected branch depends on a typed workflow lane that is not ready.",
+                details={"lane": spec["label"], "workflow": lane},
+            )
+        )
+
+    if {"recover", "self_repair", "store_install"} & step_kinds and not bool(runtime.get("runtime_ready", False)):
+        issues.append(
+            _issue(
+                "workflow",
+                "runtime_not_ready_for_mutation",
+                "High-impact workflow steps were selected while the runtime control plane is not ready.",
+                details={"runtime_ready": bool(runtime.get("runtime_ready", False))},
+            )
+        )
+    return issues
+
+
+def _detect_evolution_conflicts(cwd: str, plan: dict[str, Any] | None, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    step_kinds = _step_kind_set(plan, results)
+    if not step_kinds & {"evolution_auto_run", "source_evolution_auto_run"}:
+        return []
+    signals = _evolution_signals(cwd)
+    bounded = dict(signals.get("bounded") or {})
+    source = dict(signals.get("source") or {})
+    issues: list[dict[str, Any]] = []
+    if "evolution_auto_run" in step_kinds and not bool(bounded.get("self_evolution_ready", False)):
+        issues.append(
+            _issue(
+                "evolution",
+                "bounded_evolution_not_ready",
+                "The branch selected bounded self-evolution while its safety preconditions are not satisfied.",
+                details={"blocked_reasons": list(bounded.get("blocked_reasons", []))},
+            )
+        )
+    if "source_evolution_auto_run" in step_kinds and not bool(source.get("source_evolution_ready", False)):
+        issues.append(
+            _issue(
+                "evolution",
+                "source_evolution_not_ready",
+                "The branch selected guarded source evolution while its safety preconditions are not satisfied.",
+                details={"blocked_reasons": list((source.get("proposal") or {}).get("blocked_reasons", []))},
+            )
+        )
+    return issues
+
+
 def _detect_plan_contract_conflicts(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     for step in list((plan or {}).get("steps", [])):
@@ -489,6 +584,12 @@ def _recommended_action(issues: list[dict[str, Any]]) -> str:
         return "Rebuild the branch so every explicit request target remains attached to at least one step."
     if "conflicting_recovery_branches" in codes:
         return "Choose one guarded remediation branch and rerun instead of mixing recovery and self-repair."
+    if "typed_workflow_not_ready" in codes:
+        return "Refresh the typed workflow lane or choose a ready subsystem before executing that branch."
+    if "runtime_not_ready_for_mutation" in codes:
+        return "Restore runtime readiness before allowing high-impact workflow branches."
+    if "bounded_evolution_not_ready" in codes or "source_evolution_not_ready" in codes:
+        return "Stabilize runtime, continuity, and agent health before allowing evolution branches."
     if "unknown_step_kind" in codes or "missing_step_kind" in codes:
         return "Regenerate the branch from typed steps only before execution."
     if "policy_contract_violation" in codes:
@@ -516,6 +617,8 @@ def review_run(
         _detect_self_conflicts(cwd)
         + _detect_goal_conflicts(request, plan, result_list)
         + _detect_context_conflicts(request, plan, result_list)
+        + _detect_workflow_conflicts(cwd, plan, result_list)
+        + _detect_evolution_conflicts(cwd, plan, result_list)
         + _detect_plan_contract_conflicts(plan)
         + _detect_evidence_conflicts(effective_ok, result_list)
         + _detect_consequence_conflicts(plan, result_list)

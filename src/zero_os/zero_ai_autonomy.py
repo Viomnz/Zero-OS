@@ -293,7 +293,7 @@ def _sync_managed_goals(cwd: str, state: dict, signals: dict) -> dict:
     agent_installed = bool(runtime_agent.get("installed", False))
     agent_running = bool(runtime_agent.get("running", False))
     loop_enabled = bool(runtime_loop.get("enabled", False))
-    approvals_count = int(approvals.get("count", 0))
+    approvals_count = int(approvals.get("pending_count", approvals.get("count", 0)) or 0)
     jobs_count = int(jobs.get("count", 0))
     evolution = signals["evolution"]
     source_evolution = signals["source_evolution"]
@@ -505,7 +505,8 @@ def _build_status(cwd: str, state: dict, signals: dict) -> dict:
         "open_count": len(open_goals),
         "blocked_count": len(blocked_goals),
         "resolved_count": len(resolved_goals),
-        "approvals_pending": int(signals["approvals"].get("count", 0)),
+        "approvals_pending": int(signals["approvals"].get("pending_count", signals["approvals"].get("count", 0)) or 0),
+        "approvals_expired": int(signals["approvals"].get("expired_count", 0) or 0),
         "jobs_pending": int(signals["jobs"].get("count", 0)),
         "runtime_ready": bool(signals["runtime"].get("runtime_ready", False)),
         "continuity_healthy": bool(signals["continuity_healthy"]),
@@ -551,7 +552,8 @@ def zero_ai_autonomy_sync(cwd: str) -> dict:
             "runtime_ready": bool(signals["runtime"].get("runtime_ready", False)),
             "runtime_missing": bool(signals["runtime"].get("missing", False)),
             "continuity_healthy": bool(signals["continuity_healthy"]),
-            "approvals_pending": int(signals["approvals"].get("count", 0)),
+            "approvals_pending": int(signals["approvals"].get("pending_count", signals["approvals"].get("count", 0)) or 0),
+            "approvals_expired": int(signals["approvals"].get("expired_count", 0) or 0),
             "jobs_pending": int(signals["jobs"].get("count", 0)),
             "fully_autonomous_control": bool((signals["capability_control_map"] or {}).get("fully_autonomous_control", False)),
             "self_evolution_ready": bool((signals["evolution"] or {}).get("self_evolution_ready", False)),
@@ -602,22 +604,14 @@ def _execute_goal_action(cwd: str, goal: dict) -> dict:
         return {"ok": bool(result.get("ok", False)), "action_kind": action_kind, "result": result}
 
     if action_kind == "ensure_background_agent":
-        from zero_os.phase_runtime import zero_ai_runtime_agent_install, zero_ai_runtime_agent_start, zero_ai_runtime_agent_status
+        from zero_os.phase_runtime import zero_ai_runtime_agent_ensure, zero_ai_runtime_agent_status
 
-        steps = []
-        status = zero_ai_runtime_agent_status(cwd)
-        if not bool(status.get("installed", False)):
-            install = zero_ai_runtime_agent_install(cwd)
-            steps.append({"step": "install", "result": install})
-            status = install.get("agent", {}) if isinstance(install.get("agent"), dict) else zero_ai_runtime_agent_status(cwd)
-        if not bool(status.get("running", False)):
-            start = zero_ai_runtime_agent_start(cwd)
-            steps.append({"step": "start", "result": start})
+        ensure = zero_ai_runtime_agent_ensure(cwd)
         final_status = zero_ai_runtime_agent_status(cwd)
         return {
             "ok": bool(final_status.get("installed", False)) and bool(final_status.get("running", False)),
             "action_kind": action_kind,
-            "steps": steps,
+            "steps": [ensure],
             "result": final_status,
         }
 
@@ -734,6 +728,31 @@ def zero_ai_autonomy_run(cwd: str) -> dict:
         "goal": current,
         "execution": execution,
         "autonomy": final_sync["status"],
+    }
+
+
+def zero_ai_autonomy_drain(cwd: str, max_runs: int = 8) -> dict:
+    attempts = max(1, min(32, int(max_runs)))
+    runs: list[dict] = []
+    for _ in range(attempts):
+        status = zero_ai_autonomy_status(cwd)
+        current = dict(status.get("current_goal") or {})
+        if not current:
+            return {"ok": True, "ran": bool(runs), "reason": "no actionable goals", "runs": runs, "status": status}
+        if str(current.get("state", "")) == "blocked":
+            return {"ok": True, "ran": bool(runs), "reason": str(current.get("blocked_reason") or "blocked_goal"), "runs": runs, "status": status}
+        run = zero_ai_autonomy_run(cwd)
+        runs.append(run)
+        if not bool(run.get("ran", False)):
+            break
+        if not bool(run.get("ok", False)):
+            return {"ok": False, "ran": True, "reason": str(run.get("reason", "autonomy drain failed")), "runs": runs, "status": zero_ai_autonomy_status(cwd)}
+    return {
+        "ok": True,
+        "ran": bool(runs),
+        "reason": "max_runs_reached" if len(runs) >= attempts else "idle",
+        "runs": runs,
+        "status": zero_ai_autonomy_status(cwd),
     }
 
 

@@ -98,6 +98,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.smart_workspace import workspace_status
     from zero_os.phase_runtime import zero_ai_runtime_agent_status, zero_ai_runtime_loop_status
     from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.zero_ai_pressure_harness import pressure_harness_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
@@ -109,6 +110,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     approvals = approval_status(cwd)
     jobs = jobs_status(cwd)
     contradiction_engine = contradiction_engine_status(cwd)
+    pressure_harness = pressure_harness_status(cwd)
     flow_monitor = flow_status(cwd)
     smart_workspace = workspace_status(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
@@ -135,6 +137,8 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
 
     approval_counts: dict[str, int] = {}
     for item in approvals.get("items", []):
+        if str(item.get("state", "")).strip() != "pending":
+            continue
         action = str(item.get("action", "")).strip()
         approval_counts[action] = approval_counts.get(action, 0) + 1
 
@@ -251,6 +255,24 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "last_contradiction_count": int(contradiction_engine.get("last_contradiction_count", 0) or 0),
                 "continuity_has_contradiction": bool((contradiction_engine.get("continuity") or {}).get("has_contradiction", False)),
                 "checks": list(contradiction_engine.get("checks", [])),
+            },
+        ),
+        _capability(
+            "pressure_harness",
+            "Pressure harness",
+            "pressure",
+            "autonomous",
+            active=not bool(pressure_harness.get("missing", False)),
+            ready=True,
+            action_kind="pressure_harness_run",
+            notes="Runs isolated survivability checks across approvals, contradiction gating, routing, and task completion.",
+            evidence={
+                "status": str(pressure_harness.get("status", "missing")),
+                "scenario_count": int(pressure_harness.get("scenario_count", 0) or 0),
+                "failed_count": int(pressure_harness.get("failed_count", 0) or 0),
+                "overall_score": float(pressure_harness.get("overall_score", 0.0) or 0.0),
+                "top_failure_code": str(pressure_harness.get("top_failure_code", "")),
+                "last_run_utc": str(pressure_harness.get("generated_utc", "")),
             },
         ),
         _capability(
@@ -412,6 +434,12 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
         highest_value_steps.append("Build the contradiction engine and make it the gate before output.")
     else:
         highest_value_steps.append("Maintain the contradiction gate and extend typed reasoning checks across more subsystems.")
+    if bool(pressure_harness.get("missing", False)):
+        highest_value_steps.append("Run `zero ai pressure run` to create a real survivability baseline under approval, contradiction, routing, and task pressure.")
+    elif int(pressure_harness.get("failed_count", 0) or 0) > 0:
+        highest_value_steps.append(str(pressure_harness.get("recommended_action", "Fix the top pressure-harness failure before expanding autonomy further.")))
+    else:
+        highest_value_steps.append("Maintain the pressure harness and keep feeding real incidents back into the survivability suite.")
     if not bool(source_evolution.get("expanded_sandbox_patch_lane", False)):
         highest_value_steps.append("Expand guarded source evolution from allowlisted defaults to a sandboxed patch lane for selected non-identity modules.")
     else:

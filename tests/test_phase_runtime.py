@@ -4,6 +4,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ if str(SRC) not in sys.path:
 from zero_os.assistant_job_runner import schedule_recurring_builtin
 from zero_os.phase_runtime import (
     _runtime_loop_default,
+    zero_ai_runtime_agent_ensure,
     zero_ai_runtime_agent_install,
     zero_ai_runtime_agent_start,
     zero_ai_runtime_agent_status,
@@ -134,8 +136,9 @@ class ZeroAIRuntimeTests(unittest.TestCase):
 
     def test_runtime_agent_install_and_uninstall_manage_startup_artifact(self) -> None:
         startup_dir = self.base / "startup"
+        now = datetime.now(timezone.utc).isoformat()
         with patch.dict(os.environ, {"ZERO_OS_RUNTIME_AGENT_STARTUP_DIR": str(startup_dir)}):
-            with patch("zero_os.phase_runtime._launch_runtime_agent", return_value={"ok": True, "pid": 4321, "started_utc": "2026-03-09T00:00:00+00:00", "command": ["python", "zero_os_runtime_agent.py"]}), \
+            with patch("zero_os.phase_runtime._launch_runtime_agent", return_value={"ok": True, "pid": 4321, "started_utc": now, "command": ["python", "zero_os_runtime_agent.py"]}), \
                  patch("zero_os.phase_runtime._pid_alive", return_value=True), \
                  patch("zero_os.phase_runtime._terminate_pid", return_value=True):
                 installed = zero_ai_runtime_agent_install(str(self.base))
@@ -153,7 +156,8 @@ class ZeroAIRuntimeTests(unittest.TestCase):
                 self.assertFalse(Path(installed["startup_launcher_path"]).exists())
 
     def test_runtime_agent_start_and_stop_update_state(self) -> None:
-        with patch("zero_os.phase_runtime._launch_runtime_agent", return_value={"ok": True, "pid": 2468, "started_utc": "2026-03-09T00:00:00+00:00", "command": ["python", "zero_os_runtime_agent.py"]}), \
+        now = datetime.now(timezone.utc).isoformat()
+        with patch("zero_os.phase_runtime._launch_runtime_agent", return_value={"ok": True, "pid": 2468, "started_utc": now, "command": ["python", "zero_os_runtime_agent.py"]}), \
              patch("zero_os.phase_runtime._pid_alive", return_value=True), \
              patch("zero_os.phase_runtime._terminate_pid", return_value=True):
             started = zero_ai_runtime_agent_start(str(self.base))
@@ -165,6 +169,31 @@ class ZeroAIRuntimeTests(unittest.TestCase):
             self.assertTrue(stopped["ok"])
             self.assertTrue(stopped["stopped"])
             self.assertFalse(stopped["agent"]["running"])
+
+    def test_runtime_agent_status_uses_startup_grace_after_launch(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with patch(
+            "zero_os.phase_runtime._launch_runtime_agent",
+            return_value={"ok": True, "pid": 2468, "started_utc": now, "command": ["python", "zero_os_runtime_agent.py"]},
+        ), patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            started = zero_ai_runtime_agent_start(str(self.base))
+
+        self.assertTrue(started["ok"])
+        self.assertTrue(started["agent"]["running"])
+        self.assertTrue(started["agent"]["startup_grace_active"])
+
+    def test_runtime_agent_ensure_installs_when_missing(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with patch(
+            "zero_os.phase_runtime._launch_runtime_agent",
+            return_value={"ok": True, "pid": 1357, "started_utc": now, "command": ["python", "zero_os_runtime_agent.py"]},
+        ), patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            ensured = zero_ai_runtime_agent_ensure(str(self.base))
+
+        self.assertTrue(ensured["ok"])
+        self.assertTrue(ensured["changed"])
+        self.assertEqual("install", ensured["action"])
+        self.assertTrue(ensured["agent"]["running"])
 
 
 if __name__ == "__main__":

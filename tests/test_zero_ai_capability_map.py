@@ -86,6 +86,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertTrue(capabilities["integrity_flow_monitor"]["active"])
         self.assertEqual("autonomous", capabilities["contradiction_gate"]["control_level"])
         self.assertTrue(capabilities["contradiction_gate"]["active"])
+        self.assertEqual("autonomous", capabilities["pressure_harness"]["control_level"])
         self.assertEqual("autonomous", capabilities["browser_control"]["control_level"])
         self.assertEqual("autonomous", capabilities["store_installation"]["control_level"])
         self.assertEqual("autonomous", capabilities["recovery_restore"]["control_level"])

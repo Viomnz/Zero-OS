@@ -102,7 +102,33 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         approval = approval_status(str(self.base))["items"][-1]
         approval_decide(str(self.base), approval["id"], True)
         resumed = run_task_resume(str(self.base))
+        self.assertTrue(resumed["ok"])
         self.assertIn("task_memory", resumed)
+        browser_actions = [item for item in resumed["results"] if item["kind"] == "browser_action"]
+        self.assertEqual(1, len(browser_actions))
+        self.assertEqual("https://example.com", browser_actions[0]["result"]["action"]["url"])
+
+    def test_resume_without_approval_reuses_existing_browser_request(self) -> None:
+        run_task(str(self.base), "open https://example.com and click")
+        first_count = approval_status(str(self.base))["count"]
+
+        resumed = run_task_resume(str(self.base))
+
+        self.assertFalse(resumed["ok"])
+        self.assertEqual(first_count, approval_status(str(self.base))["count"])
+
+    def test_approved_self_repair_resume_uses_approval_instead_of_looping(self) -> None:
+        out = run_task(str(self.base), "self repair runtime")
+        self.assertFalse(out["ok"])
+
+        approval = approval_status(str(self.base))["items"][-1]
+        approval_decide(str(self.base), approval["id"], True)
+        resumed = run_task_resume(str(self.base))
+
+        self.assertFalse(resumed["ok"])
+        self.assertEqual("self_repair", resumed["results"][-1]["kind"])
+        self.assertNotEqual("approval_required", resumed["results"][-1].get("reason"))
+        self.assertEqual(1, approval_status(str(self.base))["count"])
 
     def test_run_task_api_workflow(self) -> None:
         profile_set(str(self.base), "demo", "https://example.com")
@@ -157,6 +183,12 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         out = run_task(str(self.base), "contradiction status")
         self.assertEqual(["contradiction_engine"], [step["kind"] for step in out["plan"]["steps"]])
         self.assertIn("contradiction gate", out["response"]["summary"])
+
+    def test_run_task_pressure_harness_uses_pressure_lane(self) -> None:
+        out = run_task(str(self.base), "pressure harness")
+        self.assertTrue(out["ok"])
+        self.assertEqual(["pressure_harness"], [step["kind"] for step in out["plan"]["steps"]])
+        self.assertIn("pressure harness", out["response"]["summary"])
 
     def test_run_task_holds_output_when_continuity_has_contradiction(self) -> None:
         runtime_dir = self.base / ".zero_os" / "runtime"

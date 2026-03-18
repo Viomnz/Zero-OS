@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from zero_os.agent_permission_policy import audit_event, classify_action
 from zero_os.api_connector_profiles import profile_request, profile_workflow
-from zero_os.approval_workflow import latest_approved, request_approval
+from zero_os.approval_workflow import latest_approved, latest_pending, mark_executed, request_approval
 from zero_os.browser_dom_automation import act as browser_dom_act, inspect_page as browser_dom_inspect, status as browser_dom_status
 from zero_os.browser_session_connector import browser_session_action, browser_session_open, browser_session_status
 from zero_os.autonomous_fix_gate import autonomy_evaluate
@@ -42,7 +42,30 @@ def _dispatch_via_highway(cwd: str, text: str) -> dict:
     return {"capability": result.capability, "summary": result.summary}
 
 
-def execute_step(cwd: str, step: dict) -> dict:
+def _browser_action_target(cwd: str, target: dict) -> dict:
+    payload = dict(target or {})
+    if str(payload.get("url", "")).strip():
+        return payload
+    session = browser_session_status(cwd)
+    payload["url"] = str(session.get("last_opened", "")).strip()
+    return payload
+
+
+def _approval_payload(run_id: str, target, **extra) -> dict:
+    payload = {"run_id": str(run_id or "").strip(), "target": target}
+    payload.update(extra)
+    return payload
+
+
+def _matching_approval(cwd: str, action: str, run_id: str, target):
+    approved = latest_approved(cwd, action, run_id=str(run_id or "").strip(), target=target)
+    if approved.get("ok", False):
+        return {"approved": approved, "pending": {"ok": False, "reason": "none"}}
+    pending = latest_pending(cwd, action, run_id=str(run_id or "").strip(), target=target)
+    return {"approved": approved, "pending": pending}
+
+
+def execute_step(cwd: str, step: dict, *, run_id: str = "") -> dict:
     kind = step.get("kind", "")
     target = step.get("target", "")
     policy = classify_action(cwd, kind)
@@ -64,6 +87,13 @@ def execute_step(cwd: str, step: dict) -> dict:
     if kind == "contradiction_engine":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": contradiction_engine_status(cwd)}
+    if kind == "pressure_harness":
+        from zero_os.zero_ai_pressure_harness import pressure_harness_run, pressure_harness_status
+
+        audit_event(cwd, kind, "executed", {"target": target})
+        if str(target or "").strip().lower() == "status":
+            return {"ok": True, "kind": kind, "result": pressure_harness_status(cwd)}
+        return {"ok": True, "kind": kind, "result": pressure_harness_run(cwd)}
     if kind == "smart_workspace":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": workspace_status(cwd, str(target or "main"))}
@@ -86,20 +116,34 @@ def execute_step(cwd: str, step: dict) -> dict:
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": browser_session_open(cwd, str(target))}
     if kind == "browser_action":
-        approved = latest_approved(cwd, "browser_action")
+        effective_target = _browser_action_target(cwd, dict(target or {}))
+        approval_state = _matching_approval(cwd, "browser_action", run_id, effective_target)
+        approved = approval_state["approved"]
         if approved.get("ok", False):
             approval_payload = approved["approval"].get("payload", {})
-            effective_target = approval_payload.get("target", target)
+            effective_target = _browser_action_target(cwd, dict(approval_payload.get("target", effective_target) or effective_target))
             audit_event(cwd, kind, "executed_after_approval", {"target": effective_target})
+            result = browser_dom_act(
+                cwd,
+                str(effective_target.get("url", "")),
+                str(effective_target.get("action", "")),
+                str(effective_target.get("selector", "")),
+                str(effective_target.get("value", "")),
+            )
+            mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="ok" if result.get("ok", False) else "failed")
             return {
                 "ok": True,
                 "kind": kind,
-                "result": browser_dom_act(cwd, str(effective_target.get("url", "")), str(effective_target.get("action", "")), str(effective_target.get("selector", "")), str(effective_target.get("value", ""))),
+                "result": result,
             }
+        pending = approval_state["pending"]
+        if pending.get("ok", False):
+            audit_event(cwd, kind, "approval_required", {"target": effective_target, "reused_pending": True})
+            return {"ok": False, "kind": kind, "reason": "approval_required", "approval": pending}
         audit_event(cwd, kind, "approval_required", {"target": target})
         gate = autonomy_evaluate(
             cwd,
-            action=f"browser action {target.get('action', '')}",
+            action=f"browser action {effective_target.get('action', '')}",
             blast_radius="service",
             reversible=True,
             evidence_count=8,
@@ -107,7 +151,12 @@ def execute_step(cwd: str, step: dict) -> dict:
             independent_verifiers=2,
             checks={"browser_session": True, "verification_ready": True, "rollback_ready": True},
         )
-        approval = request_approval(cwd, "browser_action", "interactive_browser_action_requires_approval", {"target": target, "gate": gate})
+        approval = request_approval(
+            cwd,
+            "browser_action",
+            "interactive_browser_action_requires_approval",
+            _approval_payload(run_id, effective_target, gate=gate),
+        )
         return {"ok": False, "kind": kind, "reason": "approval_required", "gate": gate, "approval": approval}
     if kind == "api_request":
         audit_event(cwd, kind, "executed", {"target": target})
@@ -227,10 +276,17 @@ def execute_step(cwd: str, step: dict) -> dict:
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": store_status(cwd)}
     if kind == "store_install":
+        approval_state = _matching_approval(cwd, "store_install", run_id, target)
+        approved = approval_state["approved"]
+        pending = approval_state["pending"]
         if policy["decision"] == "approval_required":
-            audit_event(cwd, kind, "approval_required", {"target": target})
-            approval = request_approval(cwd, "store_install", "policy_requires_approval", {"target": target})
-            return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
+            if not approved.get("ok", False):
+                if pending.get("ok", False):
+                    audit_event(cwd, kind, "approval_required", {"target": target, "reused_pending": True})
+                    return {"ok": False, "kind": kind, "reason": "approval_required", "approval": pending}
+                audit_event(cwd, kind, "approval_required", {"target": target})
+                approval = request_approval(cwd, "store_install", "policy_requires_approval", _approval_payload(run_id, target))
+                return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
         gate = autonomy_evaluate(
             cwd,
             action=f"native store install {target}",
@@ -242,13 +298,25 @@ def execute_step(cwd: str, step: dict) -> dict:
             checks={"store_ready": True, "rollback_ready": True, "verification_ready": True},
         )
         if gate.get("decision") != "allow":
+            if approved.get("ok", False):
+                mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="gate_blocked")
             return {"ok": False, "kind": kind, "reason": "autonomy_gate", "gate": gate}
-        return {"ok": True, "kind": kind, "result": store_install(cwd, str(target), "")}
+        result = store_install(cwd, str(target), "")
+        if approved.get("ok", False):
+            mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="ok" if result.get("ok", False) else "failed")
+        return {"ok": True, "kind": kind, "result": result}
     if kind == "self_repair":
+        approval_state = _matching_approval(cwd, "self_repair", run_id, target)
+        approved = approval_state["approved"]
+        pending = approval_state["pending"]
         if policy["decision"] == "approval_required":
-            audit_event(cwd, kind, "approval_required", {"target": target})
-            approval = request_approval(cwd, "self_repair", "policy_requires_approval", {"target": target})
-            return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
+            if not approved.get("ok", False):
+                if pending.get("ok", False):
+                    audit_event(cwd, kind, "approval_required", {"target": target, "reused_pending": True})
+                    return {"ok": False, "kind": kind, "reason": "approval_required", "approval": pending}
+                audit_event(cwd, kind, "approval_required", {"target": target})
+                approval = request_approval(cwd, "self_repair", "policy_requires_approval", _approval_payload(run_id, target))
+                return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
         gate = autonomy_evaluate(
             cwd,
             action="self repair run",
@@ -260,13 +328,25 @@ def execute_step(cwd: str, step: dict) -> dict:
             checks={"runtime_ready": True, "rollback_ready": True, "verification_ready": True},
         )
         if gate.get("decision") != "allow":
+            if approved.get("ok", False):
+                mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="gate_blocked")
             return {"ok": False, "kind": kind, "reason": "autonomy_gate", "gate": gate}
-        return {"ok": True, "kind": kind, "result": run_self_repair(cwd)}
+        result = run_self_repair(cwd)
+        if approved.get("ok", False):
+            mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="ok" if result.get("ok", False) else "failed")
+        return {"ok": True, "kind": kind, "result": result}
     if kind == "recover":
+        approval_state = _matching_approval(cwd, "recover", run_id, target)
+        approved = approval_state["approved"]
+        pending = approval_state["pending"]
         if policy["decision"] == "approval_required":
-            audit_event(cwd, kind, "approval_required", {"target": target})
-            approval = request_approval(cwd, "recover", "policy_requires_approval", {"target": target})
-            return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
+            if not approved.get("ok", False):
+                if pending.get("ok", False):
+                    audit_event(cwd, kind, "approval_required", {"target": target, "reused_pending": True})
+                    return {"ok": False, "kind": kind, "reason": "approval_required", "approval": pending}
+                audit_event(cwd, kind, "approval_required", {"target": target})
+                approval = request_approval(cwd, "recover", "policy_requires_approval", _approval_payload(run_id, target))
+                return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
         gate = autonomy_evaluate(
             cwd,
             action="zero ai recover",
@@ -278,8 +358,13 @@ def execute_step(cwd: str, step: dict) -> dict:
             checks={"snapshot_ready": True, "rollback_ready": True, "verification_ready": True},
         )
         if gate.get("decision") != "allow":
+            if approved.get("ok", False):
+                mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="gate_blocked")
             return {"ok": False, "kind": kind, "reason": "autonomy_gate", "gate": gate}
-        return {"ok": True, "kind": kind, "result": run_recovery(cwd)}
+        result = run_recovery(cwd)
+        if approved.get("ok", False):
+            mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="ok" if result.get("ok", False) else "failed")
+        return {"ok": True, "kind": kind, "result": result}
     if kind == "autonomy_gate":
         audit_event(cwd, kind, "executed", {"target": target})
         return {

@@ -18,6 +18,7 @@ from zero_os.phase_runtime import zero_ai_runtime_run
 from zero_os.self_continuity import zero_ai_self_continuity_update
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_add_goal,
+    zero_ai_autonomy_drain,
     zero_ai_autonomy_loop_set,
     zero_ai_autonomy_loop_tick,
     zero_ai_autonomy_run,
@@ -176,6 +177,32 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         self.assertIn("capability_control_map", status)
         blocked = next(goal for goal in status["goals"] if goal["key"] == "pending_approvals")
         self.assertEqual("blocked", blocked["state"])
+
+    def test_expired_approvals_stop_blocking_autonomy(self) -> None:
+        self._prime_stable_runtime()
+        request_approval(str(self.base), "self_repair", "policy_requires_approval", {"target": "runtime"})
+        approvals_path = self.base / ".zero_os" / "assistant" / "approvals.json"
+        payload = json.loads(approvals_path.read_text(encoding="utf-8"))
+        payload["items"][0]["expires_utc"] = "2000-01-01T00:00:00+00:00"
+        approvals_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+        with patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            status = zero_ai_autonomy_status(str(self.base))
+
+        self.assertEqual(0, status["blocked_count"])
+        self.assertEqual(0, status["approvals_pending"])
+        self.assertGreaterEqual(status["approvals_expired"], 1)
+
+    def test_autonomy_drain_stops_cleanly_on_blocked_goal(self) -> None:
+        self._prime_stable_runtime()
+        request_approval(str(self.base), "self_repair", "policy_requires_approval", {"target": "runtime"})
+
+        with patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            drained = zero_ai_autonomy_drain(str(self.base), max_runs=3)
+
+        self.assertTrue(drained["ok"])
+        self.assertFalse(drained["ran"])
+        self.assertIn("approval item", drained["reason"])
 
     def test_manual_goal_runs_and_resolves_in_stable_state(self) -> None:
         self._prime_stable_runtime()

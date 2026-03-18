@@ -55,6 +55,17 @@ _SUBSYSTEMS = (
         "notes": "Runs typed contradiction checks across goal, context, evidence, consequences, and self continuity before output.",
     },
     {
+        "key": "pressure",
+        "label": "Pressure harness",
+        "capability_keys": ("pressure_harness",),
+        "tool_keys": ("system_runtime",),
+        "commands": (
+            "zero ai pressure status",
+            "zero ai pressure run",
+        ),
+        "notes": "Runs isolated survivability pressure checks across approvals, contradiction handling, routing, and task completion.",
+    },
+    {
         "key": "runtime",
         "label": "Runtime control plane",
         "capability_keys": ("runtime_orchestrator", "background_agent", "runtime_loop"),
@@ -63,6 +74,7 @@ _SUBSYSTEMS = (
             "zero ai runtime status",
             "zero ai runtime run",
             "zero ai runtime loop on [interval=<seconds>]",
+            "zero ai runtime agent ensure",
             "zero ai runtime agent install",
         ),
         "notes": "Keeps Zero AI alive, scheduled, and able to execute its main orchestration pass.",
@@ -75,6 +87,7 @@ _SUBSYSTEMS = (
         "commands": (
             "zero ai autonomy status",
             "zero ai autonomy goals",
+            "zero ai autonomy drain [max=<n>]",
             "zero ai autonomy add [priority=<1-100>] <goal>",
             "zero ai autonomy loop on [interval=<seconds>]",
         ),
@@ -182,6 +195,21 @@ def _runtime_missing(capabilities: dict[str, dict]) -> tuple[list[str], str]:
     if "runtime orchestration baseline" in missing:
         return missing, "Run `zero ai runtime run` to create a live runtime baseline before widening autonomy."
     return missing, "Maintain the runtime control plane and keep the agent heartbeat healthy."
+
+
+def _pressure_missing(capabilities: dict[str, dict]) -> tuple[list[str], str]:
+    capability = capabilities.get("pressure_harness", {})
+    evidence = dict(capability.get("evidence") or {})
+    missing: list[str] = []
+    if not capability.get("active", False):
+        missing.append("pressure survivability baseline")
+    if int(evidence.get("failed_count", 0) or 0) > 0:
+        missing.append("pressure failures")
+    if "pressure survivability baseline" in missing:
+        return missing, "Run `zero ai pressure run` to create a real survivability baseline before calling Zero AI world-class."
+    if "pressure failures" in missing:
+        return missing, "Fix the top pressure-harness failure before widening autonomy or trust."
+    return missing, "Maintain the pressure harness and keep feeding real incidents back into the survivability suite."
 
 
 def _autonomy_missing(capabilities: dict[str, dict]) -> tuple[list[str], str]:
@@ -311,6 +339,8 @@ def _missing_functions_for(
         return _observation_missing(capabilities)
     if subsystem_key == "reasoning":
         return _reasoning_missing(capabilities)
+    if subsystem_key == "pressure":
+        return _pressure_missing(capabilities)
     if subsystem_key == "runtime":
         return _runtime_missing(capabilities)
     if subsystem_key == "autonomy":

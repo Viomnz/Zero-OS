@@ -116,6 +116,8 @@ GitHub Actions also smoke-tests this universal UI path on Windows, macOS, and Li
 - Security policy: [SECURITY.md](C:\Users\gomez\Documents\New folder\SECURITY.md)
 - Compatibility matrix: [docs/COMPATIBILITY_MATRIX.md](C:\Users\gomez\Documents\New folder\docs\COMPATIBILITY_MATRIX.md)
 - Kernel R&D overview: [docs/kernel/README.md](C:\Users\gomez\Documents\New folder\docs\kernel\README.md)
+- Physics derivation note: [docs/physics/born_rule_from_filtration.md](C:\Users\gomez\Documents\New folder\docs\physics\born_rule_from_filtration.md)
+- Relativistic extension note: [docs/physics/spacetime_from_classical_layer_geometry.md](C:\Users\gomez\Documents\New folder\docs\physics\spacetime_from_classical_layer_geometry.md)
 - Native app store subsystem: [docs/NATIVE_APP_STORE.md](C:\Users\gomez\Documents\New folder\docs\NATIVE_APP_STORE.md)
 - Roadmap: [ROADMAP.md](C:\Users\gomez\Documents\New folder\ROADMAP.md)
 - Contributing: [CONTRIBUTING.md](C:\Users\gomez\Documents\New folder\CONTRIBUTING.md)

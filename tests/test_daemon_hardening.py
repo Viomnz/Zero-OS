@@ -50,7 +50,7 @@ class DaemonHardeningTests(unittest.TestCase):
         self.assertIsNotNone(loaded)
         payload = json.loads(ckpt.read_text(encoding="utf-8", errors="replace"))
         self.assertIn("vocab", payload)
-        self.assertIn("logits", payload)
+        self.assertIn("architecture", payload)
 
 
 if __name__ == "__main__":

@@ -195,6 +195,10 @@ def build_plan(request: str, cwd: str = ".") -> dict:
         steps.append({"kind": "controller_registry", "target": "next_steps"})
     if intent["intent"] == "reasoning" or any(token in lowered for token in ("contradiction engine", "contradiction gate", "reasoning gate", "contradiction status")):
         steps.append({"kind": "contradiction_engine", "target": "status"})
+    if intent["intent"] == "pressure" or any(
+        token in lowered for token in ("pressure harness", "stress harness", "pressure mode", "stress test", "pressure test")
+    ):
+        steps.append({"kind": "pressure_harness", "target": "status" if "status" in lowered else "run"})
     if any(
         token in lowered
         for token in (
@@ -238,7 +242,7 @@ def build_plan(request: str, cwd: str = ".") -> dict:
                 if "open" in lowered:
                     steps.append({"kind": "browser_open", "target": url})
                 if any(token in lowered for token in ("click", "submit", "type")):
-                    steps.append({"kind": "browser_action", "target": {"action": "click", "selector": "body"}})
+                    steps.append({"kind": "browser_action", "target": {"url": url, "action": "click", "selector": "body"}})
     if intent["intent"] == "status" or any(token in lowered for token in ("system status", "diagnostic", "health check", "system health")):
         steps.append({"kind": "system_status", "target": "health"})
     if any(token in lowered for token in ("browser status", "tabs", "session")):

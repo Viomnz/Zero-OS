@@ -1,0 +1,14 @@
+{
+  "max_primary_perplexity": 120.0,
+  "max_valid_perplexity": 120.0,
+  "max_train_perplexity": 120.0,
+  "max_family_primary_perplexity": 130.0,
+  "max_primary_regression_delta": 6.0,
+  "max_valid_regression_delta": 6.0,
+  "max_train_regression_delta": 6.0,
+  "max_family_primary_regression_delta": 8.0,
+  "max_primary_regression_ratio": 0.12,
+  "max_valid_regression_ratio": 0.12,
+  "max_train_regression_ratio": 0.12,
+  "max_family_primary_regression_ratio": 0.16
+}

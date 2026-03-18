@@ -1,0 +1,28 @@
+{
+  "default_fail_route": "ci_blocker",
+  "default_warn_route": "benchmark_watch",
+  "route_actions": {
+    "ci_blocker": "block_release",
+    "regression_watch": "review_regression",
+    "family_watch": "inspect_family_slice",
+    "baseline_watch": "collect_baseline",
+    "benchmark_watch": "review_benchmark_signal"
+  },
+  "route_severity": {
+    "ci_blocker": "critical",
+    "regression_watch": "high",
+    "family_watch": "high",
+    "baseline_watch": "medium",
+    "benchmark_watch": "medium"
+  },
+  "kind_routes": {
+    "absolute_threshold": "ci_blocker",
+    "regression_delta": "regression_watch",
+    "regression_ratio": "regression_watch",
+    "family_absolute_threshold": "family_watch",
+    "family_regression_delta": "family_watch",
+    "family_regression_ratio": "family_watch",
+    "baseline_missing": "baseline_watch",
+    "family_baseline_missing": "baseline_watch"
+  }
+}

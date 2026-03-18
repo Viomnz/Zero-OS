@@ -11,6 +11,8 @@ from zero_os.tool_capability_registry import registry_status
 
 
 def collect_observations(cwd: str) -> dict:
+    from zero_os.zero_ai_pressure_harness import pressure_harness_status
+
     base = Path(cwd).resolve()
     return {
         "ok": True,
@@ -18,6 +20,7 @@ def collect_observations(cwd: str) -> dict:
         "tool_registry": registry_status(cwd),
         "controller_registry": controller_registry_status(cwd),
         "contradiction_engine": contradiction_engine_status(cwd),
+        "pressure_harness": pressure_harness_status(cwd),
         "flow_monitor": flow_status(cwd),
         "smart_workspace": workspace_status(cwd),
         "workspace": {

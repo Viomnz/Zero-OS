@@ -406,6 +406,20 @@ public partial class MainWindow : Window
         => RunBackendTask("zero ai capability map status", "Zero AI capability map loaded");
     private void ZeroAiControlWorkflowsStatus_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai control workflows status", "Zero AI control workflows status loaded");
+    private void ZeroAiBenchmarkDashboardRefresh_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark dashboard refresh", "Zero AI benchmark dashboard refreshed");
+    private void ZeroAiBenchmarkAlertsRefresh_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark alerts refresh", "Zero AI benchmark alert routes refreshed");
+    private void ZeroAiBenchmarkRemediationRefresh_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark remediation refresh", "Zero AI benchmark remediation refreshed");
+    private void ZeroAiBenchmarkRemediationRequest_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark remediation request", "Zero AI benchmark remediation approval requested");
+    private void ZeroAiBenchmarkRemediationApprove_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark remediation approve", "Zero AI benchmark remediation approved");
+    private void ZeroAiBenchmarkRemediationReject_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark remediation reject", "Zero AI benchmark remediation rejected");
+    private void ZeroAiBenchmarkRemediationExecute_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai benchmark remediation execute", "Zero AI benchmark remediation execution attempted");
     private void RememberRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
         => SetRuntimeLoopStartupPreference(true);
     private void ForgetRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
@@ -1202,7 +1216,10 @@ public partial class MainWindow : Window
         var controllerResult = _backend.RunTask("zero ai controller registry status");
         var toolResult = _backend.RunTask("zero ai tools status");
         var capabilityResult = _backend.RunTask("zero ai capability map status");
-        ControlMapBox.Text = BuildControlMapSummary(controllerResult, toolResult, capabilityResult);
+        var benchmarkDashboardResult = _backend.RunTask("zero ai benchmark dashboard status");
+        var benchmarkAlertsResult = _backend.RunTask("zero ai benchmark alerts status");
+        var benchmarkRemediationResult = _backend.RunTask("zero ai benchmark remediation status");
+        ControlMapBox.Text = BuildControlMapSummary(controllerResult, toolResult, capabilityResult, benchmarkDashboardResult, benchmarkAlertsResult, benchmarkRemediationResult);
     }
 
     private void RefreshLocalModsStatus()
@@ -1325,6 +1342,7 @@ public partial class MainWindow : Window
             || normalized.StartsWith("zero ai controller registry", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai tools", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai capability map", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai benchmark", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai control workflows", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai autonomy", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai runtime", StringComparison.Ordinal)
@@ -1564,7 +1582,10 @@ public partial class MainWindow : Window
     private static string BuildControlMapSummary(
         NativeCommandResult controllerResult,
         NativeCommandResult toolResult,
-        NativeCommandResult capabilityResult)
+        NativeCommandResult capabilityResult,
+        NativeCommandResult benchmarkDashboardResult,
+        NativeCommandResult benchmarkAlertsResult,
+        NativeCommandResult benchmarkRemediationResult)
     {
         var lines = new List<string>
         {
@@ -1652,6 +1673,96 @@ public partial class MainWindow : Window
         {
             lines.Add("Capability surface:");
             lines.Add(capabilityResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (benchmarkDashboardResult.Payload.HasValue && benchmarkDashboardResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var benchmark = benchmarkDashboardResult.Payload.Value;
+            if (TryGetBool(benchmark, "missing", out var benchmarkMissing) && benchmarkMissing)
+            {
+                lines.Add("Benchmark dashboard:");
+                lines.Add("- No benchmark history yet.");
+                lines.Add("- Run benchmark history to capture the first model dashboard snapshot.");
+            }
+            else
+            {
+                benchmark.TryGetProperty("dashboard", out var dashboard);
+                benchmark.TryGetProperty("gate", out var gate);
+                benchmark.TryGetProperty("alert_routes", out var alertRoutes);
+                dashboard.TryGetProperty("latest_run", out var latestRun);
+                lines.Add("Benchmark dashboard:");
+                lines.Add($"- History count: {ReadNumber(benchmark, "history_count")}");
+                lines.Add($"- Latest run: {ReadString(benchmark, "latest_run_label")}");
+                lines.Add($"- Gate: {ReadString(gate, "status")}");
+                lines.Add($"- Primary perplexity: {ReadString(latestRun, "primary_perplexity")}");
+                lines.Add($"- Highest alert severity: {ReadString(alertRoutes, "highest_severity")}");
+                lines.Add($"- Alert routes: {ReadNumber(alertRoutes, "route_count")}");
+                lines.Add($"- Route counts: {ReadObjectPairs(alertRoutes, "route_counts")}");
+                lines.Add($"- Top families: {ReadArrayFieldPreview(dashboard, "family_slices", "family", 3)}");
+            }
+        }
+        else
+        {
+            lines.Add("Benchmark dashboard:");
+            lines.Add(benchmarkDashboardResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (benchmarkAlertsResult.Payload.HasValue && benchmarkAlertsResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var routed = benchmarkAlertsResult.Payload.Value;
+            if (TryGetBool(routed, "missing", out var alertsMissing) && alertsMissing)
+            {
+                lines.Add("Benchmark alert routes:");
+                lines.Add("- No routed alerts yet.");
+            }
+            else
+            {
+                lines.Add("Benchmark alert routes:");
+                lines.Add($"- Status: {ReadString(routed, "status")}");
+                lines.Add($"- Alert count: {ReadNumber(routed, "alert_count")}");
+                lines.Add($"- Highest severity: {ReadString(routed, "highest_severity")}");
+                lines.Add($"- Routes: {ReadObjectPairs(routed, "route_counts")}");
+            }
+        }
+        else
+        {
+            lines.Add("Benchmark alert routes:");
+            lines.Add(benchmarkAlertsResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (benchmarkRemediationResult.Payload.HasValue && benchmarkRemediationResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var remediation = benchmarkRemediationResult.Payload.Value;
+            lines.Add("Benchmark remediation:");
+            lines.Add($"- Status: {ReadString(remediation, "status")}");
+            lines.Add($"- Latest run: {ReadString(remediation, "latest_run_label")}");
+            lines.Add($"- Targeted families: {ReadStringArray(remediation, "targeted_families")}");
+            if (remediation.TryGetProperty("approval", out var approval) && approval.ValueKind == JsonValueKind.Object)
+            {
+                var pendingState = "n/a";
+                if (approval.TryGetProperty("pending", out var pending) && pending.ValueKind == JsonValueKind.Object)
+                {
+                    pendingState = ReadString(pending, "state");
+                }
+                lines.Add($"- Approval pending: {(pendingState == "pending" ? "yes" : "no")}");
+                lines.Add($"- Approved ready: {(ReadBool(approval, "approved_ready") ? "yes" : "no")}");
+            }
+            if (remediation.TryGetProperty("execution", out var execution) && execution.ValueKind == JsonValueKind.Object)
+            {
+                lines.Add($"- Last execution ok: {(execution.TryGetProperty("latest", out var latestExecution) && latestExecution.ValueKind == JsonValueKind.Object && ReadBool(latestExecution, "ok") ? "yes" : "no")}");
+            }
+            if (remediation.TryGetProperty("proposal", out var proposal) && proposal.ValueKind == JsonValueKind.Object)
+            {
+                lines.Add($"- Candidate checkpoint: {ReadString(proposal, "candidate_checkpoint")}");
+            }
+        }
+        else
+        {
+            lines.Add("Benchmark remediation:");
+            lines.Add(benchmarkRemediationResult.DisplayText());
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -2122,6 +2233,51 @@ public partial class MainWindow : Window
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .ToList();
 
+        if (items.Count == 0)
+        {
+            return "none";
+        }
+
+        var suffix = value.GetArrayLength() > items.Count ? $" (+{value.GetArrayLength() - items.Count} more)" : string.Empty;
+        return string.Join(" | ", items) + suffix;
+    }
+
+    private static string ReadObjectPairs(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "none";
+        }
+
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return string.IsNullOrWhiteSpace(value.ToString()) ? "none" : value.ToString();
+        }
+
+        var pairs = value.EnumerateObject()
+            .Select(item => $"{item.Name}={item.Value}")
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .ToList();
+        return pairs.Count == 0 ? "none" : string.Join(", ", pairs);
+    }
+
+    private static string ReadArrayFieldPreview(JsonElement element, string propertyName, string fieldName, int maxItems = 3)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return "none";
+        }
+
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            return string.IsNullOrWhiteSpace(value.ToString()) ? "none" : value.ToString();
+        }
+
+        var items = value.EnumerateArray()
+            .Take(maxItems)
+            .Select(item => ReadString(item, fieldName))
+            .Where(item => !string.IsNullOrWhiteSpace(item) && !string.Equals(item, "n/a", StringComparison.OrdinalIgnoreCase))
+            .ToList();
         if (items.Count == 0)
         {
             return "none";

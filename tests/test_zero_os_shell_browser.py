@@ -70,6 +70,10 @@ def test_zero_os_shell_renders_launcher_state_in_browser():
         assert re.search(r"Local Mods", dom)
         assert re.search(r"Install Path", dom)
         assert re.search(r"Open Plugins", dom)
+        assert re.search(r"Benchmark Dashboard", dom)
+        assert re.search(r"Refresh Dashboard", dom)
+        assert re.search(r"Refresh Remediation", dom)
+        assert re.search(r"Approvals", dom)
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -35,6 +35,8 @@ def extract_intent(request: str) -> dict:
         intent = "status"
     elif any(token in lowered for token in ("tools", "capabilities")):
         intent = "tools"
+    if any(token in lowered for token in ("pressure harness", "stress harness", "pressure mode", "stress test", "pressure test")):
+        intent = "pressure"
     if any(token in lowered for token in ("contradiction engine", "contradiction gate", "reasoning gate", "contradiction status")):
         intent = "reasoning"
     if "safe" in lowered:

@@ -63,6 +63,13 @@ def synthesize_result(run: dict) -> dict:
                 f"decision={result.get('last_decision', 'unknown')} "
                 f"contradictions={result.get('last_contradiction_count', 0)}"
             )
+        elif kind == "pressure_harness":
+            lines.append(
+                "pressure harness: "
+                f"score={result.get('overall_score', 0)} "
+                f"failed={result.get('failed_count', 0)} "
+                f"status={result.get('status', 'unknown')}"
+            )
         elif kind == "smart_workspace":
             summary = dict(result.get("summary") or {})
             lines.append(

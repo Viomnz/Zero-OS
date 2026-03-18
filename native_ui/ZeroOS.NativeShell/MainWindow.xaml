@@ -270,7 +270,14 @@
                 <Button Height="42" Margin="0,0,0,8" Content="Run Zero AI Next" Click="ZeroAiNext_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Refresh Tool Registry" Click="ZeroAiToolsStatus_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Refresh Capability Map" Click="ZeroAiCapabilityMapStatus_Click" />
-                <Button Height="42" Margin="0,0,0,12" Content="Refresh Control Workflows" Click="ZeroAiControlWorkflowsStatus_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Control Workflows" Click="ZeroAiControlWorkflowsStatus_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Benchmark Dashboard" Click="ZeroAiBenchmarkDashboardRefresh_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Benchmark Alerts" Click="ZeroAiBenchmarkAlertsRefresh_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Refresh Benchmark Remediation" Click="ZeroAiBenchmarkRemediationRefresh_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Request Benchmark Remediation Approval" Click="ZeroAiBenchmarkRemediationRequest_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Approve Pending Remediation" Click="ZeroAiBenchmarkRemediationApprove_Click" />
+                <Button Height="42" Margin="0,0,0,8" Content="Reject Pending Remediation" Click="ZeroAiBenchmarkRemediationReject_Click" />
+                <Button Height="42" Margin="0,0,0,12" Content="Execute Approved Remediation" Click="ZeroAiBenchmarkRemediationExecute_Click" />
                 <TextBlock Text="Fast path"
                            Margin="0,4,0,10"
                            FontSize="16"

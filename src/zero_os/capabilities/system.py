@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import getpass
 import re
+import sys
 
 from zero_os.core import CORE_POLICY
 from zero_os.cure_firewall import (
@@ -197,6 +198,13 @@ from zero_os.contradiction_engine import (
 )
 from zero_os.flow_monitor import flow_refresh as zero_ai_flow_refresh, flow_scan as zero_ai_flow_scan, flow_status as zero_ai_flow_status
 from zero_os.smart_workspace import workspace_refresh as zero_ai_workspace_refresh, workspace_status as zero_ai_workspace_status
+from zero_os.zero_ai_pressure_harness import pressure_harness_run as zero_ai_pressure_run, pressure_harness_status as zero_ai_pressure_status
+from zero_os.benchmark_remediation_workflow import (
+    decide as zero_ai_benchmark_remediation_decide,
+    execute as zero_ai_benchmark_remediation_execute,
+    request as zero_ai_benchmark_remediation_request,
+    status as zero_ai_benchmark_remediation_status,
+)
 from zero_os.zero_ai_control_workflows import (
     zero_ai_control_workflow_browser_act,
     zero_ai_control_workflow_browser_open,
@@ -259,6 +267,15 @@ from zero_os.conscious_machine_architecture import (
     consciousness_architecture_phase2_status,
     consciousness_architecture_status,
 )
+
+
+def _benchmark_history_api(cwd: str):
+    root = str(Path(__file__).resolve().parents[3])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from ai_from_scratch.benchmark_history import benchmark_alert_routes_status, benchmark_dashboard_status
+
+    return benchmark_dashboard_status, benchmark_alert_routes_status
 from zero_os.ops_maturity import (
     alert_routing_emit,
     alert_routing_set,
@@ -272,7 +289,7 @@ from zero_os.ops_maturity import (
     rollout_apply,
     runbooks_sync,
 )
-from zero_os.phase_runtime import zero_ai_runtime_agent_install, zero_ai_runtime_agent_start, zero_ai_runtime_agent_status, zero_ai_runtime_agent_stop, zero_ai_runtime_agent_uninstall, zero_ai_runtime_loop_run, zero_ai_runtime_loop_set, zero_ai_runtime_loop_status, zero_ai_runtime_loop_tick, zero_ai_runtime_run, zero_ai_runtime_status
+from zero_os.phase_runtime import zero_ai_runtime_agent_ensure, zero_ai_runtime_agent_install, zero_ai_runtime_agent_start, zero_ai_runtime_agent_status, zero_ai_runtime_agent_stop, zero_ai_runtime_agent_uninstall, zero_ai_runtime_loop_run, zero_ai_runtime_loop_set, zero_ai_runtime_loop_status, zero_ai_runtime_loop_tick, zero_ai_runtime_run, zero_ai_runtime_status
 from zero_os.runtime_coupling import (
     adversarial_runtime_validate,
     benchmark_dashboard_export,
@@ -490,10 +507,11 @@ from zero_os.universal_ui_launcher import launch as universal_ui_launch
 from zero_os.native_platform import maximize as np_maximize, status as np_status
 from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, autonomy_status
 from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
-from zero_os.approval_workflow import decide as zero_ai_approval_decide, status as zero_ai_approval_status
+from zero_os.approval_workflow import cleanup_expired as zero_ai_approval_cleanup_expired, decide as zero_ai_approval_decide, status as zero_ai_approval_status
 from zero_os.assistant_job_runner import recurring_builtin_auto_apply as zero_ai_job_recurring_builtin_auto_apply, recurring_builtin_status as zero_ai_job_recurring_builtin_status, remove_recurring as zero_ai_job_remove_recurring, schedule as zero_ai_job_schedule, schedule_recurring_builtin as zero_ai_job_schedule_recurring_builtin, status as zero_ai_job_status, tick as zero_ai_job_tick
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_add_goal,
+    zero_ai_autonomy_drain,
     zero_ai_autonomy_goals,
     zero_ai_autonomy_loop_run,
     zero_ai_autonomy_loop_set,
@@ -618,6 +636,7 @@ class SystemCapability:
               "plugin verify",
             "api token",
             "benchmark run",
+            "zero ai benchmark",
             "error playbook",
             "release ",
             "znet ",
@@ -741,6 +760,13 @@ class SystemCapability:
             "zero ai flow scan",
             "zero ai contradiction status",
             "zero ai contradiction refresh",
+            "zero ai pressure",
+            "zero ai pressure status",
+            "zero ai pressure run",
+            "zero ai pressure refresh",
+            "pressure harness",
+            "stress harness",
+            "pressure mode",
             "zero ai controller registry",
             "zero ai controller registry status",
             "zero ai controller registry refresh",
@@ -1879,6 +1905,66 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_capability_map_status(task.cwd), indent=2))
         if text.strip() == "zero ai capability map refresh":
             return Result(self.name, json.dumps(zero_ai_capability_map_refresh(task.cwd), indent=2))
+        if text.strip() in {"zero ai benchmark dashboard", "zero ai benchmark dashboard status", "zero ai benchmark status"}:
+            benchmark_dashboard_status, _ = _benchmark_history_api(task.cwd)
+            return Result(self.name, json.dumps(benchmark_dashboard_status(history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model"), indent=2))
+        if text.strip() == "zero ai benchmark dashboard refresh":
+            benchmark_dashboard_status, _ = _benchmark_history_api(task.cwd)
+            return Result(
+                self.name,
+                json.dumps(
+                    benchmark_dashboard_status(
+                        history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model",
+                        write=True,
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() in {"zero ai benchmark alerts", "zero ai benchmark alerts status"}:
+            _, benchmark_alert_routes_status = _benchmark_history_api(task.cwd)
+            return Result(
+                self.name,
+                json.dumps(
+                    benchmark_alert_routes_status(history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model"),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "zero ai benchmark alerts refresh":
+            _, benchmark_alert_routes_status = _benchmark_history_api(task.cwd)
+            return Result(
+                self.name,
+                json.dumps(
+                    benchmark_alert_routes_status(
+                        history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model",
+                        write=True,
+                    ),
+                    indent=2,
+                ),
+            )
+        if text.strip() in {"zero ai benchmark remediation", "zero ai benchmark remediation status"}:
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_benchmark_remediation_status(task.cwd),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "zero ai benchmark remediation refresh":
+            return Result(
+                self.name,
+                json.dumps(
+                    zero_ai_benchmark_remediation_status(task.cwd, write=True),
+                    indent=2,
+                ),
+            )
+        if text.strip() == "zero ai benchmark remediation request":
+            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_request(task.cwd), indent=2))
+        if text.strip() == "zero ai benchmark remediation approve":
+            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_decide(task.cwd, True), indent=2))
+        if text.strip() == "zero ai benchmark remediation reject":
+            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_decide(task.cwd, False), indent=2))
+        if text.strip() in {"zero ai benchmark remediation execute", "zero ai benchmark remediation run"}:
+            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_execute(task.cwd), indent=2))
         if text.strip() in {
             "smart workspace",
             "zero ai smart workspace",
@@ -1901,6 +1987,12 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_contradiction_engine_status(task.cwd), indent=2))
         if text.strip() == "zero ai contradiction refresh":
             return Result(self.name, json.dumps(zero_ai_contradiction_engine_refresh(task.cwd), indent=2))
+        if text.strip() in {"pressure harness", "stress harness", "pressure mode", "stress test", "pressure test"}:
+            return Result(self.name, json.dumps(zero_ai_pressure_run(task.cwd), indent=2))
+        if text.strip() in {"zero ai pressure", "zero ai pressure status"}:
+            return Result(self.name, json.dumps(zero_ai_pressure_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai pressure run", "zero ai pressure refresh"}:
+            return Result(self.name, json.dumps(zero_ai_pressure_run(task.cwd), indent=2))
         if text.strip() in {"zero ai controller registry", "zero ai controller registry status"}:
             return Result(self.name, json.dumps(zero_ai_controller_registry_status(task.cwd), indent=2))
         if text.strip() in {"zero ai controller registry refresh", "zero ai next", "zero ai highest-value steps"}:
@@ -2045,6 +2137,8 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_task_memory_status(task.cwd), indent=2))
         if text.strip() == "zero ai approvals status":
             return Result(self.name, json.dumps(zero_ai_approval_status(task.cwd), indent=2))
+        if text.strip() in {"zero ai approvals sweep", "zero ai approvals cleanup"}:
+            return Result(self.name, json.dumps(zero_ai_approval_cleanup_expired(task.cwd), indent=2))
         if text.strip() == "zero ai playbooks status":
             return Result(self.name, json.dumps(zero_ai_playbook_status(task.cwd), indent=2))
         if text.strip() == "zero ai jobs status":
@@ -2114,6 +2208,10 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_autonomy_sync(task.cwd), indent=2))
         if text.strip() == "zero ai autonomy run":
             return Result(self.name, json.dumps(zero_ai_autonomy_run(task.cwd), indent=2))
+        autonomy_drain = re.match(r"^zero ai autonomy drain(?:\s+max=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
+        if autonomy_drain:
+            limit = int(autonomy_drain.group(1) or "8")
+            return Result(self.name, json.dumps(zero_ai_autonomy_drain(task.cwd, max_runs=limit), indent=2))
         autonomy_add = re.match(r"^zero ai autonomy add(?:\s+priority=(\d+))?\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
         if autonomy_add:
             priority = int(autonomy_add.group(1) or "70")
@@ -2450,6 +2548,8 @@ class SystemCapability:
             return Result(self.name, json.dumps(zero_ai_runtime_agent_status(task.cwd), indent=2))
         if text.strip() in {"zero ai runtime agent install", "phase runtime agent install"}:
             return Result(self.name, json.dumps(zero_ai_runtime_agent_install(task.cwd), indent=2))
+        if text.strip() in {"zero ai runtime agent ensure", "phase runtime agent ensure"}:
+            return Result(self.name, json.dumps(zero_ai_runtime_agent_ensure(task.cwd), indent=2))
         if text.strip() in {"zero ai runtime agent start", "phase runtime agent start"}:
             return Result(self.name, json.dumps(zero_ai_runtime_agent_start(task.cwd), indent=2))
         if text.strip() in {"zero ai runtime agent stop", "phase runtime agent stop"}:
@@ -3615,6 +3715,8 @@ class SystemCapability:
             "- zero ai flow scan [path]\n"
             "- zero ai contradiction status\n"
             "- zero ai contradiction refresh\n"
+            "- zero ai pressure status\n"
+            "- zero ai pressure run\n"
             "- zero ai controller registry status\n"
             "- zero ai controller registry refresh\n"
             "- zero ai control workflows status\n"
@@ -3693,6 +3795,8 @@ class SystemCapability:
             "- zero ai flow scan [path]\n"
             "- zero ai contradiction status\n"
             "- zero ai contradiction refresh\n"
+            "- zero ai pressure status\n"
+            "- zero ai pressure run\n"
             "- zero ai controller registry status\n"
             "- zero ai controller registry refresh\n"
             "- zero ai control workflows status\n"
@@ -3711,6 +3815,7 @@ class SystemCapability:
             "- zero ai runtime loop off\n"
             "- zero ai runtime agent status\n"
             "- zero ai runtime agent install\n"
+            "- zero ai runtime agent ensure\n"
             "- zero ai runtime agent start\n"
             "- zero ai runtime agent stop\n"
             "- zero ai runtime agent uninstall\n"
@@ -3736,8 +3841,15 @@ class SystemCapability:
             "- zero ai browser status\n"
             "- zero ai api profile status\n"
             "- zero ai api profile set name=<name> base=<url> [token=<token>]\n"
+            "- zero ai benchmark remediation status\n"
+            "- zero ai benchmark remediation request\n"
+            "- zero ai benchmark remediation approve\n"
+            "- zero ai benchmark remediation reject\n"
+            "- zero ai benchmark remediation execute\n"
             "- zero ai approvals status\n"
+            "- zero ai approvals sweep\n"
             "- zero ai approval decide id=<id> state=<approve|reject>\n"
+            "- zero ai autonomy drain [max=<n>]\n"
             "- zero ai jobs status\n"
             "- zero ai jobs tick\n"
             "- zero ai jobs continuity governance status\n"

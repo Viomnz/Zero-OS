@@ -18,6 +18,7 @@ from smart_flow import run_smart_flow
 from agents_monitor import run_agents_monitor
 from agents_remediation import run_agents_remediation
 from chat_api_server import run_chat_api
+from model import inspect_checkpoint_payload
 
 
 def runtime(base: Path) -> Path:
@@ -86,17 +87,29 @@ def _checkpoint_health(base: Path) -> dict:
     if ckpt.exists():
         try:
             payload = _read_json(ckpt)
-            if isinstance(payload, dict) and "vocab" in payload and "logits" in payload:
+            summary = inspect_checkpoint_payload(payload)
+            if summary.get("ok", False):
                 backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-                return {"ok": True, "source": "checkpoint"}
+                return {
+                    "ok": True,
+                    "source": "checkpoint",
+                    "architecture": summary.get("architecture", ""),
+                    "native": bool(summary.get("native", False)),
+                }
         except Exception:
             pass
     if backup.exists():
         try:
             payload = _read_json(backup)
-            if isinstance(payload, dict) and "vocab" in payload and "logits" in payload:
+            summary = inspect_checkpoint_payload(payload)
+            if summary.get("ok", False):
                 ckpt.write_text(backup.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-                return {"ok": True, "source": "backup_restore"}
+                return {
+                    "ok": True,
+                    "source": "backup_restore",
+                    "architecture": summary.get("architecture", ""),
+                    "native": bool(summary.get("native", False)),
+                }
         except Exception:
             pass
     return {"ok": False, "source": "missing_or_invalid"}

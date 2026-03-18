@@ -1,9 +1,33 @@
 ﻿from __future__ import annotations
 
 import argparse
+import sys
 
-from model import TinyBigramModel
-from universe_laws_guard import check_universe_laws
+try:
+    from ai_from_scratch.model import TinyBigramModel
+    from ai_from_scratch.universe_laws_guard import check_universe_laws
+except ModuleNotFoundError:
+    from model import TinyBigramModel
+    from universe_laws_guard import check_universe_laws
+
+
+def _emit(text: str) -> None:
+    content = str(text)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        print(content)
+        return
+    except UnicodeEncodeError:
+        pass
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None:
+        buffer.write((content + "\n").encode("utf-8", errors="replace"))
+        buffer.flush()
+        return
+    sys.stdout.write(content.encode("ascii", errors="replace").decode("ascii") + "\n")
 
 
 def main() -> None:
@@ -19,7 +43,7 @@ def main() -> None:
     model = TinyBigramModel.load(args.ckpt)
     if not args.enforce_laws:
         out = model.sample(args.prompt, length=args.length, temperature=args.temperature)
-        print(out)
+        _emit(out)
         return
 
     for i in range(args.max_attempts):
@@ -31,14 +55,14 @@ def main() -> None:
         )
         check = check_universe_laws(out)
         if check.passed:
-            print("[UNIVERSE_LAWS_PASS]")
-            print(out)
+            _emit("[UNIVERSE_LAWS_PASS]")
+            _emit(out)
             return
 
     final = check_universe_laws(out)
-    print("[UNIVERSE_LAWS_BLOCKED]")
-    print(final.reason)
-    print(out)
+    _emit("[UNIVERSE_LAWS_BLOCKED]")
+    _emit(final.reason)
+    _emit(out)
 
 
 if __name__ == "__main__":

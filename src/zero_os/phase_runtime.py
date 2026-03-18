@@ -264,6 +264,10 @@ def _runtime_agent_update(cwd: str, **changes) -> dict:
     return state
 
 
+def _runtime_agent_warmup_seconds(state: dict) -> int:
+    return max(60, int(state.get("poll_interval_seconds", 30) or 30) * 2)
+
+
 def _hash_payload(payload: dict) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
@@ -510,12 +514,17 @@ def zero_ai_runtime_agent_status(cwd: str) -> dict:
 
     pid = int(state.get("worker_pid") or 0)
     pid_alive = _pid_alive(pid)
+    last_start = _parse_utc(str(state.get("last_start_utc", "")))
     last_heartbeat = _parse_utc(str(state.get("last_heartbeat_utc", "")))
     heartbeat_age = None
     if last_heartbeat is not None:
         heartbeat_age = round((datetime.now(timezone.utc) - last_heartbeat).total_seconds(), 2)
     heartbeat_fresh = heartbeat_age is not None and heartbeat_age <= max(90, int(state.get("poll_interval_seconds", 30)) * 3)
-    state["running"] = bool(pid > 0 and pid_alive and (heartbeat_fresh or not state.get("last_heartbeat_utc")))
+    startup_age = None
+    if last_start is not None:
+        startup_age = round((datetime.now(timezone.utc) - last_start).total_seconds(), 2)
+    startup_grace = bool(pid > 0 and pid_alive and startup_age is not None and startup_age <= _runtime_agent_warmup_seconds(state))
+    state["running"] = bool(pid > 0 and pid_alive and (heartbeat_fresh or startup_grace or not state.get("last_heartbeat_utc")))
     state["startup_launcher_path"] = str(_runtime_agent_startup_path(cwd))
     state["startup_launcher_present"] = _runtime_agent_startup_path(cwd).exists()
     state["entry_script_path"] = str(_runtime_agent_entry_script(cwd))
@@ -527,8 +536,34 @@ def zero_ai_runtime_agent_status(cwd: str) -> dict:
         "pid_alive": pid_alive,
         "heartbeat_fresh": heartbeat_fresh,
         "heartbeat_age_seconds": heartbeat_age,
+        "startup_grace_active": startup_grace,
+        "startup_age_seconds": startup_age,
+        "startup_grace_seconds": _runtime_agent_warmup_seconds(state),
         "runtime_loop": zero_ai_runtime_loop_status(cwd),
         **state,
+    }
+
+
+def zero_ai_runtime_agent_ensure(cwd: str) -> dict:
+    status = zero_ai_runtime_agent_status(cwd)
+    if bool(status.get("running", False)):
+        return {"ok": True, "changed": False, "already_running": True, "agent": status}
+    if not bool(status.get("installed", False)):
+        installed = zero_ai_runtime_agent_install(cwd)
+        return {
+            "ok": bool(installed.get("ok", False)),
+            "changed": True,
+            "action": "install",
+            "install": installed,
+            "agent": installed.get("agent", {}),
+        }
+    started = zero_ai_runtime_agent_start(cwd)
+    return {
+        "ok": bool(started.get("ok", False)),
+        "changed": bool(started.get("started", False)),
+        "action": "start",
+        "start": started,
+        "agent": started.get("agent", {}),
     }
 
 
@@ -550,6 +585,7 @@ def zero_ai_runtime_agent_start(cwd: str) -> dict:
         running=True,
         worker_pid=int(launched["pid"]),
         last_start_utc=str(launched["started_utc"]),
+        last_heartbeat_utc=str(launched["started_utc"]),
         last_failure="",
         launch_count=int(status.get("launch_count", 0)) + 1,
     )
@@ -796,6 +832,10 @@ def zero_ai_runtime_run(cwd: str) -> dict:
 
     phase8 = consciousness_architecture_phase8_status()
     phase9 = consciousness_architecture_phase9_status()
+    runtime_agent_before = zero_ai_runtime_agent_status(cwd)
+    runtime_agent_recovery = {"ok": True, "changed": False, "reason": "background agent state unchanged", "agent": runtime_agent_before}
+    if bool(runtime_agent_before.get("installed", False)) and bool(runtime_agent_before.get("auto_start_on_login", False)) and not bool(runtime_agent_before.get("running", False)):
+        runtime_agent_recovery = zero_ai_runtime_agent_ensure(cwd)
     continuity_background = recurring_builtin_auto_apply(cwd, "continuity_governance")
     if continuity_background.get("continuity_governance", {}).get("enabled", False):
         continuity_background["tick"] = tick_recurring_builtin(cwd, "continuity_governance")
@@ -874,6 +914,7 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         "self_modification_safety": self_mod,
         "self_modification_guard": guard.get("guard", {}),
         "rollback": rollback,
+        "runtime_agent_recovery": runtime_agent_recovery,
         "runtime_checks": {
             "orchestrator": True,
             "continuity_governance_background": bool(continuity_background.get("ok", False)),
@@ -896,6 +937,7 @@ def zero_ai_runtime_run(cwd: str) -> dict:
             "drift_calibration": bool(calibration.get("ok", False)),
             "chaos_resilience": bool(chaos.get("resilience_passed", False)),
             "observability_enforced": bool(observability.get("enforced", False)),
+            "background_agent_recovery": bool(runtime_agent_recovery.get("ok", False)),
         },
     }
     status["runtime_score"] = round(

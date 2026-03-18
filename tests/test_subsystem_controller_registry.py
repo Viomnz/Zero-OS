@@ -80,6 +80,8 @@ class SubsystemControllerRegistryTests(unittest.TestCase):
         self.assertIn("zero ai flow status", subsystems["observation"]["commands"])
         self.assertEqual("autonomous", subsystems["reasoning"]["control_level"])
         self.assertIn("zero ai contradiction status", subsystems["reasoning"]["commands"])
+        self.assertIn("pressure", subsystems)
+        self.assertIn("zero ai pressure status", subsystems["pressure"]["commands"])
         self.assertEqual("autonomous", subsystems["runtime"]["control_level"])
         self.assertEqual([], subsystems["runtime"]["missing_functions"])
         self.assertIn("zero ai runtime status", subsystems["runtime"]["commands"])
