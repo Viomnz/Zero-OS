@@ -593,6 +593,72 @@ class BenchmarkHistoryTests(unittest.TestCase):
         self.assertIn("remediation_candidate", status["proposal"]["candidate_checkpoint"])
         self.assertIn("train.py", status["proposal"]["train_command"])
 
+    def test_benchmark_remediation_status_still_proposes_when_checkpoint_artifact_is_missing(self) -> None:
+        missing_checkpoint = self.base / "missing_checkpoint.json"
+        history_dir = self.base / "history_missing_checkpoint"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        (history_dir / "history.jsonl").write_text(
+            "\n".join(
+                json.dumps(row, sort_keys=True)
+                for row in [
+                    {
+                        "run_label": "baseline",
+                        "architecture": "zero_native_char_attention_v1",
+                        "tokenizer_mode": "char",
+                        "cohort": "zero_native_char_attention_v1|char",
+                        "checkpoint": str(missing_checkpoint.resolve()),
+                        "manifest_path": str((ROOT / "laws" / "model_benchmark_suite.json").resolve()),
+                        "primary_perplexity": 10.0,
+                        "gate": {"status": "pass", "failed": False, "alerts": [], "alert_count": 0, "failure_count": 0, "warning_count": 0},
+                        "alert_routes": {"status": "pass", "failed": False, "alerts": [], "routes": [], "route_count": 0, "alert_count": 0},
+                        "families": [{"family": "law_core", "primary_perplexity": 8.0}],
+                        "valid": {"perplexity": 10.0},
+                        "train": {"perplexity": 9.0},
+                    },
+                    {
+                        "run_label": "regressed",
+                        "architecture": "zero_native_char_attention_v1",
+                        "tokenizer_mode": "char",
+                        "cohort": "zero_native_char_attention_v1|char",
+                        "checkpoint": str(missing_checkpoint.resolve()),
+                        "manifest_path": str((ROOT / "laws" / "model_benchmark_suite.json").resolve()),
+                        "primary_perplexity": 13.0,
+                        "gate": {
+                            "status": "fail",
+                            "failed": True,
+                            "alerts": [{"level": "fail", "kind": "regression_delta", "family": "law_core"}],
+                            "alert_count": 1,
+                            "failure_count": 1,
+                            "warning_count": 0,
+                        },
+                        "alert_routes": {
+                            "status": "fail",
+                            "failed": True,
+                            "alerts": [{"route": "regression_watch", "family": "law_core"}],
+                            "routes": [{"route": "regression_watch", "count": 1, "severity": "high", "action": "review_regression"}],
+                            "route_count": 1,
+                            "alert_count": 1,
+                        },
+                        "families": [{"family": "law_core", "primary_perplexity": 11.5}],
+                        "valid": {"perplexity": 12.5},
+                        "train": {"perplexity": 11.5},
+                    },
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status = benchmark_remediation_status(
+            history_dir=history_dir,
+            architecture="zero_native_char_attention_v1",
+            tokenizer_mode="char",
+        )
+
+        self.assertEqual("proposed", status["status"])
+        self.assertFalse(status["proposal"]["source_checkpoint_exists"])
+        self.assertIn("Latest checkpoint artifact is not present", " ".join(status["reasons"]))
+
     def test_cohort_summary_and_chart_support_multiple_tokenizer_cohorts(self) -> None:
         manifest, checkpoint_a, checkpoint_b = self._make_manifest_and_checkpoints()
         checkpoint_c = self._make_byte_checkpoint(

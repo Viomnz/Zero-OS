@@ -956,11 +956,12 @@ def _benchmark_remediation_payload(
 
     latest_checkpoint_path = Path(latest_checkpoint)
     latest_manifest_path = Path(latest_manifest)
-    blocked = not latest_checkpoint_path.exists() or not latest_manifest_path.exists()
+    source_checkpoint_exists = latest_checkpoint_path.exists()
+    blocked = not latest_manifest_path.exists() or not str(latest_checkpoint).strip()
     if blocked:
         missing_parts: list[str] = []
-        if not latest_checkpoint_path.exists():
-            missing_parts.append(f"checkpoint missing: {latest_checkpoint_path}")
+        if not str(latest_checkpoint).strip():
+            missing_parts.append("checkpoint path missing from latest benchmark record")
         if not latest_manifest_path.exists():
             missing_parts.append(f"manifest missing: {latest_manifest_path}")
         reasons.extend(missing_parts)
@@ -978,6 +979,10 @@ def _benchmark_remediation_payload(
             "reasons": reasons,
             "proposal": {},
         }
+    if not source_checkpoint_exists:
+        reasons.append(
+            "Latest checkpoint artifact is not present in this workspace; remediation remains proposal-only until the checkpoint is restored."
+        )
 
     candidate_checkpoint = _candidate_checkpoint_path(latest_checkpoint)
     candidate_dataset = _candidate_dataset_path(candidate_checkpoint)
@@ -1036,6 +1041,8 @@ def _benchmark_remediation_payload(
             "mode": "proposal_only",
             "safe": True,
             "requires_manual_run": True,
+            "source_checkpoint": str(latest_checkpoint_path.resolve()),
+            "source_checkpoint_exists": bool(source_checkpoint_exists),
             "candidate_checkpoint": str(candidate_checkpoint.resolve()),
             "candidate_dataset": str(candidate_dataset.resolve()),
             "candidate_benchmark_report": str(candidate_report.resolve()),
