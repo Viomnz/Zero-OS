@@ -5,7 +5,6 @@ import os
 import sqlite3
 import threading
 import time
-from contextlib import contextmanager
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -41,17 +40,9 @@ def _send_json(handler: BaseHTTPRequestHandler, code: int, payload: dict) -> Non
     handler.wfile.write(body)
 
 
-@contextmanager
-def _connect(path: Path):
+def _init_db(path: Path) -> None:
     conn = sqlite3.connect(path)
     try:
-        yield conn
-    finally:
-        conn.close()
-
-
-def _init_db(path: Path) -> None:
-    with _connect(path) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_messages (
@@ -80,19 +71,25 @@ def _init_db(path: Path) -> None:
             """
         )
         conn.commit()
+    finally:
+        conn.close()
 
 
 def _db_write(path: Path, msg_id: str, tenant_id: str, session_id: str, role: str, content: str) -> None:
-    with _connect(path) as conn:
+    conn = sqlite3.connect(path)
+    try:
         conn.execute(
             "INSERT OR REPLACE INTO chat_messages(id, tenant_id, session_id, role, content, created_at) VALUES(?,?,?,?,?,?)",
             (msg_id, tenant_id, session_id, role, content, time.time()),
         )
         conn.commit()
+    finally:
+        conn.close()
 
 
 def _db_recent(path: Path, tenant_id: str, session_id: str, limit: int = 8) -> list[tuple[str, str]]:
-    with _connect(path) as conn:
+    conn = sqlite3.connect(path)
+    try:
         rows = conn.execute(
             """
             SELECT role, content
@@ -105,10 +102,13 @@ def _db_recent(path: Path, tenant_id: str, session_id: str, limit: int = 8) -> l
         ).fetchall()
         rows.reverse()
         return [(str(r[0]), str(r[1])) for r in rows]
+    finally:
+        conn.close()
 
 
 def _db_last_by_role(path: Path, tenant_id: str, session_id: str, role: str) -> tuple[str, str] | None:
-    with _connect(path) as conn:
+    conn = sqlite3.connect(path)
+    try:
         row = conn.execute(
             """
             SELECT id, content
@@ -122,6 +122,8 @@ def _db_last_by_role(path: Path, tenant_id: str, session_id: str, role: str) -> 
         if not row:
             return None
         return (str(row[0]), str(row[1]))
+    finally:
+        conn.close()
 
 
 def _tokens(text: str) -> set[str]:
@@ -129,7 +131,8 @@ def _tokens(text: str) -> set[str]:
 
 
 def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, pool: int = 60, keep: int = 6) -> list[tuple[str, str]]:
-    with _connect(path) as conn:
+    conn = sqlite3.connect(path)
+    try:
         rows = conn.execute(
             """
             SELECT role, content
@@ -140,6 +143,8 @@ def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, 
             """,
             (tenant_id, session_id, max(1, int(pool))),
         ).fetchall()
+    finally:
+        conn.close()
     q = _tokens(query)
     scored: list[tuple[float, str, str]] = []
     for role, content in rows:
@@ -156,25 +161,30 @@ def _db_ranked_context(path: Path, tenant_id: str, session_id: str, query: str, 
 def _idempotency_get(path: Path, key: str) -> dict | None:
     if not key:
         return None
+    conn = sqlite3.connect(path)
     try:
-        with _connect(path) as conn:
-            row = conn.execute("SELECT response_json FROM idempotency_cache WHERE key=?", (key,)).fetchone()
-            if not row:
-                return None
-            return json.loads(str(row[0]))
+        row = conn.execute("SELECT response_json FROM idempotency_cache WHERE key=?", (key,)).fetchone()
+        if not row:
+            return None
+        return json.loads(str(row[0]))
     except Exception:
         return None
+    finally:
+        conn.close()
 
 
 def _idempotency_set(path: Path, key: str, payload: dict) -> None:
     if not key:
         return
-    with _connect(path) as conn:
+    conn = sqlite3.connect(path)
+    try:
         conn.execute(
             "INSERT OR REPLACE INTO idempotency_cache(key, response_json, created_at) VALUES(?,?,?)",
             (key, json.dumps(payload, ensure_ascii=False), time.time()),
         )
         conn.commit()
+    finally:
+        conn.close()
 
 
 def _check_auth(handler: BaseHTTPRequestHandler) -> bool:

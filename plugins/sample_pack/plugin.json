@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "name": "sample_pack",
+  "version": "0.1.0",
+  "entry": "plugin.py",
+  "factory": "get_capability",
+  "description": "Native Zero OS capability plugin.",
+  "distribution": "private-local",
+  "local_only": true,
+  "mutable": true
+}

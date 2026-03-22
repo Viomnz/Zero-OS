@@ -24,6 +24,10 @@ _KNOWN_STEP_KINDS = {
     "api_workflow",
     "autonomy_gate",
     "browser_action",
+    "capability_expansion_protocol",
+    "cloud_deploy",
+    "cloud_target_set",
+    "maintenance_orchestrator",
     "browser_dom_inspect",
     "browser_open",
     "browser_status",
@@ -34,7 +38,9 @@ _KNOWN_STEP_KINDS = {
     "pressure_harness",
     "evolution_auto_run",
     "source_evolution_auto_run",
+    "domain_pack_generate_feature",
     "flow_monitor",
+    "general_agent",
     "github_connect",
     "github_issue_act",
     "github_issue_comments",
@@ -51,7 +57,9 @@ _KNOWN_STEP_KINDS = {
     "github_pr_reply_post",
     "github_prs",
     "highway_dispatch",
+    "internet_capability",
     "observe",
+    "world_class_readiness",
     "recover",
     "self_repair",
     "smart_workspace",
@@ -63,6 +71,7 @@ _KNOWN_STEP_KINDS = {
     "web_verify",
 }
 _INTENT_STEP_EXPECTATIONS = {
+    "observe": {"flow_monitor", "smart_workspace", "general_agent", "domain_pack_generate_feature", "capability_expansion_protocol", "maintenance_orchestrator", "internet_capability", "world_class_readiness"},
     "planning": {"controller_registry"},
     "pressure": {"pressure_harness"},
     "reasoning": {"contradiction_engine"},
@@ -379,7 +388,7 @@ def _detect_workflow_conflicts(cwd: str, plan: dict[str, Any] | None, results: l
 
     lane_checks = {
         "browser": {"step_kinds": {"browser_action", "browser_open", "browser_dom_inspect", "browser_status"}, "label": "browser"},
-        "store_install": {"step_kinds": {"store_install", "store_status"}, "label": "store_install"},
+        "store_install": {"step_kinds": {"store_install"}, "label": "store_install"},
         "recovery": {"step_kinds": {"recover"}, "label": "recovery"},
         "self_repair": {"step_kinds": {"self_repair"}, "label": "self_repair"},
     }
@@ -466,6 +475,46 @@ def _detect_plan_contract_conflicts(plan: dict[str, Any] | None) -> list[dict[st
     return issues
 
 
+def _detect_planner_quality_conflicts(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    payload = dict(plan or {})
+    planner_confidence = float(payload.get("planner_confidence", 1.0) or 0.0)
+    risk_level = str(payload.get("risk_level", "low") or "low").lower()
+    ambiguity_flags = list(payload.get("ambiguity_flags", []))
+    step_kinds = {str(step.get("kind", "")).strip() for step in list(payload.get("steps", []))}
+    mutating = bool(step_kinds & _MUTATING_STEP_KINDS)
+    issues: list[dict[str, Any]] = []
+
+    if risk_level == "high" and planner_confidence < 0.7:
+        issues.append(
+            _issue(
+                "workflow",
+                "planner_confidence_below_high_risk_threshold",
+                "The branch is high-risk but planner confidence is too low to trust the mutation route.",
+                details={"planner_confidence": planner_confidence, "risk_level": risk_level},
+            )
+        )
+    elif mutating and planner_confidence < 0.5:
+        issues.append(
+            _issue(
+                "workflow",
+                "planner_confidence_below_mutation_threshold",
+                "The branch still contains mutating steps even though planner confidence is too low.",
+                details={"planner_confidence": planner_confidence, "risk_level": risk_level},
+            )
+        )
+
+    if mutating and len(ambiguity_flags) >= 4 and planner_confidence < 0.75:
+        issues.append(
+            _issue(
+                "workflow",
+                "planner_ambiguity_too_high_for_mutation",
+                "The planner left too many ambiguity signals on a mutating branch.",
+                details={"planner_confidence": planner_confidence, "ambiguity_flags": ambiguity_flags[:8]},
+            )
+        )
+    return issues
+
+
 def _stable_claims(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     for item in results:
@@ -543,12 +592,16 @@ def _branch_scores(request: str, plan: dict[str, Any] | None, issues: list[dict[
     evidence_weight = float(evidence.get("total_weight", 0.0) or 0.0)
     memory_weight = float(evidence.get("memory_weight", 0.0) or 0.0)
     core_law_weight = float(evidence.get("core_law_weight", 0.0) or 0.0)
+    planner_confidence = float((plan or {}).get("planner_confidence", 1.0) or 0.0)
+    planner_risk = str((plan or {}).get("risk_level", "low") or "low").lower()
+    risk_penalty = {"low": 0, "medium": 6, "high": 15}.get(planner_risk, 6)
+    confidence_bonus = int(round(planner_confidence * 12.0))
     truth_base = 100 if "self_model" not in issue_types and "evidence" not in issue_types else 0
-    truth = int(round((truth_base * 0.7) + (evidence_weight * 100.0 * 0.3)))
+    truth = int(round((truth_base * 0.65) + (evidence_weight * 100.0 * 0.25) + (planner_confidence * 100.0 * 0.1)))
     consistency = max(0, 100 - (contradiction_count * 30))
-    consistency = int(round((consistency * 0.8) + (memory_weight * 100.0 * 0.2)))
-    goal_fit = int(round((((covered / max(total, 1)) * 100.0) * 0.75) + (evidence_weight * 100.0 * 0.25)))
-    consequence = 100 if "consequence" not in issue_types else 0
+    consistency = int(round((consistency * 0.75) + (memory_weight * 100.0 * 0.15) + (planner_confidence * 100.0 * 0.1)))
+    goal_fit = int(round((((covered / max(total, 1)) * 100.0) * 0.65) + (evidence_weight * 100.0 * 0.2) + (planner_confidence * 100.0 * 0.15)))
+    consequence = max(0, 100 - risk_penalty + confidence_bonus) if "consequence" not in issue_types else 0
     consequence = int(round((consequence * 0.85) + (core_law_weight * 100.0 * 0.15)))
     return {
         "truth": truth,
@@ -564,9 +617,14 @@ def _branch_sort_key(review: dict[str, Any]) -> tuple[Any, ...]:
     scores = dict(review.get("scores") or {})
     branch = dict(review.get("branch") or {})
     evidence = dict(review.get("evidence") or {})
+    plan = dict(review.get("plan") or {})
+    planner_confidence = float(plan.get("planner_confidence", 1.0) or 0.0)
+    risk_level = str(plan.get("risk_level", "low") or "low").lower()
     return tuple(
         list(scores.get(name, 0) for name in _PRIORITY_ORDER)
         + [
+            int(round(planner_confidence * 1000)),
+            {"low": 2, "medium": 1, "high": 0}.get(risk_level, 1),
             int(round(float(evidence.get("total_weight", 0.0) or 0.0) * 1000)),
             int(round(float(evidence.get("memory_weight", 0.0) or 0.0) * 1000)),
             1 if branch.get("preferred", False) else 0,
@@ -595,6 +653,10 @@ def _recommended_action(issues: list[dict[str, Any]]) -> str:
         return "Regenerate the branch from typed steps only before execution."
     if "policy_contract_violation" in codes:
         return "Route the action through a typed safe workflow instead of a denied raw action."
+    if "planner_confidence_below_high_risk_threshold" in codes or "planner_confidence_below_mutation_threshold" in codes:
+        return "Raise planner confidence or switch to a conservative observation-first branch before mutation."
+    if "planner_ambiguity_too_high_for_mutation" in codes:
+        return "Split the request into smaller typed branches before allowing mutation."
     if "unknown_step_executed" in codes:
         return "Add a typed execution contract before allowing that step back into planning."
     return "Maintain the contradiction gate and extend typed reasoning checks across more subsystems."
@@ -621,6 +683,7 @@ def review_run(
         + _detect_workflow_conflicts(cwd, plan, result_list)
         + _detect_evolution_conflicts(cwd, plan, result_list)
         + _detect_plan_contract_conflicts(plan)
+        + _detect_planner_quality_conflicts(plan)
         + _detect_evidence_conflicts(effective_ok, result_list)
         + _detect_consequence_conflicts(plan, result_list)
     )

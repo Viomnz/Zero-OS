@@ -20,8 +20,10 @@ from zero_os.triad_balance import triad_ops_set
 from zero_os.zero_ai_evolution import zero_ai_evolution_auto_run
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.zero_ai_source_evolution import (
+    zero_ai_source_evolution_auto_upgrade,
     zero_ai_source_evolution_auto_run,
     zero_ai_source_evolution_canary,
+    zero_ai_source_evolution_generate_upgrade,
     zero_ai_source_evolution_propose,
     zero_ai_source_evolution_rollback,
     zero_ai_source_evolution_status,
@@ -232,6 +234,21 @@ class ZeroAiSourceEvolutionTests(unittest.TestCase):
         self.assertIn("src/zero_os/self_continuity.py", review_markdown)
         self.assertIn("src/zero_os/triad_balance.py", review_markdown)
         self.assertIn("src/zero_os/antivirus.py", review_markdown)
+        self.assertEqual("zero_ai", proposal["generated_by"])
+        self.assertEqual("guarded_source_patch", proposal["upgrade_kind"])
+        self.assertEqual("auto_candidate", proposal["generation_mode"])
+
+    def test_source_evolution_generate_upgrade_exposes_zero_ai_generated_patch(self) -> None:
+        self._prime_stable_evolution_generation(expanded_patch_lane=True)
+
+        generated = zero_ai_source_evolution_generate_upgrade(str(self.base))
+
+        self.assertTrue(generated["ok"])
+        self.assertTrue(generated["auto_generated"])
+        self.assertEqual("zero_ai", generated["generated_by"])
+        self.assertEqual("guarded_source_patch", generated["upgrade_kind"])
+        self.assertEqual("canary", generated["next_action"])
+        self.assertTrue(generated["proposal"]["candidate_available"])
 
     def test_source_evolution_recovers_when_bounded_state_is_stale(self) -> None:
         self._prime_stable_evolution_generation()
@@ -325,6 +342,16 @@ class ZeroAiSourceEvolutionTests(unittest.TestCase):
         self.assertIn('"interval_seconds": 180,', continuity_restored)
         self.assertIn('"interval_seconds": 180,', triad_restored)
         self.assertIn('"interval_seconds": 120,', antivirus_restored)
+
+    def test_source_evolution_auto_upgrade_alias_returns_generated_upgrade_metadata(self) -> None:
+        self._prime_stable_evolution_generation(expanded_patch_lane=True)
+
+        promoted = zero_ai_source_evolution_auto_upgrade(str(self.base))
+
+        self.assertTrue(promoted["ok"])
+        self.assertTrue(promoted["auto_generated"])
+        self.assertEqual("zero_ai", promoted["generated_by"])
+        self.assertEqual("guarded_source_patch", promoted["upgrade_kind"])
 
 
 if __name__ == "__main__":

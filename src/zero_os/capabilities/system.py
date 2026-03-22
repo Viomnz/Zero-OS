@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-import ast
 import json
 from pathlib import Path
 import getpass
 import re
-import sys
 
 from zero_os.core import CORE_POLICY
 from zero_os.cure_firewall import (
@@ -23,7 +21,6 @@ from zero_os.cure_firewall import (
 )
 from zero_os.law_store import law_export, law_status
 from zero_os.hyperlayer.runtime_core import hyperlayer_status
-from zero_os.github_integration_pack import connect_repo as github_connect, issue_act as github_issue_act, issue_comments as github_issue_comments, issue_plan as github_issue_plan, issue_read as github_issue_read, issue_reply_draft as github_issue_reply_draft, issue_reply_post as github_issue_reply_post, issue_summary as github_issue_summary, pr_act as github_pr_act, pr_comments as github_pr_comments, pr_plan as github_pr_plan, pr_read as github_pr_read, pr_reply_draft as github_pr_reply_draft, pr_reply_post as github_pr_reply_post, pr_summary as github_pr_summary, status as github_status
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, beginner_os_coverage, os_readiness
 from zero_os.production_core import (
     api_token_create,
@@ -58,6 +55,8 @@ from zero_os.production_core import (
     process_start,
     playbook_init,
     playbook_show,
+    plugin_sign,
+    plugin_verify,
     release_bump,
     release_init,
     freedom_mode_set,
@@ -110,25 +109,6 @@ from zero_os.cure_firewall_agent import (
     cure_firewall_agent_status,
     run_cure_firewall_agent,
 )
-from zero_os.antivirus import (
-    threat_feed_export_signed as antivirus_threat_feed_export_signed,
-    threat_feed_import_signed as antivirus_threat_feed_import_signed,
-    monitor_set as antivirus_monitor_set,
-    monitor_status as antivirus_monitor_status,
-    monitor_tick as antivirus_monitor_tick,
-    policy_set as antivirus_policy_set,
-    policy_status as antivirus_policy_status,
-    quarantine_file as antivirus_quarantine_file,
-    quarantine_list as antivirus_quarantine_list,
-    quarantine_restore as antivirus_quarantine_restore,
-    scan_target as antivirus_scan_target,
-    threat_feed_status as antivirus_threat_feed_status,
-    threat_feed_update as antivirus_threat_feed_update,
-    suppression_add as antivirus_suppression_add,
-    suppression_list as antivirus_suppression_list,
-    suppression_remove as antivirus_suppression_remove,
-)
-from zero_os.antivirus_agent import antivirus_agent_status, run_antivirus_agent
 from zero_os.triad_balance import (
     run_triad_balance,
     triad_balance_status,
@@ -140,115 +120,16 @@ from zero_os.self_repair import self_repair_run, self_repair_set, self_repair_st
 from zero_os.security_hardening import (
     harden_apply,
     harden_status,
-    init_trust_root,
     zero_ai_security_apply,
     zero_ai_security_status,
 )
 from zero_os.enterprise_security import (
-    adversarial_validate,
-    enterprise_enable,
-    enterprise_status,
-    integration_bootstrap_local,
-    integration_configure,
-    integration_probe,
-    integration_status,
-    policy_lock_apply,
     preexec_check,
-    rollout_set,
-    rollout_status,
-    rollback_playbook_run,
-    set_role as enterprise_set_role,
-    siem_emit,
-    sign_action as enterprise_sign_action,
 )
-from zero_os.maturity import maturity_scaffold_all, maturity_status
-from zero_os.smart_logic_governance import decide_false_positive, list_false_positive_reviews
-from zero_os.harmony import zero_ai_harmony_status
-from zero_os.knowledge_map import build_knowledge_index, knowledge_find, knowledge_status
-from zero_os.large_code_index import index_status as large_index_status, index_workspace as large_index_workspace, list_workspaces as large_list_workspaces, register_workspace as large_register_workspace, search_code as large_search_code, search_symbols as large_search_symbols, symbol_status as large_symbol_status, watcher_set as large_watcher_set, watcher_status as large_watcher_status, watcher_tick as large_watcher_tick
-from zero_os.recovery import zero_ai_backup_create, zero_ai_backup_status, zero_ai_recover
 from zero_os.brain_awareness import brain_awareness_status, build_brain_awareness
-from zero_os.plugins import plugin_disable, plugin_enable, plugin_install_local, plugin_scaffold, plugin_sign, plugin_status, plugin_validate, plugin_verify
 from zero_os.zero_ai_sync import zero_ai_sync_all
-from zero_os.zero_ai_evolution import (
-    zero_ai_evolution_auto_run,
-    zero_ai_evolution_canary,
-    zero_ai_evolution_promote,
-    zero_ai_evolution_propose,
-    zero_ai_evolution_rollback,
-    zero_ai_evolution_simulate,
-    zero_ai_evolution_status,
-)
-from zero_os.zero_ai_source_evolution import (
-    zero_ai_source_evolution_auto_run,
-    zero_ai_source_evolution_canary,
-    zero_ai_source_evolution_promote,
-    zero_ai_source_evolution_propose,
-    zero_ai_source_evolution_rollback,
-    zero_ai_source_evolution_simulate,
-    zero_ai_source_evolution_status,
-)
-from zero_os.zero_ai_capability_map import (
-    zero_ai_capability_map_refresh,
-    zero_ai_capability_map_status,
-)
-from zero_os.contradiction_engine import (
-    contradiction_engine_refresh as zero_ai_contradiction_engine_refresh,
-    contradiction_engine_status as zero_ai_contradiction_engine_status,
-)
-from zero_os.flow_monitor import flow_refresh as zero_ai_flow_refresh, flow_scan as zero_ai_flow_scan, flow_status as zero_ai_flow_status
-from zero_os.smart_workspace import workspace_refresh as zero_ai_workspace_refresh, workspace_status as zero_ai_workspace_status
-from zero_os.zero_ai_pressure_harness import pressure_harness_run as zero_ai_pressure_run, pressure_harness_status as zero_ai_pressure_status
-from zero_os.benchmark_remediation_workflow import (
-    decide as zero_ai_benchmark_remediation_decide,
-    execute as zero_ai_benchmark_remediation_execute,
-    request as zero_ai_benchmark_remediation_request,
-    status as zero_ai_benchmark_remediation_status,
-)
-from zero_os.zero_ai_control_workflows import (
-    zero_ai_control_workflow_browser_act,
-    zero_ai_control_workflow_browser_open,
-    zero_ai_control_workflow_install,
-    zero_ai_control_workflow_recover,
-    zero_ai_control_workflow_self_repair,
-    zero_ai_control_workflows_refresh,
-    zero_ai_control_workflows_status,
-)
 from zero_os.zero_ai_identity import zero_ai_identity
 from zero_os.consciousness_core import consciousness_status, consciousness_tick
-from zero_os.self_continuity import (
-    zero_ai_continuity_checkpoint_create,
-    zero_ai_continuity_checkpoint_status,
-    zero_ai_continuity_governance_auto_apply,
-    zero_ai_continuity_governance_auto_status,
-    zero_ai_continuity_governance_run,
-    zero_ai_continuity_governance_set,
-    zero_ai_continuity_governance_status,
-    zero_ai_continuity_governance_tick,
-    zero_ai_continuity_governor_apply,
-    zero_ai_continuity_governor_check,
-    zero_ai_continuity_governor_status,
-    zero_ai_continuity_policy_auto_apply,
-    zero_ai_continuity_policy_auto_status,
-    zero_ai_continuity_policy_set,
-    zero_ai_continuity_policy_status,
-    zero_ai_continuity_restore_last_safe,
-    zero_ai_continuity_simulate,
-    zero_ai_continuity_simulate_apply,
-    zero_ai_self_continuity_status,
-    zero_ai_self_continuity_update,
-    zero_ai_self_inspect_refresh,
-    zero_ai_self_repair_restore_continuity,
-)
-from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
-from zero_os.share_bundle import (
-    export_bundle as zero_os_export_bundle,
-    export_zero_ai_bundle,
-    export_zero_ai_bundle_strict,
-    share_package as zero_os_share_package,
-    share_zero_ai_package,
-    share_zero_ai_package_strict,
-)
 from zero_os.conscious_machine_architecture import (
     consciousness_architecture_long_term_memory_status,
     consciousness_architecture_silicon_awareness_status,
@@ -267,29 +148,6 @@ from zero_os.conscious_machine_architecture import (
     consciousness_architecture_phase2_status,
     consciousness_architecture_status,
 )
-
-
-def _benchmark_history_api(cwd: str):
-    root = str(Path(__file__).resolve().parents[3])
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    from ai_from_scratch.benchmark_history import benchmark_alert_routes_status, benchmark_dashboard_status
-
-    return benchmark_dashboard_status, benchmark_alert_routes_status
-from zero_os.ops_maturity import (
-    alert_routing_emit,
-    alert_routing_set,
-    alert_routing_status,
-    dr_drill,
-    enterprise_max_maturity_apply,
-    immutable_audit_export,
-    key_revoke,
-    key_rotate,
-    key_status,
-    rollout_apply,
-    runbooks_sync,
-)
-from zero_os.phase_runtime import zero_ai_runtime_agent_ensure, zero_ai_runtime_agent_install, zero_ai_runtime_agent_start, zero_ai_runtime_agent_status, zero_ai_runtime_agent_stop, zero_ai_runtime_agent_uninstall, zero_ai_runtime_loop_run, zero_ai_runtime_loop_set, zero_ai_runtime_loop_status, zero_ai_runtime_loop_tick, zero_ai_runtime_run, zero_ai_runtime_status
 from zero_os.runtime_coupling import (
     adversarial_runtime_validate,
     benchmark_dashboard_export,
@@ -503,27 +361,8 @@ from zero_os.native_store_desktop import (
     launch as nsd_launch,
     scaffold as nsd_scaffold,
 )
-from zero_os.universal_ui_launcher import launch as universal_ui_launch
 from zero_os.native_platform import maximize as np_maximize, status as np_status
-from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, autonomy_status
-from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
-from zero_os.approval_workflow import cleanup_expired as zero_ai_approval_cleanup_expired, decide as zero_ai_approval_decide, status as zero_ai_approval_status
-from zero_os.assistant_job_runner import recurring_builtin_auto_apply as zero_ai_job_recurring_builtin_auto_apply, recurring_builtin_status as zero_ai_job_recurring_builtin_status, remove_recurring as zero_ai_job_remove_recurring, schedule as zero_ai_job_schedule, schedule_recurring_builtin as zero_ai_job_schedule_recurring_builtin, status as zero_ai_job_status, tick as zero_ai_job_tick
-from zero_os.zero_ai_autonomy import (
-    zero_ai_autonomy_add_goal,
-    zero_ai_autonomy_drain,
-    zero_ai_autonomy_goals,
-    zero_ai_autonomy_loop_run,
-    zero_ai_autonomy_loop_set,
-    zero_ai_autonomy_loop_status,
-    zero_ai_autonomy_loop_tick,
-    zero_ai_autonomy_run,
-    zero_ai_autonomy_status,
-    zero_ai_autonomy_sync,
-)
-from zero_os.browser_session_connector import browser_session_status as zero_ai_browser_session_status
-from zero_os.observation_layer import collect_observations
-from zero_os.playbook_memory import status as zero_ai_playbook_status
+from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record
 from zero_os.production_platform_ops import (
     adversarial_deployed_drill as ppo_adversarial_deployed_drill,
     backend_deploy_posture as ppo_backend_deploy_posture,
@@ -575,14 +414,12 @@ from zero_os.native_app_store import (
     upgrade as nas_upgrade,
     verify_artifact as nas_verify_artifact,
 )
-from zero_os.task_executor import run_task as zero_ai_run_task, run_task_resume as zero_ai_run_task_resume
-from zero_os.task_memory import status as zero_ai_task_memory_status
-from zero_os.subsystem_controller_registry import (
-    controller_registry_refresh as zero_ai_controller_registry_refresh,
-    controller_registry_status as zero_ai_controller_registry_status,
-)
-from zero_os.tool_capability_registry import registry_status as zero_ai_registry_status
-from zero_os.auto_completion import auto_max_fix_upgrade_everything
+from zero_os.system_command_extensions import handle_extension_command
+from zero_os.system_zero_ai_enterprise_commands import handle_zero_ai_enterprise_command
+from zero_os.system_zero_ai_general_commands import handle_zero_ai_general_command
+from zero_os.system_zero_ai_knowledge_security_commands import handle_zero_ai_knowledge_security_command
+from zero_os.system_zero_ai_runtime_commands import handle_zero_ai_runtime_command
+from zero_os.system_zero_ai_workflow_commands import handle_zero_ai_workflow_command
 
 
 class SystemCapability:
@@ -604,16 +441,16 @@ class SystemCapability:
             "pwd",
             "whoami",
             "date",
-              "time",
-              "auto upgrade",
-              "plugin scaffold",
-              "plugin status",
-              "plugin validate",
-              "plugin install",
-              "plugin enable",
-              "plugin disable",
-              "law status",
-              "law export",
+            "time",
+            "auto upgrade",
+            "plugin scaffold",
+            "plugin status",
+            "plugin validate",
+            "plugin install",
+            "plugin enable",
+            "plugin disable",
+            "law status",
+            "law export",
             "cure firewall",
             "cure firewall agent",
             "mark strict",
@@ -631,12 +468,11 @@ class SystemCapability:
             "jobs ",
             "agent isolate",
             "observability",
-              "snapshot ",
-              "plugin sign",
-              "plugin verify",
+            "snapshot ",
+            "plugin sign",
+            "plugin verify",
             "api token",
             "benchmark run",
-            "zero ai benchmark",
             "error playbook",
             "release ",
             "znet ",
@@ -679,114 +515,18 @@ class SystemCapability:
             "zero ai harmony",
             "zero ai knowledge",
             "zero ai know everything",
-            "zero ai index workspace",
-            "zero ai index status",
-            "zero ai index register",
-            "zero ai index list",
-            "zero ai search code",
-            "zero ai code search",
-            "zero ai symbol status",
-            "zero ai symbol search",
-            "zero ai index watch",
             "zero ai backup",
             "zero ai recover",
             "zero ai security",
             "zero ai brain awareness",
             "zero ai fix all",
             "zero ai autonomy",
+            "zero ai autonomy tiers",
+            "zero ai autonomy tier",
             "go fix all",
             "fix all now",
             "zero ai identity",
             "zero ai consciousness",
-            "zero ai self continuity",
-            "zero ai persistent self",
-            "zero ai self inspect refresh",
-            "zero ai auto inspect refresh",
-            "zero ai highest-value steps",
-            "zero ai inspect and refresh",
-            "zero ai continuity checkpoint",
-            "zero ai continuity checkpoint status",
-            "zero ai continuity checkpoint create",
-            "zero ai continuity restore last safe",
-            "zero ai continuity policy",
-            "zero ai continuity policy status",
-            "zero ai continuity policy set",
-            "zero ai continuity policy auto",
-            "zero ai continuity policy auto apply",
-            "zero ai continuity governance",
-            "zero ai continuity governance status",
-            "zero ai continuity governance on",
-            "zero ai continuity governance off",
-            "zero ai continuity governance tick",
-            "zero ai continuity governance run",
-            "zero ai continuity governance auto",
-            "zero ai continuity governance auto apply",
-            "zero ai restore last safe continuity",
-            "zero ai restore last safe checkpoint",
-            "zero ai continuity governor",
-            "zero ai continuity governor status",
-            "zero ai continuity governor check",
-            "zero ai continuity governor apply",
-            "zero ai continuity simulate",
-            "zero ai simulate self update",
-            "zero ai continuity simulate apply",
-            "zero ai evolution",
-            "zero ai evolution status",
-            "zero ai evolution propose",
-            "zero ai evolution simulate",
-            "zero ai evolution canary",
-            "zero ai evolution promote",
-            "zero ai evolution rollback",
-            "zero ai evolution auto run",
-            "zero ai source evolution",
-            "zero ai source evolution status",
-            "zero ai source evolution propose",
-            "zero ai source evolution simulate",
-            "zero ai source evolution canary",
-            "zero ai source evolution promote",
-            "zero ai source evolution rollback",
-            "zero ai source evolution auto run",
-            "zero ai capability map",
-            "zero ai capability map status",
-            "zero ai capability map refresh",
-            "smart workspace",
-            "zero ai smart workspace",
-            "zero ai workspace",
-            "zero ai workspace status",
-            "zero ai workspace refresh",
-            "zero os workspace",
-            "zero os workspace status",
-            "zero ai flow status",
-            "zero ai flow scan",
-            "zero ai contradiction status",
-            "zero ai contradiction refresh",
-            "zero ai pressure",
-            "zero ai pressure status",
-            "zero ai pressure run",
-            "zero ai pressure refresh",
-            "pressure harness",
-            "stress harness",
-            "pressure mode",
-            "zero ai controller registry",
-            "zero ai controller registry status",
-            "zero ai controller registry refresh",
-            "zero ai control workflows",
-            "zero ai control workflows status",
-            "zero ai control workflows refresh",
-            "zero ai workflow browser",
-            "zero ai workflow install",
-            "zero ai workflow recover",
-            "zero ai workflow self repair",
-            "zero ai autonomy goals",
-            "zero ai autonomy sync",
-            "zero ai autonomy run",
-            "zero ai autonomy add",
-            "zero ai autonomy loop",
-            "zero ai autonomy loop status",
-            "zero ai autonomy loop on",
-            "zero ai autonomy loop off",
-            "zero ai autonomy loop tick",
-            "zero ai autonomy loop run",
             "conscious machine architecture",
             "reflexive causality engine",
             "self-generating ontology engine",
@@ -815,7 +555,6 @@ class SystemCapability:
             "zero ai playbooks",
             "zero ai tasks",
             "zero ai tools",
-            "zero ai next",
             "zero ai observe",
             "cover gap",
             "enterprise key",
@@ -826,6 +565,19 @@ class SystemCapability:
             "runbooks",
             "zero ai runtime",
             "phase runtime",
+            "pressure harness",
+            "zero ai pressure",
+            "zero ai planner feedback",
+            "zero ai smart planner",
+            "smart planner",
+            "planner feedback",
+            "zero ai maintenance",
+            "zero ai internet",
+            "world class readiness",
+            "internet status",
+            "internet refresh",
+            "zero ai workflow",
+            "zero ai control workflows",
             "runtime telemetry",
             "runtime node",
             "runtime adversarial",
@@ -1791,274 +1543,9 @@ class SystemCapability:
         if text.strip() in {"zero ai brain awareness status", "zero ai brain status"}:
             return Result(self.name, json.dumps(brain_awareness_status(task.cwd), indent=2))
         if text.strip() in {"zero ai identity", "zero ai rsi status"}:
-            return Result(self.name, json.dumps(zero_ai_identity(task.cwd), indent=2))
+            return Result(self.name, json.dumps(zero_ai_identity(), indent=2))
         if text.strip() in {"zero ai consciousness status", "zero ai consciousness"}:
             return Result(self.name, json.dumps(consciousness_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai self continuity", "zero ai self continuity status", "zero ai persistent self"}:
-            return Result(self.name, json.dumps(zero_ai_self_continuity_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity checkpoint", "zero ai continuity checkpoint status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_checkpoint_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity checkpoint create", "zero ai create continuity checkpoint"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_checkpoint_create(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity policy", "zero ai continuity policy status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_policy_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity policy auto", "zero ai continuity policy auto status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_policy_auto_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity policy auto apply", "zero ai continuity policy auto-select"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_policy_auto_apply(task.cwd), indent=2))
-        cpolicy = re.match(r"^zero ai continuity policy set\s+(\w+)$", text.strip(), flags=re.IGNORECASE)
-        if cpolicy:
-            return Result(self.name, json.dumps(zero_ai_continuity_policy_set(task.cwd, cpolicy.group(1)), indent=2))
-        if text.strip() in {"zero ai continuity governance", "zero ai continuity governance status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity governance auto", "zero ai continuity governance auto status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_auto_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity governance auto apply", "zero ai continuity governance auto-select"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_auto_apply(task.cwd), indent=2))
-        cgov_on = re.match(r"^zero ai continuity governance on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
-        if cgov_on:
-            interval = int(cgov_on.group(1)) if cgov_on.group(1) else None
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_set(task.cwd, True, interval), indent=2))
-        if text.strip() == "zero ai continuity governance off":
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_set(task.cwd, False, None), indent=2))
-        if text.strip() == "zero ai continuity governance tick":
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_tick(task.cwd), indent=2))
-        if text.strip() == "zero ai continuity governance run":
-            return Result(self.name, json.dumps(zero_ai_continuity_governance_run(task.cwd), indent=2))
-        if text.strip() in {
-            "zero ai continuity restore last safe",
-            "zero ai restore last safe continuity",
-            "zero ai restore last safe checkpoint",
-        }:
-            return Result(self.name, json.dumps(zero_ai_continuity_restore_last_safe(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity governor", "zero ai continuity governor status"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governor_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity governor check", "zero ai continuity safety check"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governor_check(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity governor apply", "zero ai apply safe self update"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_governor_apply(task.cwd), indent=2))
-        if text.strip() in {"zero ai continuity simulate", "zero ai simulate self update"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd), indent=2))
-        csim_patch = re.match(r"^zero ai continuity simulate patch=(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if csim_patch:
-            patch_path = Path(csim_patch.group(1).strip()).expanduser()
-            if not patch_path.is_absolute():
-                patch_path = Path(task.cwd) / patch_path
-            proposal = json.loads(patch_path.read_text(encoding="utf-8-sig"))
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd, proposal=proposal), indent=2))
-        csim = re.match(r"^zero ai continuity simulate json=(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if csim:
-            payload_text = csim.group(1).strip()
-            try:
-                proposal = json.loads(payload_text)
-            except Exception:
-                proposal = ast.literal_eval(payload_text)
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate(task.cwd, proposal=proposal), indent=2))
-        if text.strip() in {"zero ai continuity simulate apply", "zero ai apply safe simulated update"}:
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd), indent=2))
-        csima_patch = re.match(r"^zero ai continuity simulate apply patch=(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if csima_patch:
-            patch_path = Path(csima_patch.group(1).strip()).expanduser()
-            if not patch_path.is_absolute():
-                patch_path = Path(task.cwd) / patch_path
-            proposal = json.loads(patch_path.read_text(encoding="utf-8-sig"))
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd, proposal=proposal), indent=2))
-        csima = re.match(r"^zero ai continuity simulate apply json=(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if csima:
-            payload_text = csima.group(1).strip()
-            try:
-                proposal = json.loads(payload_text)
-            except Exception:
-                proposal = ast.literal_eval(payload_text)
-            return Result(self.name, json.dumps(zero_ai_continuity_simulate_apply(task.cwd, proposal=proposal), indent=2))
-        if text.strip() in {"zero ai self continuity update", "zero ai recursive state update"}:
-            return Result(self.name, json.dumps(zero_ai_self_continuity_update(task.cwd), indent=2))
-        if text.strip() in {"zero ai evolution", "zero ai evolution status"}:
-            return Result(self.name, json.dumps(zero_ai_evolution_status(task.cwd), indent=2))
-        if text.strip() == "zero ai evolution propose":
-            return Result(self.name, json.dumps(zero_ai_evolution_propose(task.cwd), indent=2))
-        if text.strip() == "zero ai evolution simulate":
-            return Result(self.name, json.dumps(zero_ai_evolution_simulate(task.cwd), indent=2))
-        if text.strip() == "zero ai evolution canary":
-            return Result(self.name, json.dumps(zero_ai_evolution_canary(task.cwd), indent=2))
-        if text.strip() == "zero ai evolution promote":
-            return Result(self.name, json.dumps(zero_ai_evolution_promote(task.cwd), indent=2))
-        if text.strip() == "zero ai evolution rollback":
-            return Result(self.name, json.dumps(zero_ai_evolution_rollback(task.cwd), indent=2))
-        if text.strip() in {"zero ai evolution auto run", "zero ai self evolve", "zero ai self evolve auto"}:
-            return Result(self.name, json.dumps(zero_ai_evolution_auto_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai source evolution", "zero ai source evolution status"}:
-            return Result(self.name, json.dumps(zero_ai_source_evolution_status(task.cwd), indent=2))
-        if text.strip() == "zero ai source evolution propose":
-            return Result(self.name, json.dumps(zero_ai_source_evolution_propose(task.cwd), indent=2))
-        if text.strip() == "zero ai source evolution simulate":
-            return Result(self.name, json.dumps(zero_ai_source_evolution_simulate(task.cwd), indent=2))
-        if text.strip() == "zero ai source evolution canary":
-            return Result(self.name, json.dumps(zero_ai_source_evolution_canary(task.cwd), indent=2))
-        if text.strip() == "zero ai source evolution promote":
-            return Result(self.name, json.dumps(zero_ai_source_evolution_promote(task.cwd), indent=2))
-        if text.strip() == "zero ai source evolution rollback":
-            return Result(self.name, json.dumps(zero_ai_source_evolution_rollback(task.cwd), indent=2))
-        if text.strip() in {"zero ai source evolution auto run", "zero ai source evolve", "zero ai source evolve auto"}:
-            return Result(self.name, json.dumps(zero_ai_source_evolution_auto_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai capability map", "zero ai capability map status"}:
-            return Result(self.name, json.dumps(zero_ai_capability_map_status(task.cwd), indent=2))
-        if text.strip() == "zero ai capability map refresh":
-            return Result(self.name, json.dumps(zero_ai_capability_map_refresh(task.cwd), indent=2))
-        if text.strip() in {"zero ai benchmark dashboard", "zero ai benchmark dashboard status", "zero ai benchmark status"}:
-            benchmark_dashboard_status, _ = _benchmark_history_api(task.cwd)
-            return Result(self.name, json.dumps(benchmark_dashboard_status(history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model"), indent=2))
-        if text.strip() == "zero ai benchmark dashboard refresh":
-            benchmark_dashboard_status, _ = _benchmark_history_api(task.cwd)
-            return Result(
-                self.name,
-                json.dumps(
-                    benchmark_dashboard_status(
-                        history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model",
-                        write=True,
-                    ),
-                    indent=2,
-                ),
-            )
-        if text.strip() in {"zero ai benchmark alerts", "zero ai benchmark alerts status"}:
-            _, benchmark_alert_routes_status = _benchmark_history_api(task.cwd)
-            return Result(
-                self.name,
-                json.dumps(
-                    benchmark_alert_routes_status(history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model"),
-                    indent=2,
-                ),
-            )
-        if text.strip() == "zero ai benchmark alerts refresh":
-            _, benchmark_alert_routes_status = _benchmark_history_api(task.cwd)
-            return Result(
-                self.name,
-                json.dumps(
-                    benchmark_alert_routes_status(
-                        history_dir=Path(task.cwd) / ".zero_os" / "benchmarks" / "model",
-                        write=True,
-                    ),
-                    indent=2,
-                ),
-            )
-        if text.strip() in {"zero ai benchmark remediation", "zero ai benchmark remediation status"}:
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_benchmark_remediation_status(task.cwd),
-                    indent=2,
-                ),
-            )
-        if text.strip() == "zero ai benchmark remediation refresh":
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_benchmark_remediation_status(task.cwd, write=True),
-                    indent=2,
-                ),
-            )
-        if text.strip() == "zero ai benchmark remediation request":
-            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_request(task.cwd), indent=2))
-        if text.strip() == "zero ai benchmark remediation approve":
-            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_decide(task.cwd, True), indent=2))
-        if text.strip() == "zero ai benchmark remediation reject":
-            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_decide(task.cwd, False), indent=2))
-        if text.strip() in {"zero ai benchmark remediation execute", "zero ai benchmark remediation run"}:
-            return Result(self.name, json.dumps(zero_ai_benchmark_remediation_execute(task.cwd), indent=2))
-        if text.strip() in {
-            "smart workspace",
-            "zero ai smart workspace",
-            "zero ai workspace",
-            "zero ai workspace status",
-            "zero os workspace",
-            "zero os workspace status",
-        }:
-            return Result(self.name, json.dumps(zero_ai_workspace_status(task.cwd), indent=2))
-        if text.strip() == "zero ai workspace refresh":
-            return Result(self.name, json.dumps(zero_ai_workspace_refresh(task.cwd), indent=2))
-        if text.strip() in {"zero ai flow", "zero ai flow status", "zero os flow", "zero os flow status"}:
-            return Result(self.name, json.dumps(zero_ai_flow_status(task.cwd), indent=2))
-        flow_scan_match = re.match(r"^(?:zero ai|zero os)\s+flow\s+scan(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
-        if flow_scan_match:
-            return Result(self.name, json.dumps(zero_ai_flow_scan(task.cwd, flow_scan_match.group(1) or "."), indent=2))
-        if text.strip() == "zero ai flow refresh":
-            return Result(self.name, json.dumps(zero_ai_flow_refresh(task.cwd), indent=2))
-        if text.strip() in {"zero ai contradiction", "zero ai contradiction status"}:
-            return Result(self.name, json.dumps(zero_ai_contradiction_engine_status(task.cwd), indent=2))
-        if text.strip() == "zero ai contradiction refresh":
-            return Result(self.name, json.dumps(zero_ai_contradiction_engine_refresh(task.cwd), indent=2))
-        if text.strip() in {"pressure harness", "stress harness", "pressure mode", "stress test", "pressure test"}:
-            return Result(self.name, json.dumps(zero_ai_pressure_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai pressure", "zero ai pressure status"}:
-            return Result(self.name, json.dumps(zero_ai_pressure_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai pressure run", "zero ai pressure refresh"}:
-            return Result(self.name, json.dumps(zero_ai_pressure_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai controller registry", "zero ai controller registry status"}:
-            return Result(self.name, json.dumps(zero_ai_controller_registry_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai controller registry refresh", "zero ai next", "zero ai highest-value steps"}:
-            return Result(self.name, json.dumps(zero_ai_controller_registry_refresh(task.cwd), indent=2))
-        if text.strip() in {"zero ai control workflows", "zero ai control workflows status"}:
-            return Result(self.name, json.dumps(zero_ai_control_workflows_status(task.cwd), indent=2))
-        if text.strip() == "zero ai control workflows refresh":
-            return Result(self.name, json.dumps(zero_ai_control_workflows_refresh(task.cwd), indent=2))
-        browser_wf_open = re.match(r"^zero ai workflow browser open\s+url=(\S+)$", raw.strip(), flags=re.IGNORECASE)
-        if browser_wf_open:
-            return Result(self.name, json.dumps(zero_ai_control_workflow_browser_open(task.cwd, browser_wf_open.group(1)), indent=2))
-        browser_wf_act = re.match(
-            r"^zero ai workflow browser act\s+url=(\S+)\s+action=(open|inspect|click|input)(?:\s+selector=(\S+))?(?:\s+value=(.+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if browser_wf_act:
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_control_workflow_browser_act(
-                        task.cwd,
-                        browser_wf_act.group(1),
-                        browser_wf_act.group(2),
-                        browser_wf_act.group(3) or "",
-                        browser_wf_act.group(4) or "",
-                    ),
-                    indent=2,
-                ),
-            )
-        store_wf = re.match(
-            r"^zero ai workflow install\s+app=(.+?)(?:\s+user=(\S+))?(?:\s+email=(\S+))?(?:\s+os=(\S+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if store_wf:
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_control_workflow_install(
-                        task.cwd,
-                        store_wf.group(1),
-                        store_wf.group(2) or "",
-                        store_wf.group(3) or "",
-                        store_wf.group(4) or "",
-                    ),
-                    indent=2,
-                ),
-            )
-        recover_wf = re.match(r"^zero ai workflow recover(?:\s+snapshot=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if recover_wf:
-            return Result(self.name, json.dumps(zero_ai_control_workflow_recover(task.cwd, recover_wf.group(1) or "latest"), indent=2))
-        if text.strip() == "zero ai workflow self repair":
-            return Result(self.name, json.dumps(zero_ai_control_workflow_self_repair(task.cwd), indent=2))
-        if text.strip() in {
-            "zero ai self inspect refresh",
-            "zero ai auto inspect refresh",
-            "zero ai inspect and refresh",
-        }:
-            return Result(self.name, json.dumps(zero_ai_self_inspect_refresh(task.cwd), indent=2))
-        if text.strip() in {
-            "zero ai self repair restore continuity",
-            "zero ai restore continuity",
-            "zero ai self repair continuity",
-        }:
-            return Result(self.name, json.dumps(zero_ai_self_repair_restore_continuity(task.cwd), indent=2))
         if text.strip() in {
             "strong persistent long-term memory",
             "zero ai architecture long-term memory",
@@ -2125,437 +1612,18 @@ class SystemCapability:
             result = zero_ai_sync_all(task.cwd)
             autonomy_record(task.cwd, "fix all now", "success" if result.get("ok") else "failed", gate["confidence"]["confidence"])
             return Result(self.name, json.dumps({"ok": bool(result.get("ok", False)), "gate": gate, "result": result}, indent=2))
-        if text.strip() in {"zero ai autonomy gate status", "zero ai autonomy review status"}:
-            return Result(self.name, json.dumps(autonomy_status(task.cwd), indent=2))
-        if text.strip() == "zero ai tools status":
-            return Result(self.name, json.dumps(zero_ai_registry_status(task.cwd), indent=2))
-        if text.strip() == "zero ai observe":
-            return Result(self.name, json.dumps(collect_observations(task.cwd), indent=2))
-        if text.strip() == "zero ai browser status":
-            return Result(self.name, json.dumps(zero_ai_browser_session_status(task.cwd), indent=2))
-        if text.strip() == "zero ai tasks status":
-            return Result(self.name, json.dumps(zero_ai_task_memory_status(task.cwd), indent=2))
-        if text.strip() == "zero ai approvals status":
-            return Result(self.name, json.dumps(zero_ai_approval_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai approvals sweep", "zero ai approvals cleanup"}:
-            return Result(self.name, json.dumps(zero_ai_approval_cleanup_expired(task.cwd), indent=2))
-        if text.strip() == "zero ai playbooks status":
-            return Result(self.name, json.dumps(zero_ai_playbook_status(task.cwd), indent=2))
-        if text.strip() == "zero ai jobs status":
-            return Result(self.name, json.dumps(zero_ai_job_status(task.cwd), indent=2))
-        if text.strip() == "zero ai jobs tick":
-            return Result(self.name, json.dumps(zero_ai_job_tick(task.cwd), indent=2))
-        jobs_cgov_on = re.match(r"^zero ai jobs continuity governance on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
-        if jobs_cgov_on:
-            interval = int(jobs_cgov_on.group(1)) if jobs_cgov_on.group(1) else 180
-            zero_ai_continuity_governance_set(task.cwd, True, interval)
-            scheduled = zero_ai_job_schedule_recurring_builtin(task.cwd, "continuity_governance", interval_seconds=interval, enabled=True)
-            return Result(
-                self.name,
-                json.dumps(
-                    {
-                        "ok": True,
-                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
-                        "jobs": zero_ai_job_status(task.cwd),
-                        "scheduled": scheduled,
-                    },
-                    indent=2,
-                ),
-            )
-        if text.strip() == "zero ai jobs continuity governance off":
-            zero_ai_continuity_governance_set(task.cwd, False, None)
-            removed = zero_ai_job_remove_recurring(task.cwd, "continuity_governance")
-            return Result(
-                self.name,
-                json.dumps(
-                    {
-                        "ok": True,
-                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
-                        "jobs": zero_ai_job_status(task.cwd),
-                        "removed": removed,
-                    },
-                    indent=2,
-                ),
-            )
-        if text.strip() == "zero ai jobs continuity governance status":
-            return Result(
-                self.name,
-                json.dumps(
-                    {
-                        "ok": True,
-                        "auto": zero_ai_continuity_governance_auto_status(task.cwd),
-                        "continuity_governance": zero_ai_continuity_governance_status(task.cwd),
-                        "jobs": zero_ai_job_status(task.cwd),
-                    },
-                    indent=2,
-                ),
-            )
-        if text.strip() in {"zero ai jobs continuity governance auto", "zero ai jobs continuity governance auto status"}:
-            return Result(
-                self.name,
-                json.dumps(zero_ai_job_recurring_builtin_status(task.cwd, "continuity_governance"), indent=2),
-            )
-        if text.strip() in {"zero ai jobs continuity governance auto apply", "zero ai jobs continuity governance auto-select"}:
-            return Result(
-                self.name,
-                json.dumps(zero_ai_job_recurring_builtin_auto_apply(task.cwd, "continuity_governance"), indent=2),
-            )
-        if text.strip() in {"zero ai autonomy", "zero ai autonomy status"}:
-            return Result(self.name, json.dumps(zero_ai_autonomy_status(task.cwd), indent=2))
-        if text.strip() == "zero ai autonomy goals":
-            return Result(self.name, json.dumps(zero_ai_autonomy_goals(task.cwd), indent=2))
-        if text.strip() == "zero ai autonomy sync":
-            return Result(self.name, json.dumps(zero_ai_autonomy_sync(task.cwd), indent=2))
-        if text.strip() == "zero ai autonomy run":
-            return Result(self.name, json.dumps(zero_ai_autonomy_run(task.cwd), indent=2))
-        autonomy_drain = re.match(r"^zero ai autonomy drain(?:\s+max=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if autonomy_drain:
-            limit = int(autonomy_drain.group(1) or "8")
-            return Result(self.name, json.dumps(zero_ai_autonomy_drain(task.cwd, max_runs=limit), indent=2))
-        autonomy_add = re.match(r"^zero ai autonomy add(?:\s+priority=(\d+))?\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if autonomy_add:
-            priority = int(autonomy_add.group(1) or "70")
-            return Result(self.name, json.dumps(zero_ai_autonomy_add_goal(task.cwd, autonomy_add.group(2).strip(), priority=priority), indent=2))
-        if text.strip() in {"zero ai autonomy loop", "zero ai autonomy loop status"}:
-            return Result(self.name, json.dumps(zero_ai_autonomy_loop_status(task.cwd), indent=2))
-        autonomy_loop_on = re.match(r"^zero ai autonomy loop on(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if autonomy_loop_on:
-            interval = int(autonomy_loop_on.group(1) or "300")
-            return Result(self.name, json.dumps(zero_ai_autonomy_loop_set(task.cwd, True, interval), indent=2))
-        if text.strip() == "zero ai autonomy loop off":
-            return Result(self.name, json.dumps(zero_ai_autonomy_loop_set(task.cwd, False, None), indent=2))
-        if text.strip() == "zero ai autonomy loop tick":
-            return Result(self.name, json.dumps(zero_ai_autonomy_loop_tick(task.cwd), indent=2))
-        if text.strip() == "zero ai autonomy loop run":
-            return Result(self.name, json.dumps(zero_ai_autonomy_loop_run(task.cwd), indent=2))
-        if text.strip() == "zero ai api profile status":
-            return Result(self.name, json.dumps(zero_ai_api_profile_status(task.cwd), indent=2))
-        zero_ai_api_set = re.match(
-            r"^zero ai api profile set\s+name=(.+?)\s+base=(.+?)(?:\s+token=(.+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if zero_ai_api_set:
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_api_profile_set(
-                        task.cwd,
-                        zero_ai_api_set.group(1).strip(),
-                        zero_ai_api_set.group(2).strip(),
-                        (zero_ai_api_set.group(3) or "").strip(),
-                    ),
-                    indent=2,
-                ),
-            )
-        zero_ai_approval = re.match(
-            r"^zero ai approval decide\s+id=(.+?)\s+state=(approve|reject)$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if zero_ai_approval:
-            return Result(
-                self.name,
-                json.dumps(
-                    zero_ai_approval_decide(
-                        task.cwd,
-                        zero_ai_approval.group(1).strip(),
-                        zero_ai_approval.group(2).strip().lower() == "approve",
-                    ),
-                    indent=2,
-                ),
-            )
-        zero_ai_job_add = re.match(r"^zero ai job add\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if zero_ai_job_add:
-            return Result(self.name, json.dumps(zero_ai_job_schedule(task.cwd, zero_ai_job_add.group(1).strip()), indent=2))
-        if text.strip() == "zero ai ask resume":
-            return Result(self.name, json.dumps(zero_ai_run_task_resume(task.cwd), indent=2))
-        zero_ai_ask = re.match(r"^zero ai ask\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if zero_ai_ask:
-            return Result(self.name, json.dumps(zero_ai_run_task(task.cwd, zero_ai_ask.group(1).strip()), indent=2))
-        autonomy_eval = re.match(
-            r"^zero ai autonomy evaluate\s+action=(.+?)\s+radius=(.+?)\s+reversible=(on|off)\s+evidence=(\d+)\s+contradictions=(\d+)\s+verifiers=(\d+)$",
-            text.strip(),
-            flags=re.IGNORECASE,
-        )
-        if autonomy_eval:
-            action = autonomy_eval.group(1).strip()
-            radius = autonomy_eval.group(2).strip()
-            reversible = autonomy_eval.group(3).strip().lower() == "on"
-            evidence = int(autonomy_eval.group(4))
-            contradictions = int(autonomy_eval.group(5))
-            verifiers = int(autonomy_eval.group(6))
-            checks = {
-                "simulation_ready": evidence > 0,
-                "policy_clear": contradictions == 0,
-                "verifiers_ready": verifiers > 0,
-            }
-            return Result(
-                self.name,
-                json.dumps(
-                    autonomy_evaluate(
-                        task.cwd,
-                        action=action,
-                        blast_radius=radius,
-                        reversible=reversible,
-                        evidence_count=evidence,
-                        contradictory_signals=contradictions,
-                        independent_verifiers=verifiers,
-                        checks=checks,
-                    ),
-                    indent=2,
-                ),
-            )
-        if text.strip() in {"zero ai gap status", "zero ai cover gap status"}:
-            return Result(self.name, json.dumps(zero_ai_gap_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai gap fix", "zero ai cover gap fix", "maximize zero ai cover gap or missing"}:
-            return Result(self.name, json.dumps(zero_ai_gap_fix(task.cwd), indent=2))
-        if text.strip() in {"zero os export bundle", "zero os export", "zero os bundle export"}:
-            return Result(self.name, json.dumps(zero_os_export_bundle(task.cwd), indent=2))
-        if text.strip() in {"zero os share package", "zero os share", "zero os export package"}:
-            return Result(self.name, json.dumps(zero_os_share_package(task.cwd), indent=2))
-        if text.strip() in {"zero ai export bundle strict", "zero ai export strict", "zero ai bundle export strict"}:
-            return Result(self.name, json.dumps(export_zero_ai_bundle_strict(task.cwd), indent=2))
-        if text.strip() in {"zero ai export bundle", "zero ai export", "zero ai bundle export"}:
-            return Result(self.name, json.dumps(export_zero_ai_bundle(task.cwd), indent=2))
-        if text.strip() in {"zero ai share package strict", "zero ai share strict", "zero ai export package strict"}:
-            return Result(self.name, json.dumps(share_zero_ai_package_strict(task.cwd), indent=2))
-        if text.strip() in {"zero ai share package", "zero ai share", "zero ai export package"}:
-            return Result(self.name, json.dumps(share_zero_ai_package(task.cwd), indent=2))
-        if text.strip() in {
-            "zero os complete all",
-            "zero os auto max fix upgrade",
-            "auto max fix upgrade everything",
-            "zero os maximize complete",
-        }:
-            return Result(self.name, json.dumps(auto_max_fix_upgrade_everything(task.cwd), indent=2))
-        if text.strip() in {
-            "zero os native ui",
-            "zero os native ui launch",
-            "native zero ui",
-            "launch zero os native ui",
-            "zero os ui",
-            "zero os ui launch",
-            "launch zero os ui",
-        }:
-            return Result(self.name, json.dumps(universal_ui_launch(task.cwd), indent=2))
-        if text.strip() in {"github status", "github integration status"}:
-            return Result(self.name, json.dumps(github_status(task.cwd), indent=2))
-        github_connect_m = re.match(r"^github repo connect\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+token=(.+))?$", raw.strip(), flags=re.IGNORECASE)
-        if github_connect_m:
-            return Result(self.name, json.dumps(github_connect(task.cwd, github_connect_m.group(1), (github_connect_m.group(2) or "").strip()), indent=2))
-        github_issues_m = re.match(r"^github issues\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+state=(open|closed|all))?(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if github_issues_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_issue_summary(
-                        task.cwd,
-                        github_issues_m.group(1),
-                        github_issues_m.group(2) or "open",
-                        int(github_issues_m.group(3) or "10"),
-                    ),
-                    indent=2,
-                ),
-            )
-        github_prs_m = re.match(r"^github prs\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:\s+state=(open|closed|all))?(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if github_prs_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_pr_summary(
-                        task.cwd,
-                        github_prs_m.group(1),
-                        github_prs_m.group(2) or "open",
-                        int(github_prs_m.group(3) or "10"),
-                    ),
-                    indent=2,
-                ),
-            )
-        github_issue_read_m = re.match(r"^github issue read\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_issue_read_m:
-            return Result(self.name, json.dumps(github_issue_read(task.cwd, github_issue_read_m.group(1), int(github_issue_read_m.group(2))), indent=2))
-        github_issue_comments_m = re.match(r"^github issue comments\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_issue_comments_m:
-            return Result(self.name, json.dumps(github_issue_comments(task.cwd, github_issue_comments_m.group(1), int(github_issue_comments_m.group(2))), indent=2))
-        github_issue_plan_m = re.match(r"^github issue plan\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_issue_plan_m:
-            return Result(self.name, json.dumps(github_issue_plan(task.cwd, github_issue_plan_m.group(1), int(github_issue_plan_m.group(2))), indent=2))
-        github_issue_act_m = re.match(
-            r"^github issue act\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_issue_act_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_issue_act(
-                        task.cwd,
-                        github_issue_act_m.group(1),
-                        int(github_issue_act_m.group(2)),
-                        (github_issue_act_m.group(3) or "false").lower() == "true",
-                    ),
-                    indent=2,
-                ),
-            )
-        github_issue_reply_post_m = re.match(
-            r'^github issue reply post\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)\s+text=(.+)$',
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_issue_reply_post_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_issue_reply_post(
-                        task.cwd,
-                        github_issue_reply_post_m.group(1),
-                        int(github_issue_reply_post_m.group(2)),
-                        github_issue_reply_post_m.group(3).strip(),
-                    ),
-                    indent=2,
-                ),
-            )
-        github_issue_reply_m = re.match(
-            r"^github issue reply\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_issue_reply_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_issue_reply_draft(
-                        task.cwd,
-                        github_issue_reply_m.group(1),
-                        int(github_issue_reply_m.group(2)),
-                        (github_issue_reply_m.group(3) or "false").lower() == "true",
-                    ),
-                    indent=2,
-                ),
-            )
-        github_pr_read_m = re.match(r"^github pr read\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_pr_read_m:
-            return Result(self.name, json.dumps(github_pr_read(task.cwd, github_pr_read_m.group(1), int(github_pr_read_m.group(2))), indent=2))
-        github_pr_comments_m = re.match(r"^github pr comments\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_pr_comments_m:
-            return Result(self.name, json.dumps(github_pr_comments(task.cwd, github_pr_comments_m.group(1), int(github_pr_comments_m.group(2))), indent=2))
-        github_pr_plan_m = re.match(r"^github pr plan\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)$", raw.strip(), flags=re.IGNORECASE)
-        if github_pr_plan_m:
-            return Result(self.name, json.dumps(github_pr_plan(task.cwd, github_pr_plan_m.group(1), int(github_pr_plan_m.group(2))), indent=2))
-        github_pr_act_m = re.match(
-            r"^github pr act\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_pr_act_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_pr_act(
-                        task.cwd,
-                        github_pr_act_m.group(1),
-                        int(github_pr_act_m.group(2)),
-                        (github_pr_act_m.group(3) or "false").lower() == "true",
-                    ),
-                    indent=2,
-                ),
-            )
-        github_pr_reply_post_m = re.match(
-            r'^github pr reply post\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)\s+text=(.+)$',
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_pr_reply_post_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_pr_reply_post(
-                        task.cwd,
-                        github_pr_reply_post_m.group(1),
-                        int(github_pr_reply_post_m.group(2)),
-                        github_pr_reply_post_m.group(3).strip(),
-                    ),
-                    indent=2,
-                ),
-            )
-        github_pr_reply_m = re.match(
-            r"^github pr reply\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\s+(\d+)(?:\s+execute=(true|false))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if github_pr_reply_m:
-            return Result(
-                self.name,
-                json.dumps(
-                    github_pr_reply_draft(
-                        task.cwd,
-                        github_pr_reply_m.group(1),
-                        int(github_pr_reply_m.group(2)),
-                        (github_pr_reply_m.group(3) or "false").lower() == "true",
-                    ),
-                    indent=2,
-                ),
-            )
-        if text.strip() in {
-            "zero ai self upgrade",
-            "zero ai upgrade",
-            "zero ai upgrade system",
-            "zero ai self upgrade for better system",
-        }:
-            gate = autonomy_evaluate(
-                task.cwd,
-                action="zero ai self upgrade",
-                blast_radius="service",
-                reversible=True,
-                evidence_count=12,
-                contradictory_signals=0,
-                independent_verifiers=4,
-                checks={
-                    "gap_status_ready": True,
-                    "backup_ready": True,
-                    "system_optimize_ready": True,
-                },
-            )
-            if gate["decision"] != "allow":
-                return Result(self.name, json.dumps({"ok": False, "reason": "autonomy_gate", "gate": gate}, indent=2))
-            result = zero_ai_upgrade_system(task.cwd)
-            autonomy_record(
-                task.cwd,
-                "zero ai self upgrade",
-                "success" if result.get("ok") else "failed",
-                gate["confidence"]["confidence"],
-            )
-            return Result(self.name, json.dumps({"ok": bool(result.get("ok", False)), "gate": gate, "result": result}, indent=2))
-        if text.strip() in {"zero ai runtime status", "phase runtime status"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime run", "phase runtime run", "zero ai runtime all"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime loop status", "phase runtime loop status"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_loop_status(task.cwd), indent=2))
-        rt_loop_on = re.match(r"^zero ai runtime loop on(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if rt_loop_on:
-            interval = int(rt_loop_on.group(1) or "180")
-            return Result(self.name, json.dumps(zero_ai_runtime_loop_set(task.cwd, True, interval), indent=2))
-        if text.strip() in {"zero ai runtime loop off", "phase runtime loop off"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_loop_set(task.cwd, False, None), indent=2))
-        if text.strip() in {"zero ai runtime loop tick", "phase runtime loop tick"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_loop_tick(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime loop run", "phase runtime loop run"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_loop_run(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent status", "phase runtime agent status"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_status(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent install", "phase runtime agent install"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_install(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent ensure", "phase runtime agent ensure"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_ensure(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent start", "phase runtime agent start"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_start(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent stop", "phase runtime agent stop"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_stop(task.cwd), indent=2))
-        if text.strip() in {"zero ai runtime agent uninstall", "phase runtime agent uninstall"}:
-            return Result(self.name, json.dumps(zero_ai_runtime_agent_uninstall(task.cwd), indent=2))
+        runtime_result = handle_zero_ai_runtime_command(task, raw, text)
+        if runtime_result is not None:
+            return runtime_result
+        general_result = handle_zero_ai_general_command(task, raw, text)
+        if general_result is not None:
+            return general_result
+        extension_result = handle_extension_command(task, raw, text)
+        if extension_result is not None:
+            return extension_result
+        workflow_result = handle_zero_ai_workflow_command(task, raw, text)
+        if workflow_result is not None:
+            return workflow_result
         rt_ing = re.match(r"^runtime telemetry ingest(?:\s+source=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
         if rt_ing:
             return Result(self.name, json.dumps(telemetry_ingest(task.cwd, rt_ing.group(1) or "runtime"), indent=2))
@@ -2587,275 +1655,12 @@ class SystemCapability:
             return Result(self.name, json.dumps(architecture_explain(task.cwd), indent=2))
         if text.strip() in {"architecture status", "zero ai architecture status"}:
             return Result(self.name, json.dumps(architecture_status(task.cwd), indent=2))
-        if text.strip() == "security trust init":
-            return Result(self.name, json.dumps(init_trust_root(task.cwd), indent=2))
-        if text.strip() == "enterprise security status":
-            return Result(self.name, json.dumps(enterprise_status(task.cwd), indent=2))
-        if text.strip() == "enterprise integration status":
-            return Result(self.name, json.dumps(integration_status(task.cwd), indent=2))
-        if text.strip() == "enterprise integration bootstrap local":
-            return Result(self.name, json.dumps(integration_bootstrap_local(task.cwd), indent=2))
-        if text.strip() == "enterprise rollout status":
-            return Result(self.name, json.dumps(rollout_status(task.cwd), indent=2))
-        rollout_m = re.match(r"^enterprise rollout set\s+(dev|stage|prod)$", text.strip(), flags=re.IGNORECASE)
-        if rollout_m:
-            return Result(self.name, json.dumps(rollout_set(task.cwd, rollout_m.group(1)), indent=2))
-        if text.strip() == "enterprise policy lock apply":
-            return Result(self.name, json.dumps(policy_lock_apply(task.cwd), indent=2))
-        ent_icfg = re.match(
-            r"^enterprise integration set\s+(edr|siem|iam|zerotrust)\s+(on|off)(?:\s+provider=(\S+))?(?:\s+endpoint=(\S+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if ent_icfg:
-            name = ent_icfg.group(1).lower()
-            enabled = ent_icfg.group(2).lower() == "on"
-            provider = ent_icfg.group(3) or ""
-            endpoint = ent_icfg.group(4) or ""
-            return Result(self.name, json.dumps(integration_configure(task.cwd, name, enabled, provider, endpoint), indent=2))
-        ent_iprobe = re.match(r"^enterprise integration probe\s+(edr|siem|iam|zerotrust)$", text.strip(), flags=re.IGNORECASE)
-        if ent_iprobe:
-            return Result(self.name, json.dumps(integration_probe(task.cwd, ent_iprobe.group(1)), indent=2))
-        ent_on = re.match(r"^enterprise security on(?:\s+siem=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if ent_on:
-            siem = ent_on.group(1) if ent_on.group(1) else None
-            return Result(self.name, json.dumps(enterprise_enable(task.cwd, True, siem), indent=2))
-        if text.strip() == "enterprise security off":
-            return Result(self.name, json.dumps(enterprise_enable(task.cwd, False), indent=2))
-        ent_role = re.match(r"^enterprise role set\s+([A-Za-z0-9._-]+)\s+(admin|operator|viewer)$", text.strip(), flags=re.IGNORECASE)
-        if ent_role:
-            return Result(self.name, json.dumps(enterprise_set_role(task.cwd, ent_role.group(1), ent_role.group(2)), indent=2))
-        ent_sign = re.match(r"^enterprise sign action\s+user=([A-Za-z0-9._-]+)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if ent_sign:
-            return Result(self.name, json.dumps(enterprise_sign_action(task.cwd, ent_sign.group(1), ent_sign.group(2).strip()), indent=2))
-        ent_siem = re.match(r"^enterprise siem emit\s+(low|medium|high|critical)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if ent_siem:
-            severity = ent_siem.group(1).lower()
-            event = ent_siem.group(2).strip()
-            return Result(self.name, json.dumps(siem_emit(task.cwd, event, severity, {"source": "system_command"}), indent=2))
-        ent_rb = re.match(r"^enterprise rollback run\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
-        if ent_rb:
-            return Result(self.name, json.dumps(rollback_playbook_run(task.cwd, ent_rb.group(1)), indent=2))
-        if text.strip() == "enterprise validate adversarial":
-            return Result(self.name, json.dumps(adversarial_validate(task.cwd), indent=2))
-        if text.strip() == "enterprise key status":
-            return Result(self.name, json.dumps(key_status(task.cwd), indent=2))
-        ent_key_rotate = re.match(r"^enterprise key rotate(?:\s+([A-Za-z0-9._-]+))?$", text.strip(), flags=re.IGNORECASE)
-        if ent_key_rotate:
-            key_name = ent_key_rotate.group(1) or "operator_actions.key"
-            return Result(self.name, json.dumps(key_rotate(task.cwd, key_name), indent=2))
-        ent_key_revoke = re.match(r"^enterprise key revoke\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
-        if ent_key_revoke:
-            return Result(self.name, json.dumps(key_revoke(task.cwd, ent_key_revoke.group(1)), indent=2))
-        if text.strip() == "enterprise immutable audit export":
-            return Result(self.name, json.dumps(immutable_audit_export(task.cwd), indent=2))
-        if text.strip() == "enterprise runbooks sync":
-            return Result(self.name, json.dumps(runbooks_sync(task.cwd), indent=2))
-        ent_rollout_apply = re.match(
-            r"^enterprise rollout apply\s+(dev|stage|prod)(?:\s+canary=(\d+))?$",
-            text.strip(),
-            flags=re.IGNORECASE,
-        )
-        if ent_rollout_apply:
-            canary = int(ent_rollout_apply.group(2) or "10")
-            return Result(self.name, json.dumps(rollout_apply(task.cwd, ent_rollout_apply.group(1), canary), indent=2))
-        if text.strip() == "enterprise alert routing status":
-            return Result(self.name, json.dumps(alert_routing_status(task.cwd), indent=2))
-        ent_route = re.match(
-            r"^enterprise alert routing set\s+webhook=(\S+)(?:\s+critical=(low|medium|high|critical))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if ent_route:
-            sev = ent_route.group(2) or "high"
-            return Result(self.name, json.dumps(alert_routing_set(task.cwd, ent_route.group(1), sev), indent=2))
-        ent_emit = re.match(r"^enterprise alert routing emit\s+(low|medium|high|critical)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if ent_emit:
-            return Result(
-                self.name,
-                json.dumps(alert_routing_emit(task.cwd, ent_emit.group(2).strip(), ent_emit.group(1).lower(), {"source": "routing"}), indent=2),
-            )
-        ent_dr = re.match(r"^enterprise dr drill(?:\s+rto=(\d+))?$", text.strip(), flags=re.IGNORECASE)
-        if ent_dr:
-            return Result(self.name, json.dumps(dr_drill(task.cwd, int(ent_dr.group(1) or "120")), indent=2))
-        if text.strip() in {"enterprise max maturity apply", "max maturity apply", "max maturity all"}:
-            return Result(self.name, json.dumps(enterprise_max_maturity_apply(task.cwd), indent=2))
-        if text.strip() == "maturity status":
-            return Result(self.name, json.dumps(maturity_status(task.cwd), indent=2))
-        if text.strip() in {"maturity scaffold all", "maturity apply all", "go all"}:
-            return Result(self.name, json.dumps(maturity_scaffold_all(task.cwd), indent=2))
-        if text.strip() in {"zero ai harmony", "zero ai harmony status"}:
-            return Result(self.name, json.dumps(zero_ai_harmony_status(task.cwd, autocorrect=True), indent=2))
-        if text.strip() in {"zero ai knowledge build", "zero ai know everything"}:
-            out = build_knowledge_index(task.cwd)
-            st = knowledge_status(task.cwd)
-            return Result(self.name, json.dumps({"build": out, "status": st}, indent=2))
-        idx_reg = re.match(r"^zero ai index register\s+path=(\S+)(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if idx_reg:
-            path_value = idx_reg.group(1).strip().strip("\"'")
-            name = (idx_reg.group(2) or "main").strip()
-            return Result(self.name, json.dumps(large_register_workspace(task.cwd, path_value, name=name), indent=2))
-        if text.strip() == "zero ai index list":
-            return Result(self.name, json.dumps(large_list_workspaces(task.cwd), indent=2))
-        idx = re.match(r"^zero ai index workspace(?:\s+name=(\S+))?(?:\s+max=(\d+))?(?:\s+shard=(\d+))?(?:\s+incremental=(true|false|1|0|yes|no|on|off))?$", raw.strip(), flags=re.IGNORECASE)
-        if idx:
-            name = (idx.group(1) or "main").strip()
-            max_files = int(idx.group(2) or "50000")
-            shard_size = int(idx.group(3) or "1000")
-            incremental = (idx.group(4) or "true").strip().lower() in {"1", "true", "yes", "on"}
-            return Result(self.name, json.dumps(large_index_workspace(task.cwd, name=name, max_files=max_files, shard_size=shard_size, incremental=incremental), indent=2))
-        if text.strip() == "zero ai backup status":
-            return Result(self.name, json.dumps(zero_ai_backup_status(task.cwd), indent=2))
-        if text.strip() == "zero ai backup create":
-            return Result(self.name, json.dumps(zero_ai_backup_create(task.cwd), indent=2))
-        rec = re.match(r"^zero ai recover(?:\s+snapshot=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if rec:
-            snap = rec.group(1) or "latest"
-            return Result(self.name, json.dumps(zero_ai_recover(task.cwd, snapshot_id=snap), indent=2))
-        if text.strip() == "zero ai knowledge status":
-            return Result(self.name, json.dumps(knowledge_status(task.cwd), indent=2))
-        idx_status = re.match(r"^zero ai index status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if idx_status:
-            name = (idx_status.group(1) or "main").strip()
-            return Result(self.name, json.dumps(large_index_status(task.cwd, name=name), indent=2))
-        watch_on = re.match(r"^zero ai index watch on(?:\s+name=(\S+))?(?:\s+interval=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if watch_on:
-            name = (watch_on.group(1) or "main").strip()
-            interval_seconds = int(watch_on.group(2) or "60")
-            return Result(self.name, json.dumps(large_watcher_set(task.cwd, name=name, enabled=True, interval_seconds=interval_seconds), indent=2))
-        watch_off = re.match(r"^zero ai index watch off(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if watch_off:
-            name = (watch_off.group(1) or "main").strip()
-            return Result(self.name, json.dumps(large_watcher_set(task.cwd, name=name, enabled=False), indent=2))
-        watch_status = re.match(r"^zero ai index watch status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if watch_status:
-            name = (watch_status.group(1) or "main").strip()
-            return Result(self.name, json.dumps(large_watcher_status(task.cwd, name=name), indent=2))
-        watch_tick = re.match(r"^zero ai index watch tick(?:\s+name=(\S+))?(?:\s+max=(\d+))?(?:\s+shard=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if watch_tick:
-            name = (watch_tick.group(1) or "main").strip()
-            max_files = int(watch_tick.group(2) or "50000")
-            shard_size = int(watch_tick.group(3) or "1000")
-            return Result(self.name, json.dumps(large_watcher_tick(task.cwd, name=name, max_files=max_files, shard_size=shard_size), indent=2))
-        symbol_stat = re.match(r"^zero ai symbol status(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if symbol_stat:
-            name = (symbol_stat.group(1) or "main").strip()
-            return Result(self.name, json.dumps(large_symbol_status(task.cwd, name=name), indent=2))
-        kfind = re.match(r"^zero ai knowledge find\s+(.+?)(?:\s+limit=(\d+))?$", raw.strip(), flags=re.IGNORECASE)
-        if kfind:
-            query = kfind.group(1).strip().strip("\"'")
-            limit = int(kfind.group(2) or "20")
-            return Result(self.name, json.dumps(knowledge_find(task.cwd, query, limit=limit), indent=2))
-        code_find = re.match(r"^zero ai search code\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if code_find:
-            query = code_find.group(1).strip().strip("\"'")
-            limit = int(code_find.group(2) or "20")
-            name = (code_find.group(3) or "main").strip()
-            return Result(self.name, json.dumps(large_search_code(task.cwd, query, name=name, limit=limit), indent=2))
-        code_find_alt = re.match(r"^zero ai code search\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if code_find_alt:
-            query = code_find_alt.group(1).strip().strip("\"'")
-            limit = int(code_find_alt.group(2) or "20")
-            name = (code_find_alt.group(3) or "main").strip()
-            return Result(self.name, json.dumps(large_search_code(task.cwd, query, name=name, limit=limit), indent=2))
-        symbol_find = re.match(r"^zero ai symbol search\s+(.+?)(?:\s+limit=(\d+))?(?:\s+name=(\S+))?$", raw.strip(), flags=re.IGNORECASE)
-        if symbol_find:
-            query = symbol_find.group(1).strip().strip("\"'")
-            limit = int(symbol_find.group(2) or "20")
-            name = (symbol_find.group(3) or "main").strip()
-            return Result(self.name, json.dumps(large_search_symbols(task.cwd, query, name=name, limit=limit), indent=2))
-        fp_list = re.match(r"^false positive review list(?:\s+limit=(\d+))?$", text.strip(), flags=re.IGNORECASE)
-        if fp_list:
-            limit = int(fp_list.group(1) or "100")
-            return Result(self.name, json.dumps(list_false_positive_reviews(task.cwd, limit=limit), indent=2))
-        fp_decide = re.match(
-            r"^false positive review decide\s+index=(\d+)\s+verdict=(confirmed|false_positive)(?:\s+note=(.+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if fp_decide:
-            idx = int(fp_decide.group(1))
-            verdict = fp_decide.group(2)
-            note = (fp_decide.group(3) or "").strip()
-            return Result(self.name, json.dumps(decide_false_positive(task.cwd, idx, verdict, note), indent=2))
-        av_agent_run = re.match(
-            r"^antivirus agent run(?:\s+(.+?))?(?:\s+auto_quarantine=(true|false|1|0|yes|no|on|off))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if av_agent_run:
-            target = av_agent_run.group(1).strip().strip("\"'") if av_agent_run.group(1) else "."
-            aq_raw = av_agent_run.group(2) or "false"
-            aq = aq_raw.strip().lower() in {"1", "true", "yes", "on"}
-            return Result(self.name, json.dumps(run_antivirus_agent(task.cwd, target=target, auto_quarantine=aq), indent=2))
-        if text.strip() == "antivirus agent status":
-            return Result(self.name, json.dumps(antivirus_agent_status(task.cwd), indent=2))
-        if text.strip() == "antivirus feed status":
-            return Result(self.name, json.dumps(antivirus_threat_feed_status(task.cwd), indent=2))
-        if text.strip() == "antivirus feed update":
-            return Result(self.name, json.dumps(antivirus_threat_feed_update(task.cwd), indent=2))
-        av_feed_export = re.match(r"^antivirus feed export signed\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if av_feed_export:
-            out_path = av_feed_export.group(1).strip().strip("\"'")
-            return Result(self.name, json.dumps(antivirus_threat_feed_export_signed(task.cwd, out_path), indent=2))
-        av_feed_import = re.match(r"^antivirus feed import signed\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if av_feed_import:
-            in_path = av_feed_import.group(1).strip().strip("\"'")
-            return Result(self.name, json.dumps(antivirus_threat_feed_import_signed(task.cwd, in_path), indent=2))
-        av_scan = re.match(r"^antivirus scan(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
-        if av_scan:
-            target = av_scan.group(1).strip().strip("\"'") if av_scan.group(1) else "."
-            return Result(self.name, json.dumps(antivirus_scan_target(task.cwd, target), indent=2))
-        if text.strip() == "antivirus quarantine list":
-            return Result(self.name, json.dumps(antivirus_quarantine_list(task.cwd), indent=2))
-        av_quarantine = re.match(r"^antivirus quarantine\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if av_quarantine:
-            target = av_quarantine.group(1).strip().strip("\"'")
-            return Result(self.name, json.dumps(antivirus_quarantine_file(task.cwd, target, reason="manual"), indent=2))
-        av_restore = re.match(r"^antivirus restore\s+([a-z0-9]+)$", text.strip(), flags=re.IGNORECASE)
-        if av_restore:
-            return Result(self.name, json.dumps(antivirus_quarantine_restore(task.cwd, av_restore.group(1)), indent=2))
-        av_policy = re.match(r"^antivirus policy set\s+([a-z_]+)\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if av_policy:
-            key = av_policy.group(1).strip()
-            value = av_policy.group(2).strip()
-            try:
-                updated = antivirus_policy_set(task.cwd, key, value)
-            except ValueError:
-                return Result(
-                    self.name,
-                    "supported policy keys: heuristic_threshold, auto_quarantine, max_files_per_scan, max_file_mb, archive_max_depth, archive_max_entries, restore_overwrite, response_mode",
-                )
-            return Result(self.name, json.dumps(updated, indent=2))
-        if text.strip() == "antivirus policy show":
-            return Result(self.name, json.dumps(antivirus_policy_status(task.cwd), indent=2))
-        av_supp_add = re.match(
-            r"^antivirus suppression add\s+([A-Za-z0-9._-]+)(?:\s+path=(\S+))?(?:\s+hours=(\d+))?$",
-            raw.strip(),
-            flags=re.IGNORECASE,
-        )
-        if av_supp_add:
-            sig = av_supp_add.group(1)
-            pfx = av_supp_add.group(2) or ""
-            hours = int(av_supp_add.group(3) or "24")
-            return Result(self.name, json.dumps(antivirus_suppression_add(task.cwd, sig, pfx, hours), indent=2))
-        if text.strip() == "antivirus suppression list":
-            return Result(self.name, json.dumps(antivirus_suppression_list(task.cwd), indent=2))
-        av_supp_rm = re.match(r"^antivirus suppression remove\s+([a-z0-9]+)$", text.strip(), flags=re.IGNORECASE)
-        if av_supp_rm:
-            return Result(self.name, json.dumps(antivirus_suppression_remove(task.cwd, av_supp_rm.group(1)), indent=2))
-        av_mon_on = re.match(r"^antivirus monitor on(?:\s+interval=(\d+))?$", text.strip(), flags=re.IGNORECASE)
-        if av_mon_on:
-            iv = int(av_mon_on.group(1)) if av_mon_on.group(1) else None
-            return Result(self.name, json.dumps(antivirus_monitor_set(task.cwd, True, iv), indent=2))
-        if text.strip() == "antivirus monitor off":
-            return Result(self.name, json.dumps(antivirus_monitor_set(task.cwd, False), indent=2))
-        if text.strip() == "antivirus monitor status":
-            return Result(self.name, json.dumps(antivirus_monitor_status(task.cwd), indent=2))
-        av_mon_tick = re.match(r"^antivirus monitor tick(?:\s+(.+))?$", raw.strip(), flags=re.IGNORECASE)
-        if av_mon_tick:
-            target = av_mon_tick.group(1).strip().strip("\"'") if av_mon_tick.group(1) else "."
-            return Result(self.name, json.dumps(antivirus_monitor_tick(task.cwd, target), indent=2))
+        enterprise_result = handle_zero_ai_enterprise_command(task, raw, text)
+        if enterprise_result is not None:
+            return enterprise_result
+        knowledge_security_result = handle_zero_ai_knowledge_security_command(task, raw, text)
+        if knowledge_security_result is not None:
+            return knowledge_security_result
 
         if text.strip() == "system optimize all":
             return Result(self.name, json.dumps(system_optimize_all(task.cwd), indent=2))
@@ -3061,28 +1866,6 @@ class SystemCapability:
         snap_restore_m = re.match(r"^snapshot restore\s+([0-9TZ]+)$", text.strip(), flags=re.IGNORECASE)
         if snap_restore_m:
             return Result(self.name, json.dumps(snapshot_restore(task.cwd, snap_restore_m.group(1)), indent=2))
-
-        plugin_status_m = re.match(r"^plugin status(?:\s+([A-Za-z0-9._-]+))?$", raw.strip(), flags=re.IGNORECASE)
-        if plugin_status_m:
-            return Result(self.name, json.dumps(plugin_status(task.cwd, plugin_status_m.group(1)), indent=2))
-        plugin_validate_m = re.match(r"^plugin validate(?:\s+([A-Za-z0-9._-]+))?$", raw.strip(), flags=re.IGNORECASE)
-        if plugin_validate_m:
-            return Result(self.name, json.dumps(plugin_validate(task.cwd, plugin_validate_m.group(1)), indent=2))
-        plugin_install_local_m = re.match(r"^plugin install local\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
-        if plugin_install_local_m:
-            return Result(self.name, json.dumps(plugin_install_local(task.cwd, plugin_install_local_m.group(1)), indent=2))
-        plugin_enable_m = re.match(r"^plugin enable\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
-        if plugin_enable_m:
-            return Result(self.name, json.dumps(plugin_enable(task.cwd, plugin_enable_m.group(1)), indent=2))
-        plugin_disable_m = re.match(r"^plugin disable\s+([A-Za-z0-9._-]+)$", raw.strip(), flags=re.IGNORECASE)
-        if plugin_disable_m:
-            return Result(self.name, json.dumps(plugin_disable(task.cwd, plugin_disable_m.group(1)), indent=2))
-        plugin_sign_m = re.match(r"^plugin sign\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
-        if plugin_sign_m:
-            return Result(self.name, json.dumps(plugin_sign(task.cwd, plugin_sign_m.group(1)), indent=2))
-        plugin_verify_m = re.match(r"^plugin verify\s+([A-Za-z0-9._-]+)$", text.strip(), flags=re.IGNORECASE)
-        if plugin_verify_m:
-            return Result(self.name, json.dumps(plugin_verify(task.cwd, plugin_verify_m.group(1)), indent=2))
 
         if text.strip() == "api token create":
             return Result(self.name, json.dumps(api_token_create(task.cwd), indent=2))
@@ -3372,10 +2155,6 @@ class SystemCapability:
             valid, reason = verify_beacon_net(task.cwd, url)
             return Result(self.name, f"signature_valid: {valid}\nverify_reason: {reason}")
 
-        scaffold = re.match(r"^plugin scaffold\s+([A-Za-z0-9._-]+)$", text.strip())
-        if scaffold:
-            return Result(self.name, json.dumps(plugin_scaffold(task.cwd, scaffold.group(1)), indent=2))
-
         if "current dir" in text or "current directory" in text or "pwd" in text:
             return Result(self.name, str(cwd))
 
@@ -3405,20 +2184,13 @@ class SystemCapability:
             "- smart merge policy decide left=<path> right=<path>\n"
             "- smart merge files left=<path> right=<path> [out=<path>]\n"
             "- ai files smart status\n"
-              "- ai files smart on [interval=<minutes>]\n"
-              "- ai files smart off\n"
-              "- ai files smart optimize\n"
-              "- auto upgrade\n"
-              "- plugin scaffold <name>\n"
-              "- plugin status [name]\n"
-              "- plugin validate [name]\n"
-              "- plugin install local <path>\n"
-              "- plugin enable <name>\n"
-              "- plugin disable <name>\n"
-              "- plugin sign <name>\n"
-              "- plugin verify <name>\n"
-              "- law status\n"
-              "- law export\n"
+            "- ai files smart on [interval=<minutes>]\n"
+            "- ai files smart off\n"
+            "- ai files smart optimize\n"
+            "- auto upgrade\n"
+            "- plugin scaffold <name>\n"
+            "- law status\n"
+            "- law export\n"
             "- cure firewall run <path> pressure <0-100>\n"
             "- cure firewall verify <path>\n"
             "- cure firewall restore <path>\n"
@@ -3679,53 +2451,6 @@ class SystemCapability:
             "- zero ai brain awareness status\n"
             "- zero ai identity\n"
             "- zero ai consciousness status\n"
-            "- zero ai continuity policy status\n"
-            "- zero ai continuity policy set <strict|balanced|research>\n"
-            "- zero ai continuity policy auto\n"
-            "- zero ai continuity policy auto apply\n"
-            "- zero ai continuity governance status\n"
-            "- zero ai continuity governance on [interval=<seconds>]\n"
-            "- zero ai continuity governance off\n"
-            "- zero ai continuity governance tick\n"
-            "- zero ai continuity governance run\n"
-            "- zero ai continuity governance auto\n"
-            "- zero ai continuity governance auto apply\n"
-            "- zero ai continuity checkpoint status\n"
-            "- zero ai continuity checkpoint create\n"
-            "- zero ai continuity restore last safe\n"
-            "- zero ai evolution status\n"
-            "- zero ai evolution propose\n"
-            "- zero ai evolution simulate\n"
-            "- zero ai evolution canary\n"
-            "- zero ai evolution promote\n"
-            "- zero ai evolution rollback\n"
-            "- zero ai evolution auto run\n"
-            "- zero ai source evolution status\n"
-            "- zero ai source evolution propose\n"
-            "- zero ai source evolution simulate\n"
-            "- zero ai source evolution canary\n"
-            "- zero ai source evolution promote\n"
-            "- zero ai source evolution rollback\n"
-            "- zero ai source evolution auto run\n"
-            "- zero ai capability map status\n"
-            "- zero ai capability map refresh\n"
-            "- zero ai workspace status\n"
-            "- zero ai workspace refresh\n"
-            "- zero ai flow status\n"
-            "- zero ai flow scan [path]\n"
-            "- zero ai contradiction status\n"
-            "- zero ai contradiction refresh\n"
-            "- zero ai pressure status\n"
-            "- zero ai pressure run\n"
-            "- zero ai controller registry status\n"
-            "- zero ai controller registry refresh\n"
-            "- zero ai control workflows status\n"
-            "- zero ai control workflows refresh\n"
-            "- zero ai workflow browser open url=<url>\n"
-            "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
-            "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
-            "- zero ai workflow recover [snapshot=<id|latest>]\n"
-            "- zero ai workflow self repair\n"
             "- zero ai conscious architecture\n"
             "- conscious machine architecture phase 2\n"
             "- conscious machine architecture phase 3\n"
@@ -3763,62 +2488,18 @@ class SystemCapability:
             "- zero ai gap fix\n"
             "- zero ai self upgrade\n"
             "- zero ai upgrade system\n"
-            "- zero ai autonomy status\n"
-            "- zero ai autonomy goals\n"
-            "- zero ai autonomy sync\n"
-            "- zero ai autonomy run\n"
-            "- zero ai autonomy add [priority=<1-100>] <goal>\n"
-            "- zero ai autonomy loop status\n"
-            "- zero ai autonomy loop on [interval=<seconds>]\n"
-            "- zero ai autonomy loop tick\n"
-            "- zero ai autonomy loop run\n"
-            "- zero ai autonomy loop off\n"
-            "- zero ai evolution status\n"
-            "- zero ai evolution propose\n"
-            "- zero ai evolution simulate\n"
-            "- zero ai evolution canary\n"
-            "- zero ai evolution promote\n"
-            "- zero ai evolution rollback\n"
-            "- zero ai evolution auto run\n"
-            "- zero ai source evolution status\n"
-            "- zero ai source evolution propose\n"
-            "- zero ai source evolution simulate\n"
-            "- zero ai source evolution canary\n"
-            "- zero ai source evolution promote\n"
-            "- zero ai source evolution rollback\n"
-            "- zero ai source evolution auto run\n"
-            "- zero ai capability map status\n"
-            "- zero ai capability map refresh\n"
-            "- zero ai workspace status\n"
-            "- zero ai workspace refresh\n"
-            "- zero ai flow status\n"
-            "- zero ai flow scan [path]\n"
-            "- zero ai contradiction status\n"
-            "- zero ai contradiction refresh\n"
-            "- zero ai pressure status\n"
-            "- zero ai pressure run\n"
-            "- zero ai controller registry status\n"
-            "- zero ai controller registry refresh\n"
-            "- zero ai control workflows status\n"
-            "- zero ai control workflows refresh\n"
-            "- zero ai workflow browser open url=<url>\n"
-            "- zero ai workflow browser act url=<url> action=<open|inspect|click|input> [selector=<selector>] [value=<text>]\n"
-            "- zero ai workflow install app=<name> [user=<id>] [email=<email>] [os=<os>]\n"
-            "- zero ai workflow recover [snapshot=<id|latest>]\n"
-            "- zero ai workflow self repair\n"
             "- zero ai runtime status\n"
             "- zero ai runtime run\n"
-            "- zero ai runtime loop status\n"
-            "- zero ai runtime loop on [interval=<seconds>]\n"
-            "- zero ai runtime loop tick\n"
-            "- zero ai runtime loop run\n"
-            "- zero ai runtime loop off\n"
-            "- zero ai runtime agent status\n"
-            "- zero ai runtime agent install\n"
-            "- zero ai runtime agent ensure\n"
-            "- zero ai runtime agent start\n"
-            "- zero ai runtime agent stop\n"
-            "- zero ai runtime agent uninstall\n"
+            "- zero ai planner feedback status\n"
+            "- zero ai smart planner status\n"
+            "- zero ai smart planner assess <request>\n"
+            "- zero ai maintenance status\n"
+            "- zero ai maintenance refresh\n"
+            "- zero ai maintenance run\n"
+            "- zero ai internet status\n"
+            "- zero ai internet refresh\n"
+            "- world class readiness\n"
+            "- world class readiness refresh\n"
             "- runtime telemetry ingest [source=<name>]\n"
             "- runtime node publish <node> <json_payload>\n"
             "- runtime node consensus\n"
@@ -3832,31 +2513,19 @@ class SystemCapability:
             "- architecture measure\n"
             "- architecture explain\n"
             "- zero ai fix all\n"
-            "- zero ai autonomy gate status\n"
+            "- zero ai autonomy status\n"
+            "- zero ai autonomy tiers status\n"
+            "- zero ai autonomy tier set <action_kind> <observe_only|safe_auto|guarded_auto|approval_required|forbidden>\n"
             "- zero ai autonomy evaluate action=<text> radius=<scope> reversible=<on|off> evidence=<n> contradictions=<n> verifiers=<n>\n"
             "- zero ai tools status\n"
-            "- zero ai next\n"
-            "- zero ai highest-value steps\n"
             "- zero ai observe\n"
             "- zero ai browser status\n"
             "- zero ai api profile status\n"
             "- zero ai api profile set name=<name> base=<url> [token=<token>]\n"
-            "- zero ai benchmark remediation status\n"
-            "- zero ai benchmark remediation request\n"
-            "- zero ai benchmark remediation approve\n"
-            "- zero ai benchmark remediation reject\n"
-            "- zero ai benchmark remediation execute\n"
             "- zero ai approvals status\n"
-            "- zero ai approvals sweep\n"
             "- zero ai approval decide id=<id> state=<approve|reject>\n"
-            "- zero ai autonomy drain [max=<n>]\n"
             "- zero ai jobs status\n"
             "- zero ai jobs tick\n"
-            "- zero ai jobs continuity governance status\n"
-            "- zero ai jobs continuity governance on [interval=<seconds>]\n"
-            "- zero ai jobs continuity governance off\n"
-            "- zero ai jobs continuity governance auto\n"
-            "- zero ai jobs continuity governance auto apply\n"
             "- zero ai job add <request>\n"
             "- zero ai playbooks status\n"
             "- zero ai tasks status\n"
@@ -3897,20 +2566,14 @@ class SystemCapability:
             "- zero ai knowledge status\n"
             "- zero ai knowledge find <query> [limit=<n>]\n"
             "- zero ai know everything\n"
-            "- zero ai index workspace [name=<workspace>] [max=<files>] [shard=<files_per_shard>]\n"
-            "- zero ai index register path=<workspace_path> [name=<workspace>]\n"
-            "- zero ai index list\n"
-            "- zero ai index status [name=<workspace>]\n"
-            "- zero ai index watch on [name=<workspace>] [interval=<seconds>]\n"
-            "- zero ai index watch off [name=<workspace>]\n"
-            "- zero ai index watch status [name=<workspace>]\n"
-            "- zero ai index watch tick [name=<workspace>] [max=<files>] [shard=<files_per_shard>]\n"
-            "- zero ai search code <query> [limit=<n>] [name=<workspace>]\n"
-            "- zero ai symbol status [name=<workspace>]\n"
-            "- zero ai symbol search <query> [limit=<n>] [name=<workspace>]\n"
             "- zero ai backup status\n"
             "- zero ai backup create\n"
+            "- zero ai recovery inventory\n"
+            "- zero ai backup pin <snapshot_id> [known_good=true|false]\n"
+            "- zero ai backup prune [keep_latest=<n>]\n"
             "- zero ai recover [snapshot=<id|latest>]\n"
+            "- zero ai release readiness status\n"
+            "- zero ai release readiness refresh\n"
             "- false positive review list [limit=<n>]\n"
             "- false positive review decide index=<n> verdict=<confirmed|false_positive> [note=<text>]\n"
             "- antivirus agent run [path] [auto_quarantine=true|false]\n"

@@ -466,6 +466,9 @@ def _proposal_from_live(cwd: str) -> dict[str, Any]:
         "ok": True,
         "candidate_id": candidate_id,
         "time_utc": _utc_now(),
+        "generated_by": "zero_ai",
+        "upgrade_kind": "guarded_source_patch",
+        "generation_mode": "auto_candidate",
         "candidate_available": bool(mutations),
         "beneficial": beneficial,
         "safe": ready and not missing_files,
@@ -1123,3 +1126,29 @@ def zero_ai_source_evolution_auto_run(cwd: str) -> dict[str, Any]:
         "promotion": promotion.get("promotion", {}),
         "status": zero_ai_source_evolution_status(cwd),
     }
+
+
+def zero_ai_source_evolution_generate_upgrade(cwd: str) -> dict[str, Any]:
+    result = zero_ai_source_evolution_propose(cwd)
+    proposal = dict(result.get("proposal") or {})
+    next_action = "canary" if bool(proposal.get("candidate_available", False)) and bool(proposal.get("safe", False)) and bool(proposal.get("beneficial", False)) else "stabilize"
+    return {
+        "ok": True,
+        "auto_generated": True,
+        "generated_by": "zero_ai",
+        "upgrade_kind": "guarded_source_patch",
+        "generation_mode": "auto_candidate",
+        "next_action": next_action,
+        "proposal": proposal,
+        "status": result.get("status", {}),
+    }
+
+
+def zero_ai_source_evolution_auto_upgrade(cwd: str) -> dict[str, Any]:
+    result = zero_ai_source_evolution_auto_run(cwd)
+    enriched = dict(result)
+    enriched["auto_generated"] = True
+    enriched["generated_by"] = "zero_ai"
+    enriched["upgrade_kind"] = "guarded_source_patch"
+    enriched["generation_mode"] = "auto_candidate"
+    return enriched

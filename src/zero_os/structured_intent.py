@@ -9,36 +9,26 @@ def extract_intent(request: str) -> dict:
     intent = "observe"
     entities: dict[str, str] = {}
     constraints: dict[str, str] = {}
-    claims: list[dict[str, str]] = []
-    goals: list[str] = []
     goal = text
     if "http://" in lowered or "https://" in lowered:
         intent = "web"
         match = re.search(r"(https?://\S+)", text)
         if match:
             entities["url"] = match.group(1)
-            claims.append({"type": "url", "value": match.group(1)})
     if "store status" in lowered:
         intent = "store_status"
     install_match = re.search(r"install\s+app\s+([a-z0-9._-]+)", lowered)
     if install_match:
         intent = "store_install"
         entities["app"] = install_match.group(1)
-        claims.append({"type": "app", "value": install_match.group(1)})
     if any(token in lowered for token in ("recover", "recovery")):
         intent = "recover"
     elif any(token in lowered for token in ("repair", "self repair")):
         intent = "self_repair"
-    elif any(token in lowered for token in ("highest value", "highest-value", "next step", "next steps", "what should improve", "recommend")):
-        intent = "planning"
-    elif any(token in lowered for token in ("system status", "diagnostic", "health check", "system health")) or lowered in {"status", "health", "diagnostic"}:
+    elif any(token in lowered for token in ("status", "diagnostic", "health", "check")):
         intent = "status"
     elif any(token in lowered for token in ("tools", "capabilities")):
         intent = "tools"
-    if any(token in lowered for token in ("pressure harness", "stress harness", "pressure mode", "stress test", "pressure test")):
-        intent = "pressure"
-    if any(token in lowered for token in ("contradiction engine", "contradiction gate", "reasoning gate", "contradiction status")):
-        intent = "reasoning"
     if "safe" in lowered:
         constraints["safety"] = "high"
     if "quick" in lowered or "fast" in lowered:
@@ -49,14 +39,4 @@ def extract_intent(request: str) -> dict:
         constraints["approval"] = "true"
     if "browser" in lowered:
         entities["channel"] = "browser"
-    if goal:
-        goals.append(goal)
-    return {
-        "intent": intent,
-        "entities": entities,
-        "constraints": constraints,
-        "goal": goal,
-        "goals": goals,
-        "claims": claims,
-        "raw": text,
-    }
+    return {"intent": intent, "entities": entities, "constraints": constraints, "goal": goal, "raw": text}

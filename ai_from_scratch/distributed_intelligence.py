@@ -15,25 +15,10 @@ class DistributedReasoningResult:
     report: dict
 
 
-AGREEMENT_TOLERANCE_BASE = 0.02
-
-
 def _node_workspace(cwd: str, node_name: str) -> str:
     node_root = Path(cwd).resolve() / ".zero_os" / "distributed_nodes" / node_name
     node_root.mkdir(parents=True, exist_ok=True)
     return str(node_root)
-
-
-def _agreement_tolerance(node_count: int) -> float:
-    # Allow a tiny quorum margin so decimal thresholds like 0.67 behave
-    # as intended against discrete node counts such as 2/3.
-    return round(AGREEMENT_TOLERANCE_BASE / max(1, int(node_count)), 4)
-
-
-def _agreement_pass(accepted_count: int, node_count: int, threshold: float) -> tuple[bool, float, float]:
-    ratio = accepted_count / max(1, node_count)
-    tolerance = _agreement_tolerance(node_count)
-    return (ratio + tolerance) >= threshold, ratio, tolerance
 
 
 def run_distributed_reasoning(
@@ -60,12 +45,9 @@ def run_distributed_reasoning(
 
     accepted_nodes = [n for n, g in node_results if g.accepted]
     failed_nodes = [n for n, g in node_results if not g.accepted]
-    agreement_pass, agreement_ratio, agreement_tolerance = _agreement_pass(
-        len(accepted_nodes),
-        len(node_results),
-        threshold,
-    )
-    normalized_ratio = round(agreement_ratio, 4)
+    agreement_ratio = len(accepted_nodes) / max(1, len(node_results))
+    agreement_tolerance = round(0.02 / max(1, len(node_results)), 4)
+    agreement_pass = agreement_ratio >= threshold or (agreement_ratio + agreement_tolerance) >= threshold
 
     # Node-level selection: prefer first accepted node, else best fallback from node_1.
     selected_gate = next((g for _, g in node_results if g.accepted), node_results[0][1])
@@ -77,7 +59,7 @@ def run_distributed_reasoning(
     report = {
         "node_count": len(node_results),
         "agreement_threshold": threshold,
-        "agreement_ratio": normalized_ratio,
+        "agreement_ratio": round(agreement_ratio, 4),
         "agreement_tolerance": agreement_tolerance,
         "agreement_pass": agreement_pass,
         "accepted_nodes": accepted_nodes,

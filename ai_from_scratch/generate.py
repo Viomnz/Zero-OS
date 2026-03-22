@@ -3,31 +3,27 @@
 import argparse
 import sys
 
-try:
-    from ai_from_scratch.model import TinyBigramModel
-    from ai_from_scratch.universe_laws_guard import check_universe_laws
-except ModuleNotFoundError:
-    from model import TinyBigramModel
-    from universe_laws_guard import check_universe_laws
+from model import TinyBigramModel
+from universe_laws_guard import check_universe_laws
 
 
-def _emit(text: str) -> None:
-    content = str(text)
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-    try:
-        print(content)
+def _safe_print(text: str) -> None:
+    stream = getattr(sys, "stdout", None)
+    if stream is None:
         return
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    try:
+        stream.write(text + "\n")
     except UnicodeEncodeError:
-        pass
-    buffer = getattr(sys.stdout, "buffer", None)
-    if buffer is not None:
-        buffer.write((content + "\n").encode("utf-8", errors="replace"))
-        buffer.flush()
-        return
-    sys.stdout.write(content.encode("ascii", errors="replace").decode("ascii") + "\n")
+        buffer = getattr(stream, "buffer", None)
+        if buffer is None:
+            raise
+        buffer.write((text + "\n").encode("utf-8", errors="replace"))
 
 
 def main() -> None:
@@ -43,7 +39,7 @@ def main() -> None:
     model = TinyBigramModel.load(args.ckpt)
     if not args.enforce_laws:
         out = model.sample(args.prompt, length=args.length, temperature=args.temperature)
-        _emit(out)
+        _safe_print(out)
         return
 
     for i in range(args.max_attempts):
@@ -55,14 +51,14 @@ def main() -> None:
         )
         check = check_universe_laws(out)
         if check.passed:
-            _emit("[UNIVERSE_LAWS_PASS]")
-            _emit(out)
+            _safe_print("[UNIVERSE_LAWS_PASS]")
+            _safe_print(out)
             return
 
     final = check_universe_laws(out)
-    _emit("[UNIVERSE_LAWS_BLOCKED]")
-    _emit(final.reason)
-    _emit(out)
+    _safe_print("[UNIVERSE_LAWS_BLOCKED]")
+    _safe_print(final.reason)
+    _safe_print(out)
 
 
 if __name__ == "__main__":

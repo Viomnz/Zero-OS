@@ -539,6 +539,41 @@ def zero_ai_evolution_status(cwd: str) -> dict[str, Any]:
         "last_rollback": dict(state.get("last_rollback") or {}),
         "recent_history": _history_tail(cwd, limit=8),
     }
+    factor_rows = [
+        {"key": str(key), "score": float(value)}
+        for key, value in sorted((current_fitness.get("components") or {}).items(), key=lambda item: float(item[1]))
+    ]
+    status["fitness_factors"] = {
+        "all_factors": factor_rows,
+        "weakest_factors": factor_rows[:3],
+        "strongest_factors": list(reversed(factor_rows[-3:])),
+    }
+    target_fitness_score = 95.0
+    remediation_actions: list[str] = []
+    if not bool(snapshot["profile"].get("background_agent_running", False)):
+        remediation_actions.append("Install and start the background runtime agent.")
+    if not bool(snapshot["profile"].get("runtime_loop_enabled", False)):
+        remediation_actions.append("Enable the runtime loop so bounded evolution has a stable orchestration baseline.")
+    if not bool(snapshot["profile"].get("autonomy_loop_enabled", False)):
+        remediation_actions.append("Enable the autonomy loop so bounded evolution can verify its scheduling lane.")
+    if bool(snapshot["profile"].get("has_contradiction", False)):
+        remediation_actions.append("Clear active contradiction signals before attempting bounded evolution.")
+    if not bool(snapshot["profile"].get("same_system", False)):
+        remediation_actions.append("Restore continuity so Zero AI is operating as the same system again.")
+    if not remediation_actions and proposal.get("candidate_available", False) and proposal.get("beneficial", False):
+        remediation_actions.append("Generate and canary the next bounded profile candidate.")
+    remediation_status = "observe"
+    if remediation_actions:
+        remediation_status = "ready_for_candidate" if bool(proposal.get("candidate_available", False)) and ready else "stabilize"
+    remediation = {
+        "status": remediation_status,
+        "current_fitness_score": float(current_fitness.get("fitness_score", 0.0) or 0.0),
+        "target_fitness_score": target_fitness_score,
+        "fitness_gap": round(max(0.0, target_fitness_score - float(current_fitness.get("fitness_score", 0.0) or 0.0)), 2),
+        "next_action": remediation_status,
+        "actions": remediation_actions or ["Observe the current bounded profile; no immediate remediation is required."],
+    }
+    status["remediation"] = remediation
     state["active_profile"] = status["current_profile"]
     _save_state(cwd, state)
     return status
@@ -834,4 +869,35 @@ def zero_ai_evolution_auto_run(cwd: str) -> dict[str, Any]:
         "canary": canary,
         "promotion": promotion.get("promotion", {}),
         "status": zero_ai_evolution_status(cwd),
+    }
+
+
+def zero_ai_evolution_remediation_status(cwd: str) -> dict[str, Any]:
+    status = zero_ai_evolution_status(cwd)
+    remediation = dict(status.get("remediation") or {})
+    return {
+        "ok": True,
+        "status": str(remediation.get("status", "observe")),
+        "next_action": str(remediation.get("next_action", "observe")),
+        "actions": list(remediation.get("actions", [])),
+        "fitness_gap": float(remediation.get("fitness_gap", 0.0) or 0.0),
+        "target_fitness_score": float(remediation.get("target_fitness_score", 95.0) or 95.0),
+        "current_fitness_score": float(remediation.get("current_fitness_score", 0.0) or 0.0),
+        "status_snapshot": status,
+    }
+
+
+def zero_ai_evolution_generate_candidate(cwd: str) -> dict[str, Any]:
+    result = zero_ai_evolution_propose(cwd)
+    proposal = dict(result.get("proposal") or {})
+    next_action = "canary" if bool(proposal.get("candidate_available", False)) and bool(proposal.get("safe", False)) and bool(proposal.get("beneficial", False)) else "stabilize"
+    return {
+        "ok": True,
+        "auto_generated": True,
+        "generated_by": "zero_ai",
+        "upgrade_kind": "bounded_profile_tuning",
+        "generation_mode": "auto_candidate",
+        "next_action": next_action,
+        "proposal": proposal,
+        "status": result.get("status", {}),
     }

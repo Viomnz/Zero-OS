@@ -29,6 +29,18 @@ def _controller_path(cwd: str) -> Path:
 
 _SUBSYSTEMS = (
     {
+        "key": "general_agent",
+        "label": "General agent orchestrator",
+        "capability_keys": ("general_agent_orchestrator",),
+        "tool_keys": ("system_runtime", "local_files"),
+        "commands": (
+            "zero ai general agent status",
+            "zero ai general agent refresh",
+            "zero ai general agent assess <request>",
+        ),
+        "notes": "Assesses broad requests, matches them to the right subsystems, and decides whether Zero AI can act as a bounded general-purpose agent.",
+    },
+    {
         "key": "observation",
         "label": "Smart workspace monitor",
         "capability_keys": ("smart_workspace_map", "integrity_flow_monitor"),
@@ -120,6 +132,21 @@ _SUBSYSTEMS = (
         "notes": "Promotes bounded tuning and guarded source evolution with canaries and rollback.",
     },
     {
+        "key": "expansion",
+        "label": "Capability expansion",
+        "capability_keys": ("capability_expansion_protocol", "domain_pack_factory"),
+        "tool_keys": ("system_runtime", "local_files"),
+        "commands": (
+            "zero ai capability expansion protocol status",
+            "zero ai capability expansion protocol refresh",
+            "zero ai domain pack factory status",
+            "zero ai domain pack scaffold <name>",
+            "zero ai domain pack verify <name>",
+            "zero ai capability map status",
+        ),
+        "notes": "Defines how new Zero AI domain packs are admitted through typed contracts instead of unrestricted control.",
+    },
+    {
         "key": "integration",
         "label": "Integration workflows",
         "capability_keys": ("browser_control", "store_installation"),
@@ -131,6 +158,29 @@ _SUBSYSTEMS = (
             "zero ai api profile status",
         ),
         "notes": "Typed browser, store, and API workflows that replace raw unbounded actions.",
+    },
+    {
+        "key": "communications",
+        "label": "Communications",
+        "capability_keys": ("communications_lane",),
+        "tool_keys": ("system_runtime", "local_files"),
+        "commands": (
+            "zero ai communications status",
+            "zero ai communications refresh",
+        ),
+        "notes": "Local typed communications lane for drafts, outbox state, and future approval-backed outbound workflows.",
+    },
+    {
+        "key": "calendar_time",
+        "label": "Calendar and time",
+        "capability_keys": ("calendar_time_lane",),
+        "tool_keys": ("system_runtime", "local_files"),
+        "commands": (
+            "zero ai calendar status",
+            "zero ai calendar refresh",
+            "zero ai time status",
+        ),
+        "notes": "Local typed calendar/reminder lane for schedule state and future bounded automation.",
     },
     {
         "key": "recovery",
@@ -349,8 +399,14 @@ def _missing_functions_for(
         return _self_model_missing(capabilities)
     if subsystem_key == "evolution":
         return _evolution_missing(capabilities)
+    if subsystem_key == "expansion":
+        return [], "Use the domain-pack factory so new Zero AI domains are scaffolded and verified through the protocol by default."
     if subsystem_key == "integration":
         return _integration_missing(capabilities, tools)
+    if subsystem_key == "communications":
+        return [], "Turn communications from status-only scaffolding into approval-backed outbound workflows and drafting tools."
+    if subsystem_key == "calendar_time":
+        return [], "Turn calendar_time from status-only scaffolding into reminder and scheduling workflows."
     if subsystem_key == "recovery":
         return _recovery_missing(capabilities)
     return _platform_missing(capabilities)

@@ -174,6 +174,32 @@ class ContradictionEngineTests(unittest.TestCase):
 
         self.assertEqual("high_evidence", selection["selected_branch"]["branch"]["id"])
 
+    def test_select_stable_branch_prefers_higher_planner_confidence_when_other_scores_match(self) -> None:
+        selection = select_stable_branch(
+            str(self.base),
+            "check https://example.com",
+            [
+                {
+                    "intent": {"intent": "web", "goals": ["check https://example.com"]},
+                    "branch": {"id": "low_confidence", "source": "direct_plan", "note": "low", "preferred": False},
+                    "planner_confidence": 0.42,
+                    "risk_level": "medium",
+                    "steps": [{"kind": "web_verify", "target": "https://example.com"}],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+                {
+                    "intent": {"intent": "web", "goals": ["check https://example.com"]},
+                    "branch": {"id": "high_confidence", "source": "direct_plan", "note": "high", "preferred": False},
+                    "planner_confidence": 0.93,
+                    "risk_level": "low",
+                    "steps": [{"kind": "web_verify", "target": "https://example.com"}],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+            ],
+        )
+
+        self.assertEqual("high_confidence", selection["selected_branch"]["branch"]["id"])
+
     @patch(
         "zero_os.contradiction_engine._workflow_signals",
         return_value={
@@ -216,6 +242,28 @@ class ContradictionEngineTests(unittest.TestCase):
 
         self.assertEqual("hold", review["decision"])
         self.assertIn("source_evolution_not_ready", {issue["code"] for issue in review["issues"]})
+
+    @patch(
+        "zero_os.contradiction_engine._workflow_signals",
+        return_value={
+            "runtime": {"runtime_ready": True},
+            "workflows": {"lanes": {"recovery": {"ready": True, "active": True}}},
+        },
+    )
+    def test_review_branch_holds_when_high_risk_plan_has_low_planner_confidence(self, _mock_workflow) -> None:
+        review = review_branch(
+            str(self.base),
+            "recover system",
+            {
+                "intent": {"intent": "recover", "goals": ["recover system"]},
+                "planner_confidence": 0.42,
+                "risk_level": "high",
+                "steps": [{"kind": "recover", "target": "runtime"}],
+            },
+        )
+
+        self.assertEqual("hold", review["decision"])
+        self.assertIn("planner_confidence_below_high_risk_threshold", {issue["code"] for issue in review["issues"]})
 
 
 if __name__ == "__main__":

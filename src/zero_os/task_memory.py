@@ -32,7 +32,7 @@ def save_task_run(cwd: str, request: str, run: dict) -> dict:
         completed_steps += 1
     rec = {
         "time_utc": _utc_now(),
-        "run_id": str(run.get("run_id", "")).strip(),
+        "run_id": str(run.get("run_id", "")),
         "request": request,
         "ok": bool(run.get("ok", False)),
         "plan": run.get("plan", {}),

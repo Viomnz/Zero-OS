@@ -278,6 +278,22 @@
                 <Button Height="42" Margin="0,0,0,8" Content="Approve Pending Remediation" Click="ZeroAiBenchmarkRemediationApprove_Click" />
                 <Button Height="42" Margin="0,0,0,8" Content="Reject Pending Remediation" Click="ZeroAiBenchmarkRemediationReject_Click" />
                 <Button Height="42" Margin="0,0,0,12" Content="Execute Approved Remediation" Click="ZeroAiBenchmarkRemediationExecute_Click" />
+                <TextBlock Text="Communications"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <Button Height="38" Margin="0,0,0,8" Content="Refresh Communications" Click="ZeroAiCommunicationsStatus_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Add Draft" Click="ZeroAiCommunicationsDraftAdd_Click" />
+                <Button Height="38" Margin="0,0,0,12" Content="Request Send For Draft 1" Click="ZeroAiCommunicationsSendRequest_Click" />
+                <TextBlock Text="Calendar"
+                           Margin="0,4,0,10"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextFg}" />
+                <Button Height="38" Margin="0,0,0,8" Content="Refresh Calendar" Click="ZeroAiCalendarStatus_Click" />
+                <Button Height="38" Margin="0,0,0,8" Content="Add Reminder" Click="ZeroAiCalendarReminderAdd_Click" />
+                <Button Height="38" Margin="0,0,0,12" Content="Run Calendar Tick" Click="ZeroAiCalendarTick_Click" />
                 <TextBlock Text="Fast path"
                            Margin="0,4,0,10"
                            FontSize="16"

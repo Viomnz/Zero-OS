@@ -11,7 +11,6 @@ from pathlib import Path
 
 from zero_os.smart_logic_governance import apply_governance
 
-
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -151,26 +150,12 @@ def threat_feed_import_signed(cwd: str, in_path: str) -> dict:
     return {"ok": True, "version": int(feed.get("version", 0)), "signature_valid": True}
 
 
-def _default_exclude_paths() -> list[str]:
-    return [
-        ".git",
-        ".zero_os/antivirus",
-        ".zero_os/production/snapshots",
-        "src/zero_os/antivirus.py",
-        "tests/test_antivirus_system.py",
-    ]
-
-
-def _default_exclude_extensions() -> list[str]:
-    return [".png", ".jpg", ".jpeg", ".mp3", ".mp4", ".pyc"]
-
-
 def policy_status(cwd: str) -> dict:
     default = {
         "heuristic_threshold": 65,
         "auto_quarantine": False,
-        "exclude_paths": _default_exclude_paths(),
-        "exclude_extensions": _default_exclude_extensions(),
+        "exclude_paths": [".git", ".zero_os/production/snapshots"],
+        "exclude_extensions": [".png", ".jpg", ".jpeg", ".mp3", ".mp4"],
         "max_files_per_scan": 5000,
         "max_file_mb": 8,
         "archive_max_depth": 2,
@@ -184,17 +169,7 @@ def policy_status(cwd: str) -> dict:
         return default
     cur = _load(path, default)
     for k, v in default.items():
-        if k in {"exclude_paths", "exclude_extensions"}:
-            existing = cur.get(k, [])
-            if not isinstance(existing, list):
-                existing = []
-            merged = list(existing)
-            for item in v:
-                if item not in merged:
-                    merged.append(item)
-            cur[k] = merged
-        else:
-            cur.setdefault(k, v)
+        cur.setdefault(k, v)
     _save(path, cur)
     return cur
 
@@ -271,24 +246,22 @@ def _is_suppressed(cwd: str, rel_path: str, sig_id: str) -> bool:
     return False
 
 
-def _self_protected_path(rel: str) -> bool:
-    normalized = rel.replace("\\", "/")
-    return normalized in {
-        "src/zero_os/antivirus.py",
-        "tests/test_antivirus_system.py",
-    }
-
-
 def _excluded(base: Path, target: Path, policy: dict) -> bool:
     rel = str(target.resolve().relative_to(base)).replace("\\", "/")
-    if _self_protected_path(rel):
-        return True
     if target.suffix.lower() in {x.lower() for x in policy.get("exclude_extensions", [])}:
         return True
     for pref in policy.get("exclude_paths", []):
         if rel.startswith(pref.replace("\\", "/")):
             return True
     return False
+
+
+def _protected_source_surface(rel_path: str) -> bool:
+    rel = rel_path.replace("\\", "/").lstrip("/")
+    return rel in {
+        "src/zero_os/antivirus.py",
+        "src/zero_os/antivirus_agent.py",
+    }
 
 
 def _iter_targets(cwd: str, raw_target: str, max_files: int) -> list[Path]:
@@ -463,7 +436,7 @@ def _smart_logic_antivirus(findings: list[dict], process_findings: list[dict], h
     }
 
 
-def _scan_target_impl(cwd: str, target: str, *, mutate: bool) -> dict:
+def scan_target(cwd: str, target: str) -> dict:
     base = Path(cwd).resolve()
     feed = threat_feed_status(cwd)
     policy = policy_status(cwd)
@@ -485,6 +458,8 @@ def _scan_target_impl(cwd: str, target: str, *, mutate: bool) -> dict:
         text = f.read_text(encoding="utf-8", errors="ignore") if f.suffix.lower() not in {".exe", ".dll", ".bin"} else ""
         sig_hits = _match_signatures(text, feed)
         rel = str(f.relative_to(base)).replace("\\", "/")
+        if _protected_source_surface(rel):
+            continue
         sig_hits = [h for h in sig_hits if not _is_suppressed(cwd, rel, str(h.get("id", "")))]
         heur_score, heur_tags = _heuristic_score(text, f.name)
         archive_hits = _scan_zip(f, feed, policy) if f.suffix.lower() == ".zip" else []
@@ -535,21 +510,27 @@ def _scan_target_impl(cwd: str, target: str, *, mutate: bool) -> dict:
     with _incident_path(cwd).open("a", encoding="utf-8") as f:
         f.write(json.dumps({"time_utc": _utc_now(), "kind": "scan", "report": report}, sort_keys=True) + "\n")
 
-    if mutate and policy.get("auto_quarantine"):
+    if policy.get("auto_quarantine"):
         for item in findings[:100]:
             quarantine_file(cwd, item["path"], reason="auto_quarantine")
-    if mutate:
-        _auto_response(cwd, report)
+    _auto_response(cwd, report)
 
     return report
 
 
-def scan_target(cwd: str, target: str) -> dict:
-    return _scan_target_impl(cwd, target, mutate=True)
-
-
 def scan_target_readonly(cwd: str, target: str) -> dict:
-    return _scan_target_impl(cwd, target, mutate=False)
+    original_policy = policy_status(cwd)
+    restore_auto_quarantine = bool(original_policy.get("auto_quarantine", False))
+    restore_response_mode = str(original_policy.get("response_mode", "manual"))
+    policy_set(cwd, "auto_quarantine", "false")
+    policy_set(cwd, "response_mode", "manual")
+    try:
+        report = scan_target(cwd, target)
+    finally:
+        policy_set(cwd, "auto_quarantine", "true" if restore_auto_quarantine else "false")
+        policy_set(cwd, "response_mode", restore_response_mode)
+    report["readonly"] = True
+    return report
 
 
 def _auto_response(cwd: str, report: dict) -> None:
@@ -570,6 +551,8 @@ def quarantine_file(cwd: str, rel_path: str, reason: str = "manual") -> dict:
         src.relative_to(base)
     except ValueError:
         return {"ok": False, "reason": "path escapes workspace"}
+    if _protected_source_surface(rel_path):
+        return {"ok": False, "reason": "protected_surface"}
     if not src.exists() or not src.is_file():
         return {"ok": False, "reason": "file missing"}
 

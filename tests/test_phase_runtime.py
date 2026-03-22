@@ -14,6 +14,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.assistant_job_runner import schedule_recurring_builtin
+from zero_os.calendar_time import calendar_reminder_add
+from zero_os.communications import communications_draft_add, communications_send_request
+from zero_os.approval_workflow import decide as approval_decide
 from zero_os.phase_runtime import (
     _runtime_loop_default,
     zero_ai_runtime_agent_ensure,
@@ -96,6 +99,22 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(managed["jobs"]["recurring_count"], 1)
         self.assertTrue(managed["tick"]["ticked"])
         self.assertTrue(managed["tick"]["result"]["ok"])
+
+    def test_runtime_run_processes_communications_and_calendar_background(self) -> None:
+        zero_ai_identity(str(self.base))
+        zero_ai_self_continuity_update(str(self.base))
+        draft = communications_draft_add(str(self.base), "vincent@example.com", "ship now")["draft"]
+        approval = communications_send_request(str(self.base), draft["id"])
+        approval_decide(str(self.base), approval["approval"]["id"], True)
+        calendar_reminder_add(str(self.base), "review zero ai", "2026-03-18T09:00:00+00:00")
+
+        runtime = zero_ai_runtime_run(str(self.base))
+
+        self.assertTrue(runtime["ok"])
+        self.assertIn("communications_background", runtime)
+        self.assertIn("calendar_time_background", runtime)
+        self.assertTrue(runtime["communications_background"]["ok"])
+        self.assertTrue(runtime["calendar_time_background"]["ok"])
 
     def test_runtime_loop_status_defaults(self) -> None:
         status = zero_ai_runtime_loop_status(str(self.base))

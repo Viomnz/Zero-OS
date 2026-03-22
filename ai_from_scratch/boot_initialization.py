@@ -33,16 +33,14 @@ def _checkpoint_integrity(base: Path) -> dict:
         if backup.exists():
             ckpt.write_text(backup.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
             try:
-                raw = json.loads(ckpt.read_text(encoding="utf-8", errors="replace"))
+                payload = json.loads(ckpt.read_text(encoding="utf-8", errors="replace"))
             except Exception:
-                raw = {}
-            summary = inspect_checkpoint_payload(raw)
+                return {"ok": False, "reason": "checkpoint invalid json", "architecture": ""}
+            summary = inspect_checkpoint_payload(payload)
             return {
-                "ok": True,
-                "reason": "checkpoint restored from backup",
-                "architecture": summary.get("architecture", ""),
-                "native": bool(summary.get("native", False)),
-                "vocab_size": int(summary.get("vocab_size", 0)),
+                "ok": bool(summary.get("ok", False)),
+                "reason": "checkpoint restored from backup" if summary.get("ok", False) else summary.get("reason", "checkpoint malformed"),
+                "architecture": str(summary.get("architecture", "")),
             }
         # Self-heal: generate a minimal checkpoint from local project text.
         seed_text = ""
@@ -54,29 +52,24 @@ def _checkpoint_integrity(base: Path) -> dict:
         model = TinyBigramModel.build(seed_text)
         model.save(str(ckpt))
         backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-        meta = model.metadata()
+        payload = json.loads(ckpt.read_text(encoding="utf-8", errors="replace"))
+        summary = inspect_checkpoint_payload(payload)
         return {
-            "ok": True,
-            "reason": "checkpoint auto-restored",
-            "architecture": meta["architecture"],
-            "native": bool(meta["fully_native"]),
-            "vocab_size": int(meta["vocab_size"]),
+            "ok": bool(summary.get("ok", False)),
+            "reason": "checkpoint auto-restored" if summary.get("ok", False) else summary.get("reason", "checkpoint malformed"),
+            "architecture": str(summary.get("architecture", "")),
         }
     try:
         raw = json.loads(ckpt.read_text(encoding="utf-8", errors="replace"))
     except Exception:
-        return {"ok": False, "reason": "checkpoint invalid json"}
+        return {"ok": False, "reason": "checkpoint invalid json", "architecture": ""}
+    if not isinstance(raw, dict):
+        return {"ok": False, "reason": "checkpoint malformed", "architecture": ""}
     summary = inspect_checkpoint_payload(raw)
-    if not summary.get("ok", False):
-        return {"ok": False, "reason": summary.get("reason", "checkpoint malformed")}
+    if not bool(summary.get("ok", False)):
+        return {"ok": False, "reason": summary.get("reason", "checkpoint malformed"), "architecture": str(summary.get("architecture", ""))}
     backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-    return {
-        "ok": True,
-        "reason": "checkpoint valid",
-        "architecture": summary.get("architecture", ""),
-        "native": bool(summary.get("native", False)),
-        "vocab_size": int(summary.get("vocab_size", 0)),
-    }
+    return {"ok": True, "reason": "checkpoint valid", "architecture": str(summary.get("architecture", ""))}
 
 
 def _memory_validation(base: Path) -> dict:

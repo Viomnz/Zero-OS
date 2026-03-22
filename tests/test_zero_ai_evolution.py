@@ -18,7 +18,9 @@ from zero_os.zero_ai_evolution import (
     _runtime_snapshot,
     zero_ai_evolution_auto_run,
     zero_ai_evolution_canary,
+    zero_ai_evolution_generate_candidate,
     zero_ai_evolution_propose,
+    zero_ai_evolution_remediation_status,
     zero_ai_evolution_rollback,
     zero_ai_evolution_status,
 )
@@ -107,6 +109,38 @@ class ZeroAiEvolutionTests(unittest.TestCase):
         self.assertTrue(proposal["beneficial"])
         self.assertEqual(240, proposal["target_profile"]["runtime_loop_interval_seconds"])
         self.assertEqual(360, proposal["target_profile"]["autonomy_loop_interval_seconds"])
+
+    def test_status_exposes_fitness_factors_and_remediation(self) -> None:
+        self._prime_stable_evolution_ready()
+
+        status = zero_ai_evolution_status(str(self.base))
+
+        self.assertIn("fitness_factors", status)
+        self.assertIn("remediation", status)
+        self.assertGreaterEqual(len(status["fitness_factors"]["weakest_factors"]), 1)
+        self.assertGreaterEqual(len(status["remediation"]["actions"]), 1)
+        self.assertEqual(95.0, status["remediation"]["target_fitness_score"])
+
+    def test_remediation_status_reports_next_action(self) -> None:
+        self._prime_stable_evolution_ready()
+
+        remediation = zero_ai_evolution_remediation_status(str(self.base))
+
+        self.assertTrue(remediation["ok"])
+        self.assertIn(remediation["status"], {"ready_for_candidate", "stabilize", "observe"})
+        self.assertIn("next_action", remediation)
+        self.assertIn("actions", remediation)
+
+    def test_generate_candidate_wraps_bounded_profile_tuning(self) -> None:
+        self._prime_stable_evolution_ready()
+
+        generated = zero_ai_evolution_generate_candidate(str(self.base))
+
+        self.assertTrue(generated["ok"])
+        self.assertTrue(generated["auto_generated"])
+        self.assertEqual("zero_ai", generated["generated_by"])
+        self.assertEqual("bounded_profile_tuning", generated["upgrade_kind"])
+        self.assertIn(generated["next_action"], {"canary", "stabilize"})
 
     def test_auto_run_promotes_candidate_and_updates_loop_intervals(self) -> None:
         self._prime_stable_evolution_ready()

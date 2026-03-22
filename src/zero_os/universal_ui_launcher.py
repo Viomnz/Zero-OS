@@ -17,10 +17,6 @@ def _shell_url(cwd: str) -> str:
     return (_base(cwd) / "zero_os_shell.html").resolve().as_uri()
 
 
-def _welcome_url(cwd: str) -> str:
-    return (_base(cwd) / "index.html").resolve().as_uri()
-
-
 def _bridge_running(host: str = "127.0.0.1", port: int = 8766) -> bool:
     try:
         with socket.create_connection((host, int(port)), timeout=0.4):
@@ -72,7 +68,6 @@ def launch(cwd: str) -> dict:
             "launched": False,
             "ui": "zero-os-ui-smoke",
             "platform_mode": "windows-native" if platform_name.startswith("win") else "cross-platform-web-shell",
-            "welcome_url": _welcome_url(str(base)),
             "shell_url": _shell_url(str(base)),
             "smoke": True,
         }
@@ -103,14 +98,12 @@ def launch_web_shell(cwd: str) -> dict:
     if not _bridge_running():
         bridge = _spawn_shell_bridge(str(base))
 
-    welcome_url = _welcome_url(str(base))
     shell_url = _shell_url(str(base))
-    webbrowser.open(welcome_url)
+    webbrowser.open(shell_url)
     return {
         "ok": True,
         "launched": True,
-        "ui": "zero-os-welcome",
-        "welcome_url": welcome_url,
+        "ui": "zero-os-web-shell",
         "shell_url": shell_url,
         "bridge": bridge,
         "commands": {

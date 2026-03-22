@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from zero_os.approval_workflow import decide as approval_decide, status as approval_status
+from zero_os.task_planner import planner_feedback_status
 from zero_os.task_executor import run_task, run_task_resume
 from zero_os.unified_action_engine import execute_step
 
@@ -90,7 +91,52 @@ def _write_summary(path: Path, payload: dict[str, Any]) -> None:
     for scenario in list(payload.get("scenarios") or []):
         status = "pass" if scenario.get("ok", False) else "fail"
         lines.append(f"- {scenario.get('name', 'scenario')}: {status} - {scenario.get('summary', '')}")
+    planner = dict(payload.get("planner_feedback") or {})
+    planner_summary = dict(planner.get("summary") or {})
+    if planner_summary:
+        lines.extend(["", "## Planner Feedback"])
+        lines.append(f"- history_count: {planner_summary.get('history_count', 0)}")
+        for route_name, route_metrics in sorted(dict(planner_summary.get("routes") or {}).items()):
+            lines.append(
+                f"- {route_name}: success={route_metrics.get('successful_completion_rate', 0.0)} "
+                f"holds={route_metrics.get('contradiction_hold_rate', 0.0)} "
+                f"target_drop={route_metrics.get('target_drop_rate', 0.0)}"
+            )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _planner_feedback_block(cwd: str) -> dict[str, Any]:
+    feedback = planner_feedback_status(cwd)
+    summary = dict(feedback.get("summary") or {})
+    routes = dict(summary.get("routes") or {})
+    worst_route = ""
+    worst_hold = -1.0
+    worst_target_drop = -1.0
+    for route_name, metrics in routes.items():
+        contradiction_hold_rate = float(metrics.get("contradiction_hold_rate", 0.0) or 0.0)
+        target_drop_rate = float(metrics.get("target_drop_rate", 0.0) or 0.0)
+        combined = contradiction_hold_rate + target_drop_rate
+        if combined > worst_hold + worst_target_drop:
+            worst_hold = contradiction_hold_rate
+            worst_target_drop = target_drop_rate
+            worst_route = route_name
+    highest_value_steps: list[str] = []
+    if worst_route and (worst_hold > 0.0 or worst_target_drop > 0.0):
+        highest_value_steps.append(
+            f"Reduce planner drift on route `{worst_route}` by lowering contradiction holds and unbound-target drops before widening autonomy further."
+        )
+    elif int(summary.get("history_count", 0) or 0) == 0:
+        highest_value_steps.append("Run more real planner-driven tasks so Zero AI has route-quality evidence, not only pressure scenarios.")
+    return {
+        "history_count": int(summary.get("history_count", 0) or 0),
+        "routes": routes,
+        "worst_route": worst_route,
+        "worst_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
+        "worst_target_drop_rate": round(max(0.0, worst_target_drop), 3),
+        "highest_value_steps": highest_value_steps,
+        "path": str(feedback.get("path", "")),
+        "summary": summary,
+    }
 
 
 def _seed_workspace(base: Path) -> None:
@@ -518,6 +564,7 @@ def _category_scores(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def pressure_harness_status(cwd: str) -> dict[str, Any]:
+    planner_feedback = _planner_feedback_block(cwd)
     latest = _latest_path(cwd)
     if not latest.exists():
         return {
@@ -538,6 +585,7 @@ def pressure_harness_status(cwd: str) -> dict[str, Any]:
             "highest_value_steps": [
                 "Run `zero ai pressure run` to create a real survivability baseline.",
             ],
+            "planner_feedback": planner_feedback,
             "path": str(latest),
             "history_path": str(_history_path(cwd)),
             "summary_path": str(_summary_path(cwd)),
@@ -554,6 +602,9 @@ def pressure_harness_status(cwd: str) -> dict[str, Any]:
         "highest_value_steps",
         [str(payload.get("recommended_action", "Run the pressure harness regularly and feed real incidents back into it."))],
     )
+    payload["planner_feedback"] = planner_feedback
+    if list(planner_feedback.get("highest_value_steps", [])):
+        payload["highest_value_steps"] = list(payload.get("highest_value_steps", [])) + list(planner_feedback.get("highest_value_steps", []))
     return payload
 
 
@@ -583,6 +634,7 @@ def pressure_harness_run(cwd: str) -> dict[str, Any]:
     recommended_action = _recommended_action(failure_taxonomy)
     status = "pass" if failed_count == 0 else "attention"
     category_scores = _category_scores(scenarios)
+    planner_feedback = _planner_feedback_block(cwd)
 
     payload = {
         "ok": True,
@@ -600,7 +652,8 @@ def pressure_harness_run(cwd: str) -> dict[str, Any]:
         "failure_taxonomy": failure_taxonomy,
         "top_failure_code": top_failure_code,
         "recommended_action": recommended_action,
-        "highest_value_steps": [recommended_action],
+        "highest_value_steps": [recommended_action] + list(planner_feedback.get("highest_value_steps", [])),
+        "planner_feedback": planner_feedback,
         "scenarios": scenarios,
         "summary": {
             "scenario_count": scenario_count,

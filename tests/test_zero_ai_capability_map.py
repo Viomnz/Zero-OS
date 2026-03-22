@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 
 from zero_os.phase_runtime import zero_ai_runtime_run
 from zero_os.self_continuity import zero_ai_self_continuity_update
+from zero_os.task_executor import run_task
 from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
 from zero_os.zero_ai_identity import zero_ai_identity
 
@@ -87,6 +88,11 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertEqual("autonomous", capabilities["contradiction_gate"]["control_level"])
         self.assertTrue(capabilities["contradiction_gate"]["active"])
         self.assertEqual("autonomous", capabilities["pressure_harness"]["control_level"])
+        self.assertEqual("autonomous", capabilities["general_agent_orchestrator"]["control_level"])
+        self.assertEqual("autonomous", capabilities["capability_expansion_protocol"]["control_level"])
+        self.assertEqual("autonomous", capabilities["domain_pack_factory"]["control_level"])
+        self.assertEqual("autonomous", capabilities["communications_lane"]["control_level"])
+        self.assertEqual("autonomous", capabilities["calendar_time_lane"]["control_level"])
         self.assertEqual("autonomous", capabilities["browser_control"]["control_level"])
         self.assertEqual("autonomous", capabilities["store_installation"]["control_level"])
         self.assertEqual("autonomous", capabilities["recovery_restore"]["control_level"])
@@ -95,6 +101,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
 
     def test_capability_map_writes_status_file(self) -> None:
         self._prime_runtime()
+        run_task(str(self.base), "browser status")
 
         with patch("zero_os.phase_runtime._pid_alive", return_value=True):
             status = zero_ai_capability_map_status(str(self.base))
@@ -103,7 +110,14 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertTrue(path.exists())
         persisted = json.loads(path.read_text(encoding="utf-8"))
         self.assertIn("highest_value_steps", persisted)
+        self.assertIn("general_agent", persisted)
+        self.assertIn("capability_expansion_protocol", persisted)
+        self.assertIn("domain_pack_factory", persisted)
         self.assertEqual(status["summary"]["approval_gated_count"], persisted["summary"]["approval_gated_count"])
+        self.assertIn("planner_feedback_history_count", status["summary"])
+        self.assertIn("planner_route_quality_score", status["summary"])
+        capabilities = {item["key"]: item for item in status["capabilities"]}
+        self.assertGreaterEqual(capabilities["pressure_harness"]["evidence"]["planner_feedback_history_count"], 1)
 
 
 if __name__ == "__main__":

@@ -135,6 +135,10 @@ def autonomy_evaluate(
     contradictory_signals: int,
     independent_verifiers: int,
     checks: dict[str, bool],
+    *,
+    planner_confidence: float | None = None,
+    planner_risk_level: str | None = None,
+    planner_ambiguity_count: int = 0,
 ) -> dict:
     risk = classify_risk(action, blast_radius=blast_radius, reversible=reversible)
     rollback = rollback_ready(cwd)
@@ -149,6 +153,16 @@ def autonomy_evaluate(
         independent_verifiers=independent_verifiers,
     )
     threshold = autonomous_thresholds()[risk["risk"]]
+    effective_confidence = float(confidence.get("confidence", 0.0) or 0.0)
+    planner_signal = {
+        "confidence": None if planner_confidence is None else round(float(planner_confidence), 4),
+        "risk_level": str(planner_risk_level or ""),
+        "ambiguity_count": int(planner_ambiguity_count or 0),
+    }
+    if planner_confidence is not None:
+        planner_conf = max(0.0, min(1.0, float(planner_confidence)))
+        confidence_weight = 0.5 if str(planner_risk_level or risk["risk"]).lower() in {"high", "system", "critical"} else 0.3
+        effective_confidence = round(min(effective_confidence, (effective_confidence * (1.0 - confidence_weight)) + (planner_conf * confidence_weight)), 4)
     action_decision = "allow"
     reason = "threshold_met"
     blockers: list[str] = []
@@ -160,7 +174,19 @@ def autonomy_evaluate(
         action_decision = "hold_for_review"
         reason = "simulation_failed"
         blockers.extend(simulation.get("failed_checks", []))
-    elif confidence["confidence"] < threshold:
+    elif planner_confidence is not None and str(planner_risk_level or risk["risk"]).lower() == "high" and float(planner_confidence) < 0.7:
+        action_decision = "hold_for_review"
+        reason = "planner_confidence_below_high_risk_threshold"
+        blockers.append("planner_confidence_below_high_risk_threshold")
+    elif planner_confidence is not None and float(planner_confidence) < 0.5 and str(planner_risk_level or risk["risk"]).lower() in {"medium", "high"}:
+        action_decision = "hold_for_review"
+        reason = "planner_confidence_below_mutation_threshold"
+        blockers.append("planner_confidence_below_mutation_threshold")
+    elif planner_confidence is not None and int(planner_ambiguity_count or 0) >= 4 and float(planner_confidence) < 0.75:
+        action_decision = "hold_for_review"
+        reason = "planner_ambiguity_too_high"
+        blockers.append("planner_ambiguity_too_high")
+    elif effective_confidence < threshold:
         action_decision = "hold_for_review"
         reason = "confidence_below_threshold"
     return {
@@ -170,6 +196,8 @@ def autonomy_evaluate(
         "rollback": rollback,
         "simulation": simulation,
         "confidence": confidence,
+        "effective_confidence": effective_confidence,
+        "planner": planner_signal,
         "decision": action_decision,
         "decision_reason": reason,
         "threshold": threshold,

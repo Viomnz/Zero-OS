@@ -11,6 +11,8 @@ from zero_os.self_continuity import (
     zero_ai_continuity_governance_status,
     zero_ai_continuity_governance_tick,
 )
+from zero_os.calendar_time import calendar_reminder_tick
+from zero_os.communications import communications_tick
 from zero_os.task_executor import run_task, run_task_resume
 
 
@@ -60,6 +62,10 @@ def _recurring_due(job: dict) -> bool:
 def _builtin_result(cwd: str, name: str) -> dict:
     if name == "continuity_governance":
         return zero_ai_continuity_governance_tick(cwd)
+    if name == "communications":
+        return communications_tick(cwd)
+    if name == "calendar_time":
+        return calendar_reminder_tick(cwd)
     return {"ok": False, "reason": f"unknown builtin recurring job: {name}"}
 
 

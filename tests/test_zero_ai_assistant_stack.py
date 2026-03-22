@@ -179,6 +179,21 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         self.assertTrue(any(step["kind"] == "smart_workspace" for step in out["plan"]["steps"]))
         self.assertIn("smart workspace", out["response"]["summary"])
 
+    def test_run_task_maintenance_uses_maintenance_lane(self) -> None:
+        out = run_task(str(self.base), "maintenance status")
+        self.assertTrue(any(step["kind"] == "maintenance_orchestrator" for step in out["plan"]["steps"]))
+        self.assertIn("maintenance orchestrator", out["response"]["summary"])
+
+    def test_run_task_internet_uses_internet_lane(self) -> None:
+        out = run_task(str(self.base), "internet status")
+        self.assertTrue(any(step["kind"] == "internet_capability" for step in out["plan"]["steps"]))
+        self.assertIn("internet capability", out["response"]["summary"])
+
+    def test_run_task_world_class_readiness_uses_readiness_lane(self) -> None:
+        out = run_task(str(self.base), "world class readiness")
+        self.assertTrue(any(step["kind"] == "world_class_readiness" for step in out["plan"]["steps"]))
+        self.assertIn("world class readiness", out["response"]["summary"])
+
     def test_run_task_contradiction_status_uses_reasoning_subsystem(self) -> None:
         out = run_task(str(self.base), "contradiction status")
         self.assertEqual(["contradiction_engine"], [step["kind"] for step in out["plan"]["steps"]])
@@ -189,6 +204,24 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertEqual(["pressure_harness"], [step["kind"] for step in out["plan"]["steps"]])
         self.assertIn("pressure harness", out["response"]["summary"])
+
+    def test_run_task_capability_expansion_protocol_uses_expansion_lane(self) -> None:
+        out = run_task(str(self.base), "zero ai capability expansion protocol status")
+        self.assertTrue(out["ok"])
+        self.assertEqual(["capability_expansion_protocol"], [step["kind"] for step in out["plan"]["steps"]])
+        self.assertIn("capability_expansion_protocol", out["response"]["summary"])
+
+    def test_run_task_general_agent_uses_general_agent_lane(self) -> None:
+        out = run_task(str(self.base), "make zero ai can do agentic general-purpose ai")
+        self.assertTrue(out["ok"])
+        self.assertEqual(["general_agent"], [step["kind"] for step in out["plan"]["steps"]])
+        self.assertIn("general agent", out["response"]["summary"])
+
+    def test_run_task_feature_request_routes_to_feature_generator(self) -> None:
+        out = run_task(str(self.base), "add feature billing reminder follow up workflow")
+        self.assertTrue(out["ok"])
+        self.assertEqual(["domain_pack_generate_feature"], [step["kind"] for step in out["plan"]["steps"]])
+        self.assertIn("feature generator", out["response"]["summary"])
 
     def test_run_task_holds_output_when_continuity_has_contradiction(self) -> None:
         runtime_dir = self.base / ".zero_os" / "runtime"

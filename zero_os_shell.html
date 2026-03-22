@@ -1728,6 +1728,39 @@
       `;
     }
 
+    function parseIsoTime(value) {
+      const text = String(value || "").trim();
+      if (!text) return null;
+      const parsed = Date.parse(text);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    function communicationsPendingApprovalCount(communicationsState, approvalsState) {
+      const draftIds = new Set(
+        arrayItems(communicationsState && communicationsState.drafts)
+          .map((item) => String((item && item.id) || "").trim())
+          .filter((item) => item)
+      );
+      return arrayItems(approvalsState && approvalsState.items).filter((item) => {
+        if (!item || String(item.state || "") !== "pending" || String(item.action || "") !== "communications_send") {
+          return false;
+        }
+        const payload = item.payload || {};
+        const target = payload.target || {};
+        const draftId = String(target.draft_id || payload.draft_id || "").trim();
+        return draftIds.has(draftId);
+      }).length;
+    }
+
+    function dueReminderCount(calendarState) {
+      const now = Date.now();
+      return arrayItems(calendarState && calendarState.reminders).filter((item) => {
+        if (!item || String(item.status || "") !== "scheduled") return false;
+        const dueAt = parseIsoTime(item.when);
+        return dueAt !== null && dueAt <= now;
+      }).length;
+    }
+
     function renderControlPriorityPanel(controllerRegistry, toolRegistry, benchmarkDashboard) {
       const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
       const toolSummary = (toolRegistry && toolRegistry.summary) || {};
@@ -1819,7 +1852,69 @@
       `;
     }
 
-    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
+    function renderCommunicationsCalendarPanel(communicationsState, calendarState, approvalsState) {
+      const comm = communicationsState || {};
+      const commSummary = comm.summary || {};
+      const cal = calendarState || {};
+      const calSummary = cal.summary || {};
+      const pendingSendApprovals = communicationsPendingApprovalCount(comm, approvalsState);
+      const dueReminders = dueReminderCount(cal);
+      return `
+        <section class="panel">
+          <div class="panel-title">Communications And Calendar</div>
+          ${renderSummaryCards([
+            { label: "Drafts", value: String(commSummary.draft_count || 0) },
+            { label: "Outbox", value: String(commSummary.outbox_count || 0) },
+            { label: "Send Approvals", value: String(pendingSendApprovals) },
+            { label: "Due Reminders", value: String(dueReminders) }
+          ])}
+          <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">Communications</div>
+              <div class="chip-copy">
+                Create drafts, request approval-backed send, and inspect local outbox state.
+                <br/>Pending send approvals: ${escapeHtml(String(pendingSendApprovals))}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String(commSummary.draft_count || 0))} drafts</span>
+                <span class="mini-badge">${escapeHtml(String(commSummary.outbox_count || 0))} outbox</span>
+                <span class="mini-badge">${escapeHtml(String(pendingSendApprovals))} pending approvals</span>
+              </div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai communications status" data-home-label="Communications Status">Refresh</button>
+                <button class="btn" data-home-command="zero ai communications draft add vincent@example.com text=ship the matrix update" data-home-label="Add Draft">Add Draft</button>
+                <button class="btn" data-home-command="zero ai communications send request draft_1" data-home-label="Request Send">Request Send</button>
+                <button class="btn" data-home-command="zero ai approvals status" data-home-label="Approvals Status">Approvals</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Calendar Time</div>
+              <div class="chip-copy">
+                Create reminders and execute due items through the bounded calendar tick lane.
+                <br/>Due reminders now: ${escapeHtml(String(dueReminders))}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String(calSummary.reminder_count || 0))} reminders</span>
+                <span class="mini-badge">${escapeHtml(String(calSummary.calendar_item_count || 0))} calendar items</span>
+                <span class="mini-badge">${escapeHtml(String(dueReminders))} due now</span>
+              </div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai calendar status" data-home-label="Calendar Status">Refresh</button>
+                <button class="btn" data-home-command="zero ai calendar reminder add review zero ai when=2026-03-20T09:00:00-07:00" data-home-label="Add Reminder">Add Reminder</button>
+                <button class="btn" data-home-command="zero ai calendar tick" data-home-label="Calendar Tick">Run Tick</button>
+              </div>
+            </div>
+          </div>
+          ${renderDetails("Show communications/calendar state", {
+            communications: communicationsState || {},
+            calendar_time: calendarState || {},
+            approvals: approvalsState || {}
+          })}
+        </section>
+      `;
+    }
+
+    function renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState) {
         const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
         const toolSummary = (toolRegistry && toolRegistry.summary) || {};
         const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
@@ -1908,6 +2003,7 @@
             })}
           </section>
           ${renderBenchmarkPanel(benchmarkDashboard, benchmarkAlerts, benchmarkRemediation)}
+          ${renderCommunicationsCalendarPanel(communicationsState, calendarState, approvalsState)}
           ${renderLocalModsPanel(pluginRegistry)}
         `;
       }
@@ -1990,7 +2086,7 @@
       `;
     }
 
-    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) {
+    function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState) {
       const notices = renderNotifications(sec, backup, triad, desktop);
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
@@ -2014,8 +2110,8 @@
         `<div class="layer-view ${activePage === "runtime" ? "active" : ""}" data-layer-view="runtime">` +
           renderRuntimePanel(triadValue, kernel, runtime, backup) +
           `</div>`,
-          `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
-            renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation) +
+        `<div class="layer-view ${activePage === "control" ? "active" : ""}" data-layer-view="control">` +
+            renderControlPanel(controllerRegistry, toolRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState) +
           `</div>`,
         `<div class="layer-view ${activePage === "recovery" ? "active" : ""}" data-layer-view="recovery">` +
           renderRecoveryPanel(onboarding, backup, notices) +
@@ -2161,13 +2257,16 @@
         loadJson(".zero_os/store/registry.json"),
         loadJson(".zero_os/integrations/github.json")
       ]);
-        const [toolRegistry, controllerRegistry, capabilityMap, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, pluginBridge] = await Promise.all([
+        const [toolRegistry, controllerRegistry, capabilityMap, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState, pluginBridge] = await Promise.all([
           loadJson(".zero_os/runtime/tool_registry_status.json"),
           loadJson(".zero_os/assistant/controller_registry.json"),
           loadJson(".zero_os/assistant/capability_map.json"),
           loadJson(".zero_os/benchmarks/model/dashboard_latest.json"),
           loadJson(".zero_os/benchmarks/model/alert_routes.json"),
           loadJson(".zero_os/assistant/benchmark_remediation_workflow.json"),
+          loadJson(".zero_os/assistant/communications.json"),
+          loadJson(".zero_os/assistant/calendar_time.json"),
+          loadJson(".zero_os/assistant/approvals.json"),
           bridgeCommand("plugin status")
         ]);
         const pluginRegistry = parseBridgeSummaryJson(pluginBridge);
@@ -2198,7 +2297,7 @@
 
         const activePage = readLayerPage();
         $("startLayer").innerHTML = [
-          renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation),
+          renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState),
           renderDetails("Show platform details", { platform: platform && platform.status ? platform.status.categories : {}, desktop: desktop || {} })
         ].join("");
       $("startLayer").querySelectorAll("[data-layer-page]").forEach((button) => {

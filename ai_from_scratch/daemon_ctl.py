@@ -82,36 +82,23 @@ def _read_json(path: Path) -> dict:
 def _checkpoint_health(base: Path) -> dict:
     ckpt = base / "ai_from_scratch" / "checkpoint.json"
     backup = runtime(base) / "checkpoint.backup.json"
-    if not ckpt.exists() and backup.exists():
+
+    def _valid_checkpoint(path: Path) -> bool:
+        if not path.exists():
+            return False
+        try:
+            payload = _read_json(path)
+        except Exception:
+            return False
+        return isinstance(payload, dict) and bool(inspect_checkpoint_payload(payload).get("ok", False))
+
+    if ckpt.exists() and _valid_checkpoint(ckpt):
+        backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
+        return {"ok": True, "source": "checkpoint"}
+    if backup.exists() and _valid_checkpoint(backup):
+        ckpt.parent.mkdir(parents=True, exist_ok=True)
         ckpt.write_text(backup.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-    if ckpt.exists():
-        try:
-            payload = _read_json(ckpt)
-            summary = inspect_checkpoint_payload(payload)
-            if summary.get("ok", False):
-                backup.write_text(ckpt.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-                return {
-                    "ok": True,
-                    "source": "checkpoint",
-                    "architecture": summary.get("architecture", ""),
-                    "native": bool(summary.get("native", False)),
-                }
-        except Exception:
-            pass
-    if backup.exists():
-        try:
-            payload = _read_json(backup)
-            summary = inspect_checkpoint_payload(payload)
-            if summary.get("ok", False):
-                ckpt.write_text(backup.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
-                return {
-                    "ok": True,
-                    "source": "backup_restore",
-                    "architecture": summary.get("architecture", ""),
-                    "native": bool(summary.get("native", False)),
-                }
-        except Exception:
-            pass
+        return {"ok": True, "source": "backup_restore"}
     return {"ok": False, "source": "missing_or_invalid"}
 
 

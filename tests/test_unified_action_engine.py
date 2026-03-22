@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.approval_workflow import decide, request_approval, status as approval_status
+from zero_os.agent_permission_policy import set_action_tier
 from zero_os.unified_action_engine import execute_step
 
 
@@ -70,6 +71,40 @@ class UnifiedActionEngineApprovalTests(unittest.TestCase):
         self.assertTrue(matched["ok"])
         self.assertEqual("https://example.com", matched["result"]["action"]["url"])
         self.assertEqual(1, mock_act.call_count)
+
+    @patch("zero_os.unified_action_engine.autonomy_evaluate", return_value={"decision": "allow"})
+    @patch("zero_os.unified_action_engine.browser_dom_act", return_value={"ok": True, "action": {"url": "https://example.com"}})
+    def test_browser_action_can_run_guarded_auto_without_manual_approval(self, mock_act, _mock_gate) -> None:
+        set_action_tier(str(self.base), "browser_action", "guarded_auto")
+
+        result = execute_step(
+            str(self.base),
+            {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "body"}},
+            run_id="run-1",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("https://example.com", result["result"]["action"]["url"])
+        self.assertEqual(1, mock_act.call_count)
+        self.assertEqual(0, approval_status(str(self.base))["pending_count"])
+
+    @patch("zero_os.unified_action_engine.autonomy_evaluate", return_value={"decision": "allow"})
+    @patch("zero_os.unified_action_engine.browser_dom_act", return_value={"ok": True, "action": {"url": "https://example.com"}})
+    def test_browser_action_passes_planner_context_into_autonomy_gate(self, mock_act, mock_gate) -> None:
+        set_action_tier(str(self.base), "browser_action", "guarded_auto")
+
+        result = execute_step(
+            str(self.base),
+            {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "body"}},
+            run_id="run-1",
+            plan_context={"planner_confidence": 0.63, "risk_level": "medium", "ambiguity_flags": ["mixed_intents", "generic_browser_selector"]},
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(1, mock_act.call_count)
+        self.assertEqual(0.63, mock_gate.call_args.kwargs["planner_confidence"])
+        self.assertEqual("medium", mock_gate.call_args.kwargs["planner_risk_level"])
+        self.assertEqual(2, mock_gate.call_args.kwargs["planner_ambiguity_count"])
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ import json
 import secrets
 import sqlite3
 import shutil
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -23,18 +22,10 @@ def _db_path(cwd: str) -> Path:
     return path
 
 
-@contextmanager
-def _connect(cwd: str):
+def _connect(cwd: str) -> sqlite3.Connection:
     conn = sqlite3.connect(_db_path(cwd))
     conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    return conn
 
 
 def _deploy_root(cwd: str) -> Path:

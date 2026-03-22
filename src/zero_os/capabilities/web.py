@@ -18,7 +18,13 @@ class WebCapability:
 
     def can_handle(self, task: Task) -> bool:
         lowered = task.text.lower().strip()
-        if lowered.startswith("zero ai continuity policy"):
+        if lowered.startswith("zero ai smart planner"):
+            return False
+        if lowered == "smart planner status":
+            return False
+        if lowered.startswith("zero ai internet"):
+            return False
+        if lowered in {"internet status", "internet refresh"}:
             return False
         if lowered.startswith("cure firewall"):
             return False
@@ -27,16 +33,6 @@ class WebCapability:
         if lowered.startswith("enterprise integration "):
             return False
         if lowered.startswith("store "):
-            return False
-        if lowered.startswith("zero ai search code "):
-            return False
-        if lowered.startswith("zero ai code search "):
-            return False
-        if lowered.startswith("zero ai symbol search "):
-            return False
-        if lowered.startswith("zero ai control workflows"):
-            return False
-        if lowered.startswith("zero ai workflow "):
             return False
         keys = ("web", "search", "news", "internet", "fetch", "http://", "https://")
         text = lowered

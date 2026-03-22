@@ -6,7 +6,6 @@ import sys
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox
 from tkinter import ttk
 
 
@@ -131,20 +130,6 @@ def launch(cwd: str) -> dict:
     def open_dist() -> None:
         subprocess.run(["powershell", "-NoProfile", "-Command", f"Start-Process '{dist}'"], check=False)
         set_result("Opened dist folder")
-
-    def run_first_run() -> None:
-        result = _run_zero_os(str(base), "powershell run .\\zero_os_launcher.ps1 first-run")
-        render_output(result.get("json") or result.get("text") or result.get("stdout") or result)
-        if result.get("ok"):
-            set_result("First-run complete")
-            if messagebox.askyesno("Open Shell UI", "First-run finished. Open the Zero OS shell UI now?"):
-                open_shell_ui()
-        else:
-            set_result("First-run failed")
-
-    def open_shell_ui() -> None:
-        subprocess.run(["powershell", "-NoProfile", "-Command", f"Start-Process '{base / 'zero_os_shell.html'}'"], check=False)
-        set_result("Opened Zero OS shell UI")
 
     def open_path(path: Path | None) -> None:
         if not path:
@@ -385,36 +370,6 @@ def launch(cwd: str) -> dict:
         "- run common runtime checks\n",
     )
 
-    def show_welcome() -> None:
-        dialog = tk.Toplevel(app)
-        dialog.title("Welcome to Zero OS")
-        dialog.geometry("560x340")
-        dialog.configure(bg="#0c1524")
-        dialog.transient(app)
-        dialog.grab_set()
-
-        frame = ttk.Frame(dialog, padding=20, style="Hero.TFrame")
-        frame.pack(fill="both", expand=True, padx=16, pady=16)
-
-        ttk.Label(frame, text="Welcome to Zero OS", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(
-            frame,
-            text="GitHub users should not need to learn commands. Start with these 4 choices.",
-            style="Body.TLabel",
-        ).pack(anchor="w", pady=(8, 16))
-
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill="x")
-
-        ttk.Button(buttons, text="1. Open Repository", command=lambda: open_url(REPO_URL)).pack(fill="x", pady=(0, 8))
-        ttk.Button(buttons, text="2. Run First-Run", command=run_first_run).pack(fill="x", pady=(0, 8))
-        ttk.Button(buttons, text="3. Open Shell UI", command=open_shell_ui).pack(fill="x", pady=(0, 8))
-        ttk.Button(buttons, text="4. Know Everything + Complete All", command=lambda: run_and_render("zero os complete all", "Zero OS complete-all run complete")).pack(fill="x", pady=(0, 12))
-        ttk.Button(buttons, text="Continue to Zero OS", command=dialog.destroy).pack(fill="x")
-
-        dialog.focus_force()
-
     refresh_dist()
-    app.after(150, show_welcome)
     app.mainloop()
     return {"ok": True, "launched": True, "ui": "native-zero-ui"}

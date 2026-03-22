@@ -51,7 +51,6 @@ def _api_get(url: str, token: str = "") -> tuple[int, Any]:
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
-        exc.close()
         try:
             payload = json.loads(raw) if raw.strip() else {}
         except Exception:
@@ -72,7 +71,6 @@ def _api_post(url: str, payload: dict[str, Any], token: str = "") -> tuple[int, 
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
-        exc.close()
         try:
             body = json.loads(raw) if raw.strip() else {}
         except Exception:
@@ -380,15 +378,7 @@ def issue_act(cwd: str, repo: str, issue_number: int, execute: bool = False) -> 
         "plan": planned["plan"],
         "actionable_steps": actionable,
         "execution": run,
-        "summary": synthesize_result(
-            {
-                "cwd": cwd,
-                "ok": run["ok"],
-                "request": planned["issue"].get("request_text", ""),
-                "plan": planned["plan"],
-                "results": results,
-            }
-        ),
+        "summary": synthesize_result(run),
         "mode": "local_actions_only",
     }
 
@@ -422,15 +412,7 @@ def pr_act(cwd: str, repo: str, pr_number: int, execute: bool = False) -> dict:
         "plan": planned["plan"],
         "actionable_steps": actionable,
         "execution": run,
-        "summary": synthesize_result(
-            {
-                "cwd": cwd,
-                "ok": run["ok"],
-                "request": planned["pull_request"].get("request_text", ""),
-                "plan": planned["plan"],
-                "results": results,
-            }
-        ),
+        "summary": synthesize_result(run),
         "mode": "local_actions_only",
     }
 

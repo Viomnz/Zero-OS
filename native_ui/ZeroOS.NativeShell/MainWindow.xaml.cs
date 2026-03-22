@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -420,6 +421,18 @@ public partial class MainWindow : Window
         => RunBackendTask("zero ai benchmark remediation reject", "Zero AI benchmark remediation rejected");
     private void ZeroAiBenchmarkRemediationExecute_Click(object sender, RoutedEventArgs e)
         => RunBackendTask("zero ai benchmark remediation execute", "Zero AI benchmark remediation execution attempted");
+    private void ZeroAiCommunicationsStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai communications status", "Zero AI communications refreshed");
+    private void ZeroAiCommunicationsDraftAdd_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai communications draft add vincent@example.com text=ship the matrix update", "Zero AI draft created");
+    private void ZeroAiCommunicationsSendRequest_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai communications send request draft_1", "Zero AI send approval requested");
+    private void ZeroAiCalendarStatus_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai calendar status", "Zero AI calendar refreshed");
+    private void ZeroAiCalendarReminderAdd_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai calendar reminder add review zero ai when=2026-03-20T09:00:00-07:00", "Zero AI reminder created");
+    private void ZeroAiCalendarTick_Click(object sender, RoutedEventArgs e)
+        => RunBackendTask("zero ai calendar tick", "Zero AI calendar tick executed");
     private void RememberRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
         => SetRuntimeLoopStartupPreference(true);
     private void ForgetRuntimeLoopOnLaunch_Click(object sender, RoutedEventArgs e)
@@ -1219,7 +1232,19 @@ public partial class MainWindow : Window
         var benchmarkDashboardResult = _backend.RunTask("zero ai benchmark dashboard status");
         var benchmarkAlertsResult = _backend.RunTask("zero ai benchmark alerts status");
         var benchmarkRemediationResult = _backend.RunTask("zero ai benchmark remediation status");
-        ControlMapBox.Text = BuildControlMapSummary(controllerResult, toolResult, capabilityResult, benchmarkDashboardResult, benchmarkAlertsResult, benchmarkRemediationResult);
+        var communicationsResult = _backend.RunTask("zero ai communications status");
+        var calendarResult = _backend.RunTask("zero ai calendar status");
+        var approvalsResult = _backend.RunTask("zero ai approvals status");
+        ControlMapBox.Text = BuildControlMapSummary(
+            controllerResult,
+            toolResult,
+            capabilityResult,
+            benchmarkDashboardResult,
+            benchmarkAlertsResult,
+            benchmarkRemediationResult,
+            communicationsResult,
+            calendarResult,
+            approvalsResult);
     }
 
     private void RefreshLocalModsStatus()
@@ -1585,7 +1610,10 @@ public partial class MainWindow : Window
         NativeCommandResult capabilityResult,
         NativeCommandResult benchmarkDashboardResult,
         NativeCommandResult benchmarkAlertsResult,
-        NativeCommandResult benchmarkRemediationResult)
+        NativeCommandResult benchmarkRemediationResult,
+        NativeCommandResult communicationsResult,
+        NativeCommandResult calendarResult,
+        NativeCommandResult approvalsResult)
     {
         var lines = new List<string>
         {
@@ -1763,6 +1791,32 @@ public partial class MainWindow : Window
         {
             lines.Add("Benchmark remediation:");
             lines.Add(benchmarkRemediationResult.DisplayText());
+        }
+
+        lines.Add("");
+        if (communicationsResult.Payload.HasValue
+            && communicationsResult.Payload.Value.ValueKind == JsonValueKind.Object
+            && calendarResult.Payload.HasValue
+            && calendarResult.Payload.Value.ValueKind == JsonValueKind.Object)
+        {
+            var communications = communicationsResult.Payload.Value;
+            var calendar = calendarResult.Payload.Value;
+            var approvals = approvalsResult.Payload.HasValue && approvalsResult.Payload.Value.ValueKind == JsonValueKind.Object
+                ? approvalsResult.Payload.Value
+                : default;
+            lines.Add("Communications and calendar:");
+            lines.Add($"- Drafts: {ReadNestedNumber(communications, "summary", "draft_count")}");
+            lines.Add($"- Outbox: {ReadNestedNumber(communications, "summary", "outbox_count")}");
+            lines.Add($"- Pending send approvals: {CountPendingSendApprovals(communications, approvals)}");
+            lines.Add($"- Reminders: {ReadNestedNumber(calendar, "summary", "reminder_count")}");
+            lines.Add($"- Calendar items: {ReadNestedNumber(calendar, "summary", "calendar_item_count")}");
+            lines.Add($"- Due reminders now: {CountDueReminders(calendar)}");
+        }
+        else
+        {
+            lines.Add("Communications and calendar:");
+            lines.Add(communicationsResult.DisplayText());
+            lines.Add(calendarResult.DisplayText());
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -2259,6 +2313,90 @@ public partial class MainWindow : Window
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .ToList();
         return pairs.Count == 0 ? "none" : string.Join(", ", pairs);
+    }
+
+    private static int CountPendingSendApprovals(JsonElement communications, JsonElement approvals)
+    {
+        var draftIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (communications.ValueKind == JsonValueKind.Object
+            && communications.TryGetProperty("drafts", out var drafts)
+            && drafts.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var draft in drafts.EnumerateArray())
+            {
+                var id = ReadString(draft, "id");
+                if (!string.IsNullOrWhiteSpace(id) && id != "n/a")
+                {
+                    draftIds.Add(id);
+                }
+            }
+        }
+
+        if (draftIds.Count == 0
+            || approvals.ValueKind != JsonValueKind.Object
+            || !approvals.TryGetProperty("items", out var items)
+            || items.ValueKind != JsonValueKind.Array)
+        {
+            return 0;
+        }
+
+        var count = 0;
+        foreach (var item in items.EnumerateArray())
+        {
+            if (ReadString(item, "state") != "pending" || ReadString(item, "action") != "communications_send")
+            {
+                continue;
+            }
+
+            if (!item.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var draftId = "n/a";
+            if (payload.TryGetProperty("target", out var target) && target.ValueKind == JsonValueKind.Object)
+            {
+                draftId = ReadString(target, "draft_id");
+            }
+            if (string.IsNullOrWhiteSpace(draftId) || draftId == "n/a")
+            {
+                draftId = ReadString(payload, "draft_id");
+            }
+            if (!string.IsNullOrWhiteSpace(draftId) && draftIds.Contains(draftId))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountDueReminders(JsonElement calendar)
+    {
+        if (calendar.ValueKind != JsonValueKind.Object
+            || !calendar.TryGetProperty("reminders", out var reminders)
+            || reminders.ValueKind != JsonValueKind.Array)
+        {
+            return 0;
+        }
+
+        var now = DateTimeOffset.Now;
+        var count = 0;
+        foreach (var reminder in reminders.EnumerateArray())
+        {
+            if (ReadString(reminder, "status") != "scheduled")
+            {
+                continue;
+            }
+
+            var when = ReadString(reminder, "when");
+            if (DateTimeOffset.TryParse(when, out var dueAt) && dueAt <= now)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static string ReadArrayFieldPreview(JsonElement element, string propertyName, string fieldName, int maxItems = 3)

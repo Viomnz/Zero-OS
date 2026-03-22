@@ -57,10 +57,13 @@ def _self_mod_guard_path(cwd: str) -> Path:
 
 def _policy_decision(policy: dict, action_kind: str) -> str:
     kind = action_kind.strip()
-    if kind in set(policy.get("deny", [])):
+    tier = str((policy.get("actions") or {}).get(kind) or "")
+    if tier == "forbidden" or kind in set(policy.get("deny", [])):
         return "forbidden"
-    if kind in set(policy.get("approval_required", [])):
+    if tier == "approval_required" or kind in set(policy.get("approval_required", [])):
         return "approval_gated"
+    if tier == "observe_only":
+        return "observe_only"
     return "autonomous"
 
 
@@ -95,9 +98,15 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.assistant_job_runner import status as jobs_status
     from zero_os.contradiction_engine import contradiction_engine_status
     from zero_os.flow_monitor import flow_status
+    from zero_os.general_agent_orchestrator import general_agent_orchestrator_status
     from zero_os.smart_workspace import workspace_status
+    from zero_os.capability_expansion_protocol import capability_expansion_protocol_status
+    from zero_os.calendar_time import calendar_time_status
+    from zero_os.communications import communications_status
+    from zero_os.domain_pack_factory import domain_pack_factory_status
     from zero_os.phase_runtime import zero_ai_runtime_agent_status, zero_ai_runtime_loop_status
     from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.task_planner import planner_feedback_status
     from zero_os.zero_ai_pressure_harness import pressure_harness_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
@@ -111,7 +120,9 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     jobs = jobs_status(cwd)
     contradiction_engine = contradiction_engine_status(cwd)
     pressure_harness = pressure_harness_status(cwd)
+    planner_feedback = planner_feedback_status(cwd)
     flow_monitor = flow_status(cwd)
+    general_agent = general_agent_orchestrator_status(cwd)
     smart_workspace = workspace_status(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
@@ -119,6 +130,10 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     workflows = zero_ai_control_workflows_status(cwd)
     evolution = zero_ai_evolution_status(cwd)
     source_evolution = zero_ai_source_evolution_status(cwd)
+    expansion_protocol = capability_expansion_protocol_status(cwd)
+    communications = communications_status(cwd)
+    calendar_time = calendar_time_status(cwd)
+    domain_pack_factory = domain_pack_factory_status(cwd)
     guard = _load(
         _self_mod_guard_path(cwd),
         {
@@ -151,6 +166,22 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     store_install_control = str(store_install_workflow.get("control_level") or _policy_decision(policy, "store_install"))
     recovery_control = str(recovery_workflow.get("control_level") or _policy_decision(policy, "recover"))
     self_repair_control = str(self_repair_workflow.get("control_level") or _policy_decision(policy, "self_repair"))
+    planner_feedback_summary = dict(planner_feedback.get("summary") or {})
+    planner_feedback_routes = dict(planner_feedback_summary.get("routes") or {})
+    planner_history_count = int(planner_feedback_summary.get("history_count", 0) or 0)
+    worst_planner_route = ""
+    worst_target_drop = -1.0
+    worst_hold = -1.0
+    for route_name, metrics in planner_feedback_routes.items():
+        target_drop_rate = float(metrics.get("target_drop_rate", 0.0) or 0.0)
+        contradiction_hold_rate = float(metrics.get("contradiction_hold_rate", 0.0) or 0.0)
+        if (target_drop_rate + contradiction_hold_rate) > (worst_target_drop + worst_hold):
+            worst_planner_route = str(route_name)
+            worst_target_drop = target_drop_rate
+            worst_hold = contradiction_hold_rate
+    planner_route_quality_score = 100.0
+    if planner_history_count > 0:
+        planner_route_quality_score = round(max(0.0, 100.0 - ((max(0.0, worst_target_drop) + max(0.0, worst_hold)) * 50.0)), 2)
 
     capabilities = [
         _capability(
@@ -206,6 +237,22 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "open_goals": len(open_goals),
                 "blocked_goals": len(blocked_goals),
                 "loop_enabled": bool(autonomy_loop.get("enabled", False)),
+            },
+        ),
+        _capability(
+            "general_agent_orchestrator",
+            "General agent orchestrator",
+            "general_agent",
+            "autonomous",
+            active=bool(general_agent.get("general_purpose_ready", False)),
+            ready=bool(general_agent.get("ok", False)),
+            action_kind="general_agent",
+            notes="Assesses broad user requests, selects the subsystems needed to satisfy them, and keeps execution bounded to stable contracts.",
+            evidence={
+                "agentic_ready": bool(general_agent.get("agentic_ready", False)),
+                "required_subsystem_count": int(general_agent.get("required_subsystem_count", 0) or 0),
+                "blocked_subsystem_count": int(general_agent.get("blocked_subsystem_count", 0) or 0),
+                "recommended_mode": str(general_agent.get("recommended_mode", "")),
             },
         ),
         _capability(
@@ -273,6 +320,10 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "overall_score": float(pressure_harness.get("overall_score", 0.0) or 0.0),
                 "top_failure_code": str(pressure_harness.get("top_failure_code", "")),
                 "last_run_utc": str(pressure_harness.get("generated_utc", "")),
+                "planner_feedback_history_count": planner_history_count,
+                "planner_feedback_worst_route": worst_planner_route,
+                "planner_feedback_target_drop_rate": round(max(0.0, worst_target_drop), 3),
+                "planner_feedback_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
             },
         ),
         _capability(
@@ -318,6 +369,66 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "recommended_action": str(source_evolution.get("recommended_action", "")),
                 "sandbox_patch_scope_count": int(source_evolution.get("sandbox_patch_scope_count", 0) or 0),
                 "expanded_sandbox_patch_lane": bool(source_evolution.get("expanded_sandbox_patch_lane", False)),
+            },
+        ),
+        _capability(
+            "capability_expansion_protocol",
+            "Capability expansion protocol",
+            "expansion",
+            "autonomous",
+            active=True,
+            ready=bool(expansion_protocol.get("ok", False)),
+            action_kind="capability_expansion_protocol",
+            notes="Defines the admission contract every new Zero AI domain pack must satisfy before joining the live system.",
+            evidence={
+                "required_contract_count": len(expansion_protocol.get("required_contracts", [])),
+                "installed_domain_count": int((expansion_protocol.get("summary") or {}).get("installed_domain_count", 0) or 0),
+                "missing_function_count": int((expansion_protocol.get("summary") or {}).get("missing_function_count", 0) or 0),
+            },
+        ),
+        _capability(
+            "domain_pack_factory",
+            "Domain-pack factory",
+            "expansion",
+            "autonomous",
+            active=True,
+            ready=bool(domain_pack_factory.get("ok", False)),
+            action_kind="domain_pack_factory",
+            notes="Scaffolds and verifies new Zero AI domain packs so expansion follows the protocol by default.",
+            evidence={
+                "domain_pack_count": int((domain_pack_factory.get("summary") or {}).get("domain_pack_count", 0) or 0),
+                "ready_count": int((domain_pack_factory.get("summary") or {}).get("ready_count", 0) or 0),
+                "required_contract_count": int((domain_pack_factory.get("summary") or {}).get("required_contract_count", 0) or 0),
+            },
+        ),
+        _capability(
+            "communications_lane",
+            "Communications lane",
+            "communications",
+            "autonomous",
+            active=bool(communications.get("enabled", True)),
+            ready=bool(communications.get("ok", False)),
+            action_kind="communications_status",
+            notes="Local draft/outbox communication lane with audit-ready state and typed status/refresh commands.",
+            evidence={
+                "draft_count": int((communications.get("summary") or {}).get("draft_count", 0) or 0),
+                "outbox_count": int((communications.get("summary") or {}).get("outbox_count", 0) or 0),
+                "audit_count": int((communications.get("summary") or {}).get("audit_count", 0) or 0),
+            },
+        ),
+        _capability(
+            "calendar_time_lane",
+            "Calendar and time lane",
+            "calendar_time",
+            "autonomous",
+            active=bool(calendar_time.get("enabled", True)),
+            ready=bool(calendar_time.get("ok", False)),
+            action_kind="calendar_time_status",
+            notes="Local reminder and schedule lane with typed status/refresh commands.",
+            evidence={
+                "reminder_count": int((calendar_time.get("summary") or {}).get("reminder_count", 0) or 0),
+                "calendar_item_count": int((calendar_time.get("summary") or {}).get("calendar_item_count", 0) or 0),
+                "audit_count": int((calendar_time.get("summary") or {}).get("audit_count", 0) or 0),
             },
         ),
         _capability(
@@ -440,12 +551,23 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
         highest_value_steps.append(str(pressure_harness.get("recommended_action", "Fix the top pressure-harness failure before expanding autonomy further.")))
     else:
         highest_value_steps.append("Maintain the pressure harness and keep feeding real incidents back into the survivability suite.")
+    if planner_history_count == 0:
+        highest_value_steps.append("Run more planner-driven tasks so Zero AI has route-quality evidence, not just capability claims.")
+    elif worst_planner_route and (worst_target_drop > 0.0 or worst_hold > 0.0):
+        highest_value_steps.append(
+            f"Lower contradiction holds and dropped targets on planner route `{worst_planner_route}` before broadening that lane further."
+        )
+    if planner_history_count > 0 and planner_route_quality_score < 85.0:
+        highest_value_steps.append("Raise planner route quality before widening more mutating lanes; keep dropped targets and contradiction holds trending down.")
     if not bool(source_evolution.get("expanded_sandbox_patch_lane", False)):
         highest_value_steps.append("Expand guarded source evolution from allowlisted defaults to a sandboxed patch lane for selected non-identity modules.")
     else:
         highest_value_steps.append("Maintain the expanded sandboxed patch lane and admit new non-identity modules only through allowlisted canaries.")
     if not bool(store_install_workflow.get("active", False)):
         highest_value_steps.append("Publish or register at least one store package so the autonomous install workflow has a real target.")
+    highest_value_steps.append("Use the capability expansion protocol so every new Zero AI domain joins through typed contracts, contradiction checks, rollback/audit, and tests.")
+    highest_value_steps.append("Use the domain-pack factory so new Zero AI domains are scaffolded and verified through the protocol by default.")
+    highest_value_steps.append("Use the general agent orchestrator to assess broad requests before executing them across multiple subsystems.")
     highest_value_steps.append("Use the controller registry to expand typed safe autonomy contracts across more Zero OS subsystems.")
 
     status = {
@@ -461,8 +583,16 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             "active_autonomous_count": active_autonomous_count,
             "autonomous_surface_score": autonomous_surface_score,
             "active_autonomous_surface_score": active_autonomous_surface_score,
+            "planner_feedback_history_count": planner_history_count,
+            "planner_feedback_worst_route": worst_planner_route,
+            "planner_feedback_target_drop_rate": round(max(0.0, worst_target_drop), 3),
+            "planner_feedback_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
+            "planner_route_quality_score": planner_route_quality_score,
         },
         "control_workflows": workflows,
+        "capability_expansion_protocol": expansion_protocol,
+        "domain_pack_factory": domain_pack_factory,
+        "general_agent": general_agent,
         "capabilities": capabilities,
         "blocking_capabilities": [item for item in capabilities if item["control_level"] != "autonomous"],
         "highest_value_steps": highest_value_steps,

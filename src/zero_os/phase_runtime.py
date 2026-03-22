@@ -825,6 +825,8 @@ def zero_ai_runtime_loop_run(cwd: str) -> dict:
 
 
 def zero_ai_runtime_run(cwd: str) -> dict:
+    from zero_os.calendar_time import calendar_reminder_tick
+    from zero_os.communications import communications_tick
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
@@ -957,9 +959,13 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         autonomy_background = zero_ai_autonomy_loop_tick(cwd)
     else:
         autonomy_background = {"ok": True, "ran": False, "reason": "autonomy loop is off", "autonomy_loop": autonomy_loop}
+    communications_background = communications_tick(cwd)
+    calendar_background = calendar_reminder_tick(cwd)
 
     status["autonomy"] = autonomy.get("status", {})
     status["autonomy_background"] = autonomy_background
+    status["communications_background"] = communications_background
+    status["calendar_time_background"] = calendar_background
     status["control_workflows"] = zero_ai_control_workflows_status(cwd)
     status["capability_control_map"] = zero_ai_capability_map_status(cwd)
     status["evolution"] = zero_ai_evolution_status(cwd)
@@ -967,6 +973,8 @@ def zero_ai_runtime_run(cwd: str) -> dict:
     status["runtime_checks"]["autonomy_goal_manager"] = bool(autonomy.get("ok", False))
     status["runtime_checks"]["autonomy_loop_state"] = bool(autonomy_loop.get("ok", False))
     status["runtime_checks"]["autonomy_background"] = bool(autonomy_background.get("ok", False))
+    status["runtime_checks"]["communications_background"] = bool(communications_background.get("ok", False))
+    status["runtime_checks"]["calendar_time_background"] = bool(calendar_background.get("ok", False))
     status["runtime_checks"]["control_workflows"] = bool(status["control_workflows"].get("ok", False))
     status["runtime_checks"]["capability_control_map"] = bool(status["capability_control_map"].get("ok", False))
     status["runtime_checks"]["evolution_engine"] = bool(status["evolution"].get("ok", False))

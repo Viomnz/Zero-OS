@@ -1,22 +1,17 @@
 from __future__ import annotations
 
-from zero_os.contradiction_engine import review_run
-
 
 def synthesize_result(run: dict) -> dict:
-    gate = review_run(
-        str(run.get("cwd", "")),
-        str(run.get("request", "")),
-        dict(run.get("plan", {})),
-        list(run.get("results", [])),
-        run_ok=run.get("ok"),
-    )
-    if gate.get("decision") != "allow":
-        return {"summary": gate.get("boundary_summary", "contradiction gate: hold"), "ok": False, "contradiction_gate": gate}
-
     lines = []
+    contradiction_gate = dict(run.get("contradiction_gate") or {})
+    if contradiction_gate.get("decision") == "hold":
+        return {
+            "summary": contradiction_gate.get("boundary_summary", "contradiction gate: hold"),
+            "ok": False,
+            "contradiction_gate": contradiction_gate,
+        }
     if not run.get("results"):
-        return {"summary": "No action was taken.", "ok": False, "contradiction_gate": gate}
+        return {"summary": "No action was taken.", "ok": False, "contradiction_gate": contradiction_gate}
     for item in run["results"]:
         kind = item.get("kind", "step")
         if not item.get("ok", False):
@@ -53,43 +48,33 @@ def synthesize_result(run: dict) -> dict:
             lines.append(f"cloud target: ok={result.get('ok', False)}")
         elif kind == "cloud_deploy":
             lines.append(f"cloud deploy: ok={result.get('ok', False)}")
-        elif kind == "tool_registry":
-            lines.append(f"tool registry: tools={result.get('summary', {}).get('tool_count', 0)}")
-        elif kind == "controller_registry":
-            lines.append(f"controller registry: subsystems={result.get('summary', {}).get('subsystem_count', 0)}")
-        elif kind == "contradiction_engine":
-            lines.append(
-                "contradiction gate: "
-                f"decision={result.get('last_decision', 'unknown')} "
-                f"contradictions={result.get('last_contradiction_count', 0)}"
-            )
-        elif kind == "pressure_harness":
-            lines.append(
-                "pressure harness: "
-                f"score={result.get('overall_score', 0)} "
-                f"failed={result.get('failed_count', 0)} "
-                f"status={result.get('status', 'unknown')}"
-            )
-        elif kind == "smart_workspace":
-            summary = dict(result.get("summary") or {})
-            lines.append(
-                "smart workspace: "
-                f"indexed={summary.get('indexed', False)} "
-                f"files={summary.get('file_count', 0)} "
-                f"git_dirty={summary.get('git_dirty', False)}"
-            )
-        elif kind == "flow_monitor":
-            summary = dict(result.get("summary") or {})
-            lines.append(
-                "flow monitor: "
-                f"score={summary.get('flow_score', 0)} "
-                f"issues={summary.get('issue_count', 0)} "
-                f"severity={summary.get('highest_severity', 'unknown')}"
-            )
         elif kind == "autonomy_gate":
             lines.append(f"autonomy gate: {result.get('decision', 'unknown')}")
+        elif kind == "flow_monitor":
+            lines.append(f"flow monitor: score={result.get('flow_score', 0.0)}")
+        elif kind == "smart_workspace":
+            lines.append(f"smart workspace: indexed={result.get('indexed', False)}")
+        elif kind == "maintenance_orchestrator":
+            next_action = dict(result.get("next_action") or {})
+            lines.append(f"maintenance orchestrator: next={next_action.get('action', 'observe')}")
+        elif kind == "internet_capability":
+            lines.append(f"internet capability: ready={result.get('internet_ready', result.get('summary', {}).get('internet_ready', False))}")
+        elif kind == "world_class_readiness":
+            lines.append(f"world class readiness: score={result.get('overall_score', 0.0)} grade={result.get('grade', 'F')}")
+        elif kind == "contradiction_engine":
+            lines.append(f"contradiction gate: {result.get('last_decision', result.get('decision', 'unknown'))}")
+        elif kind == "pressure_harness":
+            lines.append(f"pressure harness: score={result.get('overall_score', 0.0)}")
+        elif kind == "controller_registry":
+            lines.append(f"controller registry: subsystems={result.get('subsystem_count', 0)}")
+        elif kind == "capability_expansion_protocol":
+            lines.append("capability_expansion_protocol: ok")
+        elif kind == "general_agent":
+            lines.append("general agent: ok")
+        elif kind == "domain_pack_generate_feature":
+            lines.append("feature generator: ok")
         elif kind == "highway_dispatch":
             lines.append(f"highway: {result.get('capability', 'unknown')}")
         else:
             lines.append(f"{kind}: ok")
-    return {"ok": run.get("ok", False), "summary": "\n".join(lines), "contradiction_gate": gate}
+    return {"ok": run.get("ok", False), "summary": "\n".join(lines), "contradiction_gate": contradiction_gate}

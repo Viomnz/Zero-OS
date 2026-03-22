@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.task_executor import run_task
 from zero_os.zero_ai_pressure_harness import pressure_harness_run, pressure_harness_status
 
 
@@ -55,6 +56,15 @@ class ZeroAiPressureHarnessTests(unittest.TestCase):
         self.assertEqual(first["overall_score"], status["overall_score"])
         self.assertEqual(first["scenario_count"], status["scenario_count"])
         self.assertEqual(first["failed_count"], status["failed_count"])
+
+    def test_pressure_harness_status_surfaces_planner_feedback(self) -> None:
+        run_task(str(self.base), "browser status")
+
+        status = pressure_harness_status(str(self.base))
+
+        self.assertIn("planner_feedback", status)
+        self.assertGreaterEqual(status["planner_feedback"]["history_count"], 1)
+        self.assertIn("path", status["planner_feedback"])
 
 
 if __name__ == "__main__":
