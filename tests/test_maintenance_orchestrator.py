@@ -42,6 +42,7 @@ class MaintenanceOrchestratorTests(unittest.TestCase):
             "runtime": {"ok": True, "runtime_ready": True, "missing": False},
             "flow": {"ok": True, "last_scan_utc": "2026-03-19T00:00:00+00:00", "summary": {"flow_score": 100.0}},
             "pressure": {"ok": True, "missing": True, "overall_score": 0.0},
+            "self_derivation": {"ok": True, "revalidation_ready_count": 0},
             "contradiction": {"continuity": {"same_system": True, "has_contradiction": False}},
             "workflows": {"lanes": {"self_repair": {"ready": True, "active": True}}},
             "backups": {"snapshot_count": 1},
@@ -52,3 +53,23 @@ class MaintenanceOrchestratorTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual("pressure_run", result["action"])
+
+    def test_run_prefers_self_derivation_revalidate_when_ready_and_system_is_stable(self) -> None:
+        snapshot = {
+            "runtime": {"ok": True, "runtime_ready": True, "missing": False},
+            "flow": {"ok": True, "last_scan_utc": "2026-03-19T00:00:00+00:00", "summary": {"flow_score": 100.0}},
+            "pressure": {"ok": True, "missing": False, "overall_score": 100.0},
+            "self_derivation": {"ok": True, "revalidation_ready_count": 2},
+            "contradiction": {"continuity": {"same_system": True, "has_contradiction": False}},
+            "workflows": {"lanes": {"self_repair": {"ready": True, "active": True}}},
+            "backups": {"snapshot_count": 1},
+            "self_repair": {"enabled": False},
+        }
+        with patch("zero_os.maintenance_orchestrator._snapshot", return_value=snapshot), patch(
+            "zero_os.self_derivation_engine.self_derivation_revalidate",
+            return_value={"ok": True, "restored_count": 1, "kept_quarantined_count": 0},
+        ):
+            result = maintenance_run(str(self.base))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("self_derivation_revalidate", result["action"])

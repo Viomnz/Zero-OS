@@ -107,12 +107,14 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.phase_runtime import zero_ai_runtime_agent_status, zero_ai_runtime_loop_status
     from zero_os.self_continuity import zero_ai_self_continuity_status
     from zero_os.task_planner import planner_feedback_status
+    from zero_os.self_derivation_engine import self_derivation_status
     from zero_os.zero_ai_pressure_harness import pressure_harness_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
     runtime_status = _load(_runtime_status_path(cwd), {})
+    runtime_self_derivation_background = dict(runtime_status.get("self_derivation_background") or {})
     goals_state = _load(_goals_path(cwd), {"goals": []})
     autonomy_loop = _load(_autonomy_loop_path(cwd), {"enabled": False, "interval_seconds": 360})
     policy = policy_status(cwd)
@@ -121,6 +123,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     contradiction_engine = contradiction_engine_status(cwd)
     pressure_harness = pressure_harness_status(cwd)
     planner_feedback = planner_feedback_status(cwd)
+    self_derivation = self_derivation_status(cwd)
     flow_monitor = flow_status(cwd)
     general_agent = general_agent_orchestrator_status(cwd)
     smart_workspace = workspace_status(cwd)
@@ -169,6 +172,22 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     planner_feedback_summary = dict(planner_feedback.get("summary") or {})
     planner_feedback_routes = dict(planner_feedback_summary.get("routes") or {})
     planner_history_count = int(planner_feedback_summary.get("history_count", 0) or 0)
+    derivation_strategy_freshness_score = float(self_derivation.get("strategy_freshness_score", 0.0) or 0.0)
+    derivation_stale_strategy_count = int(self_derivation.get("stale_strategy_count", 0) or 0)
+    derivation_version_mismatch_count = int(self_derivation.get("version_mismatch_count", 0) or 0)
+    derivation_quarantined_strategy_count = int(self_derivation.get("quarantined_strategy_count", 0) or 0)
+    derivation_revalidation_ready_count = int(self_derivation.get("revalidation_ready_count", 0) or 0)
+    derivation_top_recovery_profile = str(self_derivation.get("top_recovery_profile", "neutral") or "neutral")
+    derivation_runtime_revalidation_state = "ran" if bool(runtime_self_derivation_background.get("ran", False)) else "idle"
+    derivation_runtime_revalidation_restored_count = int(runtime_self_derivation_background.get("restored_count", 0) or 0)
+    derivation_runtime_revalidation_kept_quarantined_count = int(runtime_self_derivation_background.get("kept_quarantined_count", 0) or 0)
+    derivation_runtime_revalidation_reason = str(runtime_self_derivation_background.get("reason", "") or "")
+    strategy_drift = dict(pressure_harness.get("strategy_drift") or {})
+    strategy_drift_trend = dict(strategy_drift.get("trend") or {})
+    strategy_drift_history = dict(strategy_drift.get("history_view") or {})
+    strategy_trend_direction = str(strategy_drift_trend.get("direction", "unknown") or "unknown")
+    strategy_freshness_delta = float(strategy_drift_trend.get("freshness_delta", 0.0) or 0.0)
+    strategy_quarantined_delta = int(strategy_drift_trend.get("quarantined_delta", 0) or 0)
     worst_planner_route = ""
     worst_target_drop = -1.0
     worst_hold = -1.0
@@ -324,6 +343,51 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "planner_feedback_worst_route": worst_planner_route,
                 "planner_feedback_target_drop_rate": round(max(0.0, worst_target_drop), 3),
                 "planner_feedback_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
+                "strategy_trend_direction": strategy_trend_direction,
+                "strategy_freshness_delta": round(strategy_freshness_delta, 3),
+                "strategy_quarantined_delta": strategy_quarantined_delta,
+                "strategy_history_point_count": int(strategy_drift_history.get("point_count", 0) or 0),
+            },
+        ),
+        _capability(
+            "self_derivation_engine",
+            "Self derivation engine",
+            "reasoning",
+            "autonomous",
+            active=bool(dict(self_derivation.get("latest") or {}).get("generated_count", 0)),
+            ready=True,
+            action_kind="self_derivation_assess",
+            notes="Generates diverse interpretations, pressures them under bounded laws, and stores surviving structures as reusable knowledge.",
+            evidence={
+                "generated_count": int(dict(self_derivation.get("latest") or {}).get("generated_count", 0) or 0),
+                "survivor_count": int(dict(self_derivation.get("latest") or {}).get("survivor_count", 0) or 0),
+                "pattern_count": int(self_derivation.get("pattern_count", 0) or 0),
+                "knowledge_count": int(self_derivation.get("knowledge_count", 0) or 0),
+                "meta_rule_count": int(self_derivation.get("meta_rule_count", 0) or 0),
+                "strategy_outcome_count": int(self_derivation.get("strategy_outcome_count", 0) or 0),
+                "strategy_freshness_score": derivation_strategy_freshness_score,
+                "stale_strategy_count": derivation_stale_strategy_count,
+                "version_mismatch_count": derivation_version_mismatch_count,
+                "quarantined_strategy_count": derivation_quarantined_strategy_count,
+                "revalidation_ready_count": derivation_revalidation_ready_count,
+                "branch_shape_profile_count": int(self_derivation.get("branch_shape_profile_count", 0) or 0),
+                "condition_profile_count": int(self_derivation.get("condition_profile_count", 0) or 0),
+                "condition_surface_counts": dict(self_derivation.get("condition_surface_counts") or {}),
+                "top_recovery_profile": derivation_top_recovery_profile,
+                "strategy_trend_direction": strategy_trend_direction,
+                "strategy_freshness_delta": round(strategy_freshness_delta, 3),
+                "strategy_quarantined_delta": strategy_quarantined_delta,
+                "strategy_history": strategy_drift_history,
+                "strategy_history_points": list(strategy_drift_history.get("points") or []),
+                "strategy_history_path": str(strategy_drift_history.get("path", "")),
+                "latest_revalidation": dict(self_derivation.get("latest_revalidation") or {}),
+                "runtime_revalidation_state": derivation_runtime_revalidation_state,
+                "runtime_revalidation_restored_count": derivation_runtime_revalidation_restored_count,
+                "runtime_revalidation_kept_quarantined_count": derivation_runtime_revalidation_kept_quarantined_count,
+                "runtime_revalidation_reason": derivation_runtime_revalidation_reason,
+                "planner_version": str(self_derivation.get("planner_version", "")),
+                "code_version": str(self_derivation.get("code_version", "")),
+                "recommended_branch_id": str(dict(self_derivation.get("latest") or {}).get("recommended_branch_id", "")),
             },
         ),
         _capability(
@@ -559,6 +623,14 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
         )
     if planner_history_count > 0 and planner_route_quality_score < 85.0:
         highest_value_steps.append("Raise planner route quality before widening more mutating lanes; keep dropped targets and contradiction holds trending down.")
+    if derivation_version_mismatch_count > 0:
+        highest_value_steps.append("Refresh strategy memory against the current planner/code version so old execution behavior stops dominating after system changes.")
+    if derivation_stale_strategy_count > 0 and derivation_strategy_freshness_score < 0.65:
+        highest_value_steps.append("Run fresh planner/execution work so self-derivation strategy memory reflects current behavior instead of stale history.")
+    if derivation_quarantined_strategy_count > 0:
+        highest_value_steps.append("Run `zero ai self derivation revalidate` so quarantined strategy memory can re-earn trust through explicit canary checks under the current planner generation.")
+    if strategy_trend_direction == "degrading":
+        highest_value_steps.append("Stabilize degrading strategy drift before widening autonomy; freshness is falling or quarantines are rising.")
     if not bool(source_evolution.get("expanded_sandbox_patch_lane", False)):
         highest_value_steps.append("Expand guarded source evolution from allowlisted defaults to a sandboxed patch lane for selected non-identity modules.")
     else:
@@ -588,6 +660,20 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             "planner_feedback_target_drop_rate": round(max(0.0, worst_target_drop), 3),
             "planner_feedback_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
             "planner_route_quality_score": planner_route_quality_score,
+            "self_derivation_strategy_freshness_score": derivation_strategy_freshness_score,
+            "self_derivation_stale_strategy_count": derivation_stale_strategy_count,
+            "self_derivation_version_mismatch_count": derivation_version_mismatch_count,
+            "self_derivation_quarantined_strategy_count": derivation_quarantined_strategy_count,
+            "self_derivation_revalidation_ready_count": derivation_revalidation_ready_count,
+            "self_derivation_top_recovery_profile": derivation_top_recovery_profile,
+            "self_derivation_runtime_revalidation_state": derivation_runtime_revalidation_state,
+            "self_derivation_runtime_revalidation_restored_count": derivation_runtime_revalidation_restored_count,
+            "self_derivation_runtime_revalidation_kept_quarantined_count": derivation_runtime_revalidation_kept_quarantined_count,
+            "self_derivation_runtime_revalidation_reason": derivation_runtime_revalidation_reason,
+            "self_derivation_strategy_trend_direction": strategy_trend_direction,
+            "self_derivation_strategy_freshness_delta": round(strategy_freshness_delta, 3),
+            "self_derivation_strategy_quarantined_delta": strategy_quarantined_delta,
+            "self_derivation_strategy_history_point_count": int(strategy_drift_history.get("point_count", 0) or 0),
         },
         "control_workflows": workflows,
         "capability_expansion_protocol": expansion_protocol,

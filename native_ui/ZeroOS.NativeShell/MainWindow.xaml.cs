@@ -1371,6 +1371,8 @@ public partial class MainWindow : Window
             || normalized.StartsWith("zero ai control workflows", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai autonomy", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai runtime", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai pressure", StringComparison.Ordinal)
+            || normalized.StartsWith("zero ai self derivation", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai source evolution", StringComparison.Ordinal)
             || normalized.StartsWith("zero ai workflow", StringComparison.Ordinal)
               || normalized == "zero ai self inspect refresh"
@@ -1696,6 +1698,37 @@ public partial class MainWindow : Window
             lines.Add($"- Approval-gated count: {ReadNestedNumber(capability, "summary", "approval_gated_count")}");
             lines.Add($"- Forbidden count: {ReadNestedNumber(capability, "summary", "forbidden_count")}");
             lines.Add($"- Highest-value steps: {ReadArrayPreview(capability, "highest_value_steps", 2)}");
+            if (capability.TryGetProperty("capabilities", out var capabilityItems) && capabilityItems.ValueKind == JsonValueKind.Array)
+            {
+                JsonElement derivationCapability = default;
+                foreach (var item in capabilityItems.EnumerateArray())
+                {
+                    if (ReadString(item, "key") == "self_derivation_engine")
+                    {
+                        derivationCapability = item;
+                        break;
+                    }
+                }
+
+                lines.Add("");
+                lines.Add("Strategy drift:");
+                lines.Add($"- Freshness: {ReadNestedNumber(capability, "summary", "self_derivation_strategy_freshness_score")}");
+                lines.Add($"- Trend: {ReadNestedString(capability, "summary", "self_derivation_strategy_trend_direction")}");
+                lines.Add($"- Freshness delta: {ReadNestedNumber(capability, "summary", "self_derivation_strategy_freshness_delta")}");
+                lines.Add($"- Quarantined strategies: {ReadNestedNumber(capability, "summary", "self_derivation_quarantined_strategy_count")}");
+                lines.Add($"- Revalidation ready: {ReadNestedNumber(capability, "summary", "self_derivation_revalidation_ready_count")}");
+                lines.Add($"- Runtime revalidation: {ReadNestedString(capability, "summary", "self_derivation_runtime_revalidation_state")}");
+                lines.Add($"- Runtime restored: {ReadNestedNumber(capability, "summary", "self_derivation_runtime_revalidation_restored_count")}");
+                lines.Add($"- Runtime kept quarantined: {ReadNestedNumber(capability, "summary", "self_derivation_runtime_revalidation_kept_quarantined_count")}");
+                lines.Add($"- Runtime reason: {ReadNestedString(capability, "summary", "self_derivation_runtime_revalidation_reason")}");
+                lines.Add($"- Recovery profile: {ReadNestedString(capability, "summary", "self_derivation_top_recovery_profile")}");
+                if (derivationCapability.ValueKind == JsonValueKind.Object)
+                {
+                    lines.Add($"- Lane families: {ReadNestedObjectPairs(derivationCapability, "evidence", "condition_surface_counts")}");
+                    lines.Add($"- Recent history: {ReadNestedHistoryPoints(derivationCapability, "evidence", "strategy_history_points")}");
+                }
+                lines.Add("- Command: zero ai self derivation revalidate");
+            }
         }
         else
         {
@@ -2313,6 +2346,43 @@ public partial class MainWindow : Window
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .ToList();
         return pairs.Count == 0 ? "none" : string.Join(", ", pairs);
+    }
+
+    private static string ReadNestedObjectPairs(JsonElement element, string objectPropertyName, string nestedObjectPropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return "none";
+        }
+
+        return ReadObjectPairs(nested, nestedObjectPropertyName);
+    }
+
+    private static string ReadNestedHistoryPoints(JsonElement element, string objectPropertyName, string nestedArrayPropertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(objectPropertyName, out var nested))
+        {
+            return "none";
+        }
+
+        if (!nested.TryGetProperty(nestedArrayPropertyName, out var value) || value.ValueKind != JsonValueKind.Array)
+        {
+            return "none";
+        }
+
+        var items = value
+            .EnumerateArray()
+            .Take(4)
+            .Select(item =>
+            {
+                var generated = ReadString(item, "generated_utc");
+                var freshness = ReadNumber(item, "freshness_score");
+                var quarantined = ReadNumber(item, "quarantined_strategy_count");
+                var mismatch = ReadNumber(item, "version_mismatch_count");
+                return $"{generated} (f={freshness}, q={quarantined}, m={mismatch})";
+            })
+            .ToArray();
+        return items.Length == 0 ? "none" : string.Join(" | ", items);
     }
 
     private static int CountPendingSendApprovals(JsonElement communications, JsonElement approvals)

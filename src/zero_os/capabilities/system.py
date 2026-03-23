@@ -567,9 +567,12 @@ class SystemCapability:
             "phase runtime",
             "pressure harness",
             "zero ai pressure",
+            "zero ai capability map",
             "zero ai planner feedback",
             "zero ai smart planner",
+            "zero ai self derivation",
             "smart planner",
+            "self derivation",
             "planner feedback",
             "zero ai maintenance",
             "zero ai internet",
@@ -2490,9 +2493,14 @@ class SystemCapability:
             "- zero ai upgrade system\n"
             "- zero ai runtime status\n"
             "- zero ai runtime run\n"
+            "- zero ai capability map status\n"
+            "- zero ai capability map refresh\n"
             "- zero ai planner feedback status\n"
             "- zero ai smart planner status\n"
             "- zero ai smart planner assess <request>\n"
+            "- zero ai self derivation status\n"
+            "- zero ai self derivation assess <request>\n"
+            "- zero ai self derivation revalidate [strategy=<name>] [limit=<n>]\n"
             "- zero ai maintenance status\n"
             "- zero ai maintenance refresh\n"
             "- zero ai maintenance run\n"

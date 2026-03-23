@@ -6,10 +6,13 @@ from pathlib import Path
 from typing import Any
 
 from zero_os.contradiction_engine import contradiction_engine_status
+from zero_os.decision_engine import decide_maintenance_action
 from zero_os.flow_monitor import flow_scan, flow_status
 from zero_os.phase_runtime import zero_ai_runtime_run, zero_ai_runtime_status
 from zero_os.recovery import zero_ai_backup_status
 from zero_os.self_repair import self_repair_status
+from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state
+from zero_os.state_registry import put_state_store
 from zero_os.zero_ai_control_workflows import zero_ai_control_workflow_self_repair, zero_ai_control_workflows_status
 
 
@@ -28,12 +31,7 @@ def _path(cwd: str) -> Path:
 
 
 def _load(path: Path, default: dict[str, Any]) -> dict[str, Any]:
-    if not path.exists():
-        return dict(default)
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception:
-        return dict(default)
+    raw = load_json_state(path, default)
     if not isinstance(raw, dict):
         return dict(default)
     merged = dict(default)
@@ -42,8 +40,7 @@ def _load(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 
 def _save(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    queue_json_state(path, payload)
 
 
 def _default_state() -> dict[str, Any]:
@@ -60,11 +57,13 @@ def _default_state() -> dict[str, Any]:
 
 def _snapshot(cwd: str) -> dict[str, Any]:
     from zero_os.zero_ai_pressure_harness import pressure_harness_status
+    from zero_os.self_derivation_engine import self_derivation_status
 
     return {
         "runtime": zero_ai_runtime_status(cwd),
         "flow": flow_status(cwd),
         "pressure": pressure_harness_status(cwd),
+        "self_derivation": self_derivation_status(cwd),
         "contradiction": contradiction_engine_status(cwd),
         "workflows": zero_ai_control_workflows_status(cwd),
         "backups": zero_ai_backup_status(cwd),
@@ -73,32 +72,7 @@ def _snapshot(cwd: str) -> dict[str, Any]:
 
 
 def _next_action(snapshot: dict[str, Any]) -> dict[str, Any]:
-    runtime = dict(snapshot.get("runtime") or {})
-    flow = dict(snapshot.get("flow") or {})
-    pressure = dict(snapshot.get("pressure") or {})
-    contradiction = dict(snapshot.get("contradiction") or {})
-    workflows = dict(snapshot.get("workflows") or {})
-    backups = dict(snapshot.get("backups") or {})
-
-    continuity = dict(contradiction.get("continuity") or {})
-    if bool(continuity.get("has_contradiction", False)) or not bool(continuity.get("same_system", True)):
-        return {"action": "observe", "reason": "contradiction_hold", "summary": "Maintenance is blocked until self contradiction clears."}
-
-    if bool(runtime.get("missing", False)) or not bool(runtime.get("runtime_ready", False)):
-        return {"action": "runtime_run", "reason": "runtime_not_ready", "summary": "Run phase runtime to restore the maintenance control plane."}
-
-    flow_score = float(((flow.get("summary") or {}).get("flow_score", 0.0)) or 0.0)
-    self_repair_lane = dict(((workflows.get("lanes") or {}).get("self_repair")) or {})
-    if flow_score < 100.0 and bool(self_repair_lane.get("ready", False)) and bool(self_repair_lane.get("active", False)):
-        return {"action": "self_repair", "reason": "flow_degraded", "summary": "Run canary-backed self repair to lift flow and health signals."}
-
-    if bool(pressure.get("missing", False)) or float(pressure.get("overall_score", 0.0) or 0.0) < 100.0:
-        return {"action": "pressure_run", "reason": "pressure_baseline_missing_or_low", "summary": "Run the pressure harness to refresh survivability evidence."}
-
-    if int(backups.get("snapshot_count", 0) or 0) == 0:
-        return {"action": "observe", "reason": "snapshot_baseline_missing", "summary": "Create a fresh recovery snapshot before trusting broader maintenance automation."}
-
-    return {"action": "observe", "reason": "stable", "summary": "System is stable; continue monitoring instead of mutating."}
+    return decide_maintenance_action(snapshot)
 
 
 def _highest_value_steps(snapshot: dict[str, Any], next_action: dict[str, Any]) -> list[str]:
@@ -106,6 +80,7 @@ def _highest_value_steps(snapshot: dict[str, Any], next_action: dict[str, Any]) 
     runtime = dict(snapshot.get("runtime") or {})
     flow = dict(snapshot.get("flow") or {})
     pressure = dict(snapshot.get("pressure") or {})
+    self_derivation = dict(snapshot.get("self_derivation") or {})
     contradiction = dict(snapshot.get("contradiction") or {})
     backups = dict(snapshot.get("backups") or {})
 
@@ -118,6 +93,8 @@ def _highest_value_steps(snapshot: dict[str, Any], next_action: dict[str, Any]) 
         steps.append("Lift the flow score back to 100 by repairing the failing health or execution lane.")
     if bool(pressure.get("missing", False)) or float(pressure.get("overall_score", 0.0) or 0.0) < 100.0:
         steps.append("Refresh the pressure harness so auto-maintenance is driven by current survivability evidence.")
+    if int(self_derivation.get("revalidation_ready_count", 0) or 0) > 0:
+        steps.append("Run bounded self-derivation revalidation so ready quarantined strategies can re-earn trust under the current planner generation.")
     if int(backups.get("snapshot_count", 0) or 0) == 0:
         steps.append("Create a recovery snapshot baseline before widening maintenance autonomy.")
     if not steps:
@@ -156,6 +133,10 @@ def maintenance_run(cwd: str) -> dict[str, Any]:
         from zero_os.zero_ai_pressure_harness import pressure_harness_run
 
         action_result = pressure_harness_run(cwd)
+    elif action == "self_derivation_revalidate":
+        from zero_os.self_derivation_engine import self_derivation_revalidate
+
+        action_result = self_derivation_revalidate(cwd)
     else:
         if bool((before.get("flow") or {}).get("last_scan_utc", "")):
             action_result = flow_status(cwd)
@@ -183,7 +164,9 @@ def maintenance_run(cwd: str) -> dict[str, Any]:
     history = list(state.get("history", []))
     history.append({"time_utc": report["time_utc"], "action": action, "ok": report["ok"], "reason": report["reason"]})
     state["history"] = history[-20:]
+    put_state_store(cwd, "maintenance_state", state)
     _save(_path(cwd), state)
+    flush_state_writes(paths=[_path(cwd)])
     report["path"] = str(_path(cwd))
     return report
 

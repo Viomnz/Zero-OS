@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "time_utc": "2026-03-22T20:52:40.588205+00:00",
+  "time_utc": "2026-03-23T19:51:20.184706+00:00",
   "records": [
     {
       "file": "artifact_signatures.json",
-      "sha256": "4f8e93c8c7f64d50622dea382ad73a155f7312bd7041f975c40e6d2530663917",
-      "signature": "6984f7f8a2b0021210227690aacdf25d84a876ac2d5085ce7bc8ec6805af29cd"
+      "sha256": "d905173162a641a240bf2bc8a0abf7996dd347a6aae14de77fa22ab43ac7c165",
+      "signature": "f948cce17b7e734b08e3327804cdde7d457c14c14a2fdfefbff22cf24c096fc4"
     },
     {
       "file": "compliance_evidence.json",

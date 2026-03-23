@@ -37,20 +37,25 @@ def request_text(
                     "attempts": i + 1,
                 }
         except HTTPError as exc:
-            status = int(getattr(exc, "code", 0) or 0)
-            payload = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else ""
-            # Retry on transient server/network class errors.
-            if status >= 500 and i < attempts - 1:
-                time.sleep(backoff_seconds * (2**i))
-                continue
-            return {
-                "ok": False,
-                "status": status,
-                "content_type": "",
-                "body": payload,
-                "error": str(exc),
-                "attempts": i + 1,
-            }
+            try:
+                status = int(getattr(exc, "code", 0) or 0)
+                payload = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else ""
+                # Retry on transient server/network class errors.
+                if status >= 500 and i < attempts - 1:
+                    time.sleep(backoff_seconds * (2**i))
+                    continue
+                return {
+                    "ok": False,
+                    "status": status,
+                    "content_type": "",
+                    "body": payload,
+                    "error": str(exc),
+                    "attempts": i + 1,
+                }
+            finally:
+                close = getattr(exc, "close", None)
+                if callable(close):
+                    close()
         except URLError as exc:
             last_error = str(exc)
         except Exception as exc:

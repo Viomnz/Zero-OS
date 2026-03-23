@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import secrets
 import sqlite3
@@ -28,6 +29,16 @@ def _connect(cwd: str) -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def _connection(cwd: str):
+    conn = _connect(cwd)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
 def _deploy_root(cwd: str) -> Path:
     root = Path(cwd).resolve() / "build" / "native_store_prod" / "backend_deploy"
     root.mkdir(parents=True, exist_ok=True)
@@ -35,7 +46,7 @@ def _deploy_root(cwd: str) -> Path:
 
 
 def init_db(cwd: str) -> dict:
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -79,7 +90,7 @@ def init_db(cwd: str) -> dict:
 
 def create_user(cwd: str, user_id: str, email: str, tier: str) -> dict:
     init_db(cwd)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO users(user_id, email, tier, created_utc) VALUES (?, ?, ?, ?)",
             (user_id, email, tier, _utc_now()),
@@ -90,7 +101,7 @@ def create_user(cwd: str, user_id: str, email: str, tier: str) -> dict:
 def issue_token(cwd: str, token_id: str, scope: str) -> dict:
     init_db(cwd)
     secret = secrets.token_hex(16)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO api_tokens(token_id, token_secret, scope, created_utc, active) VALUES (?, ?, ?, ?, ?)",
             (token_id, secret, scope, _utc_now(), 1),
@@ -100,7 +111,7 @@ def issue_token(cwd: str, token_id: str, scope: str) -> dict:
 
 def validate_token(cwd: str, token_secret: str, scope: str = "") -> bool:
     init_db(cwd)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         row = conn.execute(
             "SELECT scope, active FROM api_tokens WHERE token_secret = ?",
             (token_secret,),
@@ -112,7 +123,7 @@ def validate_token(cwd: str, token_secret: str, scope: str = "") -> bool:
 
 def charge_user(cwd: str, charge_id: str, user_id: str, amount: float, currency: str) -> dict:
     init_db(cwd)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         conn.execute(
             "INSERT INTO charges(charge_id, user_id, amount, currency, created_utc) VALUES (?, ?, ?, ?, ?)",
             (charge_id, user_id, float(amount), currency.upper(), _utc_now()),
@@ -122,7 +133,7 @@ def charge_user(cwd: str, charge_id: str, user_id: str, amount: float, currency:
 
 def record_event(cwd: str, kind: str, payload: dict) -> dict:
     init_db(cwd)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         conn.execute(
             "INSERT INTO events(kind, payload_json, created_utc) VALUES (?, ?, ?)",
             (kind, json.dumps(payload, sort_keys=True), _utc_now()),
@@ -132,7 +143,7 @@ def record_event(cwd: str, kind: str, payload: dict) -> dict:
 
 def status(cwd: str) -> dict:
     init_db(cwd)
-    with _connect(cwd) as conn:
+    with _connection(cwd) as conn:
         users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
         charges = conn.execute("SELECT COUNT(*) AS c FROM charges").fetchone()["c"]
         events = conn.execute("SELECT COUNT(*) AS c FROM events").fetchone()["c"]
@@ -231,7 +242,7 @@ def run_server(cwd: str, host: str = "127.0.0.1", port: int = 8088) -> dict:
                 if not self._auth("events:read"):
                     self._write(401, {"ok": False, "reason": "unauthorized"})
                     return
-                with _connect(base) as conn:
+                with _connection(base) as conn:
                     rows = conn.execute("SELECT kind, payload_json, created_utc FROM events ORDER BY event_id DESC LIMIT 25").fetchall()
                 self._write(
                     200,

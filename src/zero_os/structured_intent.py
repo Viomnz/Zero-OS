@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from zero_os.semantic_reasoner import semantic_action_roles, semantic_goal
+
 
 def extract_intent(request: str) -> dict:
     text = request.strip()
@@ -25,6 +27,8 @@ def extract_intent(request: str) -> dict:
         intent = "recover"
     elif any(token in lowered for token in ("repair", "self repair")):
         intent = "self_repair"
+    elif "browser status" in lowered or any(token in lowered for token in ("browser tabs", "browser session")):
+        intent = "web"
     elif any(token in lowered for token in ("status", "diagnostic", "health", "check")):
         intent = "status"
     elif any(token in lowered for token in ("tools", "capabilities")):
@@ -39,4 +43,13 @@ def extract_intent(request: str) -> dict:
         constraints["approval"] = "true"
     if "browser" in lowered:
         entities["channel"] = "browser"
-    return {"intent": intent, "entities": entities, "constraints": constraints, "goal": goal, "raw": text}
+    semantic_roles = semantic_action_roles(text, [])
+    return {
+        "intent": intent,
+        "entities": entities,
+        "constraints": constraints,
+        "goal": goal,
+        "raw": text,
+        "semantic_roles": semantic_roles,
+        "semantic_goal": semantic_goal(text, {"items": []}, []),
+    }

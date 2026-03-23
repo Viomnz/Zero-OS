@@ -218,6 +218,46 @@ def compose_primary_steps(
         elif "inspect file" in lowered:
             file_command = f"inspect file {file_path}"
         steps.append(make_step("highway_dispatch", file_command, subgoal_id=item["id"], route_confidence=max(primary_confidence, 0.74), source_of_route="file_target", attached_targets=[item["id"]]))
+    for item in targets.get("file_ranges", []):
+        file_range = dict(item["value"] or {})
+        range_command = f"show file {file_range.get('path', '')} lines {file_range.get('start_line', 0)}-{file_range.get('end_line', 0)}"
+        steps.append(
+            make_step(
+                "highway_dispatch",
+                range_command,
+                subgoal_id=item["id"],
+                route_confidence=max(primary_confidence, 0.76),
+                source_of_route="file_range_target",
+                attached_targets=[item["id"]],
+            )
+        )
+    for item in targets.get("branches", []):
+        branch_name = str(item["value"])
+        steps.append(
+            make_step(
+                "highway_dispatch",
+                f"show branch {branch_name}",
+                subgoal_id=item["id"],
+                route_confidence=max(primary_confidence, 0.7),
+                source_of_route="branch_target",
+                attached_targets=[item["id"]],
+            )
+        )
+    deployment_artifacts = {str(item["value"].get("artifact", "")) for item in targets.get("deployments", [])}
+    for item in targets.get("artifacts", []):
+        artifact_name = str(item["value"])
+        if artifact_name in deployment_artifacts:
+            continue
+        steps.append(
+            make_step(
+                "highway_dispatch",
+                f"show artifact {artifact_name}",
+                subgoal_id=item["id"],
+                route_confidence=max(primary_confidence, 0.7),
+                source_of_route="artifact_target",
+                attached_targets=[item["id"]],
+            )
+        )
     if re.search(r"\bself repair\b", lowered):
         steps.append(
             make_step(
@@ -326,6 +366,11 @@ def compose_primary_steps(
     for item in targets.get("cloud_targets", []):
         steps.append(make_step("cloud_target_set", item["value"], subgoal_id=item["id"], route_confidence=max(primary_confidence, 0.8), source_of_route="cloud_target_phrase", attached_targets=[item["id"]]))
     for item in targets.get("deployments", []):
+        artifact_attached = [
+            str(artifact["id"])
+            for artifact in targets.get("artifacts", [])
+            if str(artifact.get("value", "")).strip() == str(item["value"].get("artifact", "")).strip()
+        ]
         steps.append(
             make_step(
                 "cloud_deploy",
@@ -333,7 +378,7 @@ def compose_primary_steps(
                 subgoal_id=item["id"],
                 route_confidence=max(primary_confidence, 0.84),
                 source_of_route="cloud_deploy_phrase",
-                attached_targets=[item["id"]],
+                attached_targets=[item["id"], *artifact_attached],
                 justification="Mutation requested explicitly through deploy target.",
                 mutation_requested_explicitly=True,
                 mutation_justification="Explicit deploy request with artifact and target.",

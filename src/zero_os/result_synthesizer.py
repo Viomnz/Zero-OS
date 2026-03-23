@@ -12,8 +12,16 @@ def synthesize_result(run: dict) -> dict:
         }
     if not run.get("results"):
         return {"summary": "No action was taken.", "ok": False, "contradiction_gate": contradiction_gate}
+    replan = dict(run.get("replan") or {})
+    if bool(replan.get("applied", False)):
+        lines.append(f"replan: switched to {replan.get('candidate_branch_id', 'alternate')} after {replan.get('trigger', 'failure')}")
     for item in run["results"]:
         kind = item.get("kind", "step")
+        if item.get("skipped", False) and str(item.get("reason", "")) == "conditional_not_triggered":
+            continue
+        if item.get("handled_by_fallback", False):
+            lines.append(f"{kind}: failed, then continued through conditional fallback")
+            continue
         if not item.get("ok", False):
             lines.append(f"{kind}: failed")
             continue
@@ -35,7 +43,10 @@ def synthesize_result(run: dict) -> dict:
         elif kind == "browser_dom_inspect":
             lines.append(f"browser dom: selectors={len(result.get('page', {}).get('selectors', []))}")
         elif kind == "browser_action":
-            lines.append(f"browser action: {'ok' if item.get('ok', False) else 'approval required'}")
+            suffix = f" via fallback from {item.get('conditional_triggered_by', '')}" if item.get("conditional_triggered_by") else ""
+            lines.append(f"browser action: {'ok' if item.get('ok', False) else 'approval required'}{suffix}")
+        elif item.get("condition_type") in {"on_success", "on_verified"}:
+            lines.append(f"{kind}: ok via conditional {item.get('condition_type')}")
         elif kind == "api_request":
             lines.append(f"api request: status={result.get('status', 0)}")
         elif kind == "api_workflow":

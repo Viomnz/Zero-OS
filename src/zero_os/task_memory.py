@@ -27,7 +27,7 @@ def save_task_run(cwd: str, request: str, run: dict) -> dict:
     total_steps = len(run.get("plan", {}).get("steps", []))
     completed_steps = 0
     for item in results:
-        if not item.get("ok", False):
+        if not (item.get("ok", False) or item.get("handled_by_fallback", False) or item.get("skipped", False)):
             break
         completed_steps += 1
     rec = {
@@ -36,11 +36,13 @@ def save_task_run(cwd: str, request: str, run: dict) -> dict:
         "request": request,
         "ok": bool(run.get("ok", False)),
         "plan": run.get("plan", {}),
+        "branch_selection": run.get("branch_selection", {}),
         "results": results,
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "resume_from": completed_steps if completed_steps < total_steps else total_steps,
         "response": run.get("response", {}),
+        "replan": run.get("replan", {}),
     }
     data.setdefault("tasks", []).append(rec)
     data["tasks"] = data["tasks"][-100:]

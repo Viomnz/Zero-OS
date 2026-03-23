@@ -139,6 +139,8 @@ def autonomy_evaluate(
     planner_confidence: float | None = None,
     planner_risk_level: str | None = None,
     planner_ambiguity_count: int = 0,
+    planner_execution_mode: str | None = None,
+    planner_strategy: str | None = None,
 ) -> dict:
     risk = classify_risk(action, blast_radius=blast_radius, reversible=reversible)
     rollback = rollback_ready(cwd)
@@ -158,6 +160,8 @@ def autonomy_evaluate(
         "confidence": None if planner_confidence is None else round(float(planner_confidence), 4),
         "risk_level": str(planner_risk_level or ""),
         "ambiguity_count": int(planner_ambiguity_count or 0),
+        "execution_mode": str(planner_execution_mode or ""),
+        "strategy": str(planner_strategy or ""),
     }
     if planner_confidence is not None:
         planner_conf = max(0.0, min(1.0, float(planner_confidence)))
@@ -186,6 +190,10 @@ def autonomy_evaluate(
         action_decision = "hold_for_review"
         reason = "planner_ambiguity_too_high"
         blockers.append("planner_ambiguity_too_high")
+    elif str(planner_execution_mode or "").lower() == "safe" and str(planner_risk_level or risk["risk"]).lower() in {"medium", "high"} and planner_confidence is not None and float(planner_confidence) < 0.8:
+        action_decision = "hold_for_review"
+        reason = "safe_mode_requires_higher_confidence"
+        blockers.append("safe_mode_requires_higher_confidence")
     elif effective_confidence < threshold:
         action_decision = "hold_for_review"
         reason = "confidence_below_threshold"

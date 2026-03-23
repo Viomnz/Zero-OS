@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from zero_os.self_derivation_engine import survivor_history_score, survivor_strategy_guidance
+
 
 _MUTATING_STEP_KINDS = {
     "browser_action",
@@ -311,7 +313,7 @@ def _detect_context_conflicts(request: str, plan: dict[str, Any] | None, results
 
 def _detect_evidence_conflicts(run_ok: bool, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
-    if run_ok and any(not bool(item.get("ok", False)) for item in results):
+    if run_ok and any(not bool(item.get("ok", False)) and not bool(item.get("handled_by_fallback", False)) and not bool(item.get("skipped", False)) for item in results):
         issues.append(
             _issue(
                 "evidence",
@@ -618,18 +620,46 @@ def _branch_sort_key(review: dict[str, Any]) -> tuple[Any, ...]:
     branch = dict(review.get("branch") or {})
     evidence = dict(review.get("evidence") or {})
     plan = dict(review.get("plan") or {})
+    survivor_history = dict(review.get("survivor_history") or {})
+    strategy_guidance = dict(review.get("strategy_guidance") or {})
     planner_confidence = float(plan.get("planner_confidence", 1.0) or 0.0)
     risk_level = str(plan.get("risk_level", "low") or "low").lower()
-    return tuple(
-        list(scores.get(name, 0) for name in _PRIORITY_ORDER)
-        + [
-            int(round(planner_confidence * 1000)),
-            {"low": 2, "medium": 1, "high": 0}.get(risk_level, 1),
-            int(round(float(evidence.get("total_weight", 0.0) or 0.0) * 1000)),
-            int(round(float(evidence.get("memory_weight", 0.0) or 0.0) * 1000)),
-            1 if branch.get("preferred", False) else 0,
-            -int(branch.get("step_count", 0) or 0),
-        ]
+    execution_mode = str(plan.get("execution_mode", "normal") or "normal").lower()
+    derivation_survival_score = float(plan.get("derivation_survival_score", 0.0) or 0.0)
+    core_truth = int(scores.get("truth", 0))
+    core_consistency = int(scores.get("consistency", 0))
+    core_goal_fit = int(scores.get("goal_fit", 0))
+    core_consequence = int(scores.get("consequence", 0))
+    survivor_history_score = float(survivor_history.get("score", 0.0) or 0.0)
+    recovery_profile = str(strategy_guidance.get("recovery_profile", "neutral") or "neutral").strip().lower()
+    freshness_score = float(strategy_guidance.get("strategy_outcome_summary", {}).get("freshness_score", 0.0) or 0.0)
+    profile_rank = {
+        "proven": 4,
+        "recovery_supported": 3,
+        "fragile_but_recoverable": 2,
+        "neutral": 1,
+        "fragile_and_unsafe": 0,
+    }.get(recovery_profile, 1)
+    outcome_guided = 1 if bool(strategy_guidance.get("outcome_guided", False)) else 0
+    return (
+        core_truth,
+        core_consistency,
+        core_goal_fit,
+        core_consequence,
+        profile_rank,
+        outcome_guided,
+        int(round(freshness_score * 1000)),
+        {"safe": 3, "deliberate": 2, "normal": 1, "fast": 0}.get(execution_mode, 1),
+        int(round(derivation_survival_score * 10)),
+        int(round(survivor_history_score * 1000)),
+        int(round(planner_confidence * 1000)),
+        {"low": 2, "medium": 1, "high": 0}.get(risk_level, 1),
+        int(round(float(evidence.get("total_weight", 0.0) or 0.0) * 1000)),
+        int(round(float(evidence.get("memory_weight", 0.0) or 0.0) * 1000)),
+        1 if branch.get("preferred", False) else 0,
+        int(scores.get("efficiency", 0)),
+        int(scores.get("style", 0)),
+        -int(branch.get("step_count", 0) or 0),
     )
 
 
@@ -767,6 +797,8 @@ def select_stable_branch(cwd: str, request: str, candidates: list[dict[str, Any]
         plan = dict(candidate)
         review = review_branch(cwd, request, plan, persist=False)
         review["plan"] = plan
+        review["survivor_history"] = survivor_history_score(cwd, plan)
+        review["strategy_guidance"] = survivor_strategy_guidance(cwd, plan)
         reviews.append(review)
 
     allowed = [review for review in reviews if review.get("decision") == "allow"]

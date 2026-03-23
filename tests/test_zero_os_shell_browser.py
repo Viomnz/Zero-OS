@@ -76,6 +76,10 @@ def test_zero_os_shell_renders_launcher_state_in_browser():
         assert re.search(r"Approvals", dom)
         assert re.search(r"Send Approvals", dom)
         assert re.search(r"Due Reminders", dom)
+        assert re.search(r"Strategy Drift", dom)
+        assert re.search(r"Recent Strategy History", dom)
+        assert re.search(r"Runtime revalidation", dom)
+        assert re.search(r"Revalidate", dom)
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -14,8 +14,16 @@ from zero_os.recovery import (
     zero_ai_recover,
     zero_ai_recovery_inventory,
 )
-from zero_os.task_planner import planner_feedback_status, smart_planner_assess, smart_planner_status
+from zero_os.task_planner import (
+    planner_feedback_status,
+    self_derivation_assess,
+    self_derivation_revalidate,
+    self_derivation_status,
+    smart_planner_assess,
+    smart_planner_status,
+)
 from zero_os.types import Result, Task
+from zero_os.zero_ai_capability_map import zero_ai_capability_map_refresh, zero_ai_capability_map_status
 from zero_os.zero_ai_pressure_harness import pressure_harness_refresh, pressure_harness_run, pressure_harness_status
 
 
@@ -72,14 +80,42 @@ def handle_zero_ai_runtime_command(task: Task, raw: str, text: str) -> Result | 
         return Result("system", json.dumps(pressure_harness_run(task.cwd), indent=2))
     if normalized in {"zero ai pressure refresh", "zero ai pressure harness refresh"}:
         return Result("system", json.dumps(pressure_harness_refresh(task.cwd), indent=2))
+    if normalized in {"zero ai capability map", "zero ai capability map status"}:
+        return Result("system", json.dumps(zero_ai_capability_map_status(task.cwd), indent=2))
+    if normalized == "zero ai capability map refresh":
+        return Result("system", json.dumps(zero_ai_capability_map_refresh(task.cwd), indent=2))
     if normalized in {"zero ai planner feedback", "zero ai planner feedback status", "planner feedback status"}:
         return Result("system", json.dumps(planner_feedback_status(task.cwd), indent=2))
     if normalized in {"zero ai smart planner", "zero ai smart planner status", "smart planner status"}:
         return Result("system", json.dumps(smart_planner_status(task.cwd), indent=2))
+    if normalized in {"zero ai self derivation", "zero ai self derivation status", "self derivation status"}:
+        return Result("system", json.dumps(self_derivation_status(task.cwd), indent=2))
+    if normalized in {"zero ai self derivation revalidate", "self derivation revalidate"}:
+        return Result("system", json.dumps(self_derivation_revalidate(task.cwd), indent=2))
 
     smart_planner_assess_match = re.match(r"^zero ai smart planner assess\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
     if smart_planner_assess_match:
         return Result("system", json.dumps(smart_planner_assess(smart_planner_assess_match.group(1).strip(), task.cwd), indent=2))
+    self_derivation_assess_match = re.match(r"^zero ai self derivation assess\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+    if self_derivation_assess_match:
+        return Result("system", json.dumps(self_derivation_assess(self_derivation_assess_match.group(1).strip(), task.cwd), indent=2))
+    self_derivation_revalidate_match = re.match(
+        r"^zero ai self derivation revalidate(?:\s+strategy=([a-zA-Z0-9_.:-]+))?(?:\s+limit=(\d+))?$",
+        raw.strip(),
+        flags=re.IGNORECASE,
+    )
+    if self_derivation_revalidate_match:
+        return Result(
+            "system",
+            json.dumps(
+                self_derivation_revalidate(
+                    task.cwd,
+                    strategy=str(self_derivation_revalidate_match.group(1) or "").strip(),
+                    limit=int(self_derivation_revalidate_match.group(2) or "3"),
+                ),
+                indent=2,
+            ),
+        )
 
     if normalized == "zero ai backup status":
         return Result("system", json.dumps(zero_ai_backup_status(task.cwd), indent=2))

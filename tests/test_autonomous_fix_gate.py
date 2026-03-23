@@ -129,6 +129,28 @@ class AutonomousFixGateTests(unittest.TestCase):
         self.assertEqual("planner_confidence_below_mutation_threshold", result["decision_reason"])
         self.assertEqual(0.41, result["planner"]["confidence"])
 
+    def test_safe_mode_requires_higher_confidence_for_medium_risk_action(self) -> None:
+        result = autonomy_evaluate(
+            str(self.base),
+            action="browser action click",
+            blast_radius="service",
+            reversible=True,
+            evidence_count=12,
+            contradictory_signals=0,
+            independent_verifiers=4,
+            checks={"browser_ready": True, "verification_ready": True, "rollback_ready": True},
+            planner_confidence=0.79,
+            planner_risk_level="medium",
+            planner_ambiguity_count=0,
+            planner_execution_mode="safe",
+            planner_strategy="conservative",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("hold_for_review", result["decision"])
+        self.assertEqual("safe_mode_requires_higher_confidence", result["decision_reason"])
+        self.assertEqual("safe", result["planner"]["execution_mode"])
+
 
 if __name__ == "__main__":
     unittest.main()

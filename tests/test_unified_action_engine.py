@@ -106,6 +106,21 @@ class UnifiedActionEngineApprovalTests(unittest.TestCase):
         self.assertEqual("medium", mock_gate.call_args.kwargs["planner_risk_level"])
         self.assertEqual(2, mock_gate.call_args.kwargs["planner_ambiguity_count"])
 
+    @patch("zero_os.unified_action_engine.browser_dom_act", return_value={"ok": True, "action": {"url": "https://example.com"}})
+    def test_browser_action_safe_mode_requires_specific_selector(self, mock_act) -> None:
+        set_action_tier(str(self.base), "browser_action", "guarded_auto")
+
+        result = execute_step(
+            str(self.base),
+            {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "body"}},
+            run_id="run-1",
+            plan_context={"execution_mode": "safe"},
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual("safe_mode_requires_specific_selector", result["reason"])
+        self.assertEqual(0, mock_act.call_count)
+
 
 if __name__ == "__main__":
     unittest.main()

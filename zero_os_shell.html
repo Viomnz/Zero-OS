@@ -1918,6 +1918,20 @@
         const controllerSummary = (controllerRegistry && controllerRegistry.summary) || {};
         const toolSummary = (toolRegistry && toolRegistry.summary) || {};
         const capabilitySummary = (capabilityMap && capabilityMap.summary) || {};
+        const capabilityItems = arrayItems(capabilityMap && capabilityMap.capabilities);
+        const derivationCapability = capabilityItems.find((item) => item && item.key === "self_derivation_engine") || {};
+        const derivationEvidence = (derivationCapability && derivationCapability.evidence) || {};
+        const strategyTrend = capabilitySummary.self_derivation_strategy_trend_direction || derivationEvidence.strategy_trend_direction || "unknown";
+        const strategyFreshness = capabilitySummary.self_derivation_strategy_freshness_score !== undefined ? capabilitySummary.self_derivation_strategy_freshness_score : (derivationEvidence.strategy_freshness_score || 0);
+        const strategyQuarantined = capabilitySummary.self_derivation_quarantined_strategy_count !== undefined ? capabilitySummary.self_derivation_quarantined_strategy_count : (derivationEvidence.quarantined_strategy_count || 0);
+        const strategyRevalidationReady = capabilitySummary.self_derivation_revalidation_ready_count !== undefined ? capabilitySummary.self_derivation_revalidation_ready_count : (derivationEvidence.revalidation_ready_count || 0);
+        const strategyRuntimeRevalidationState = capabilitySummary.self_derivation_runtime_revalidation_state || derivationEvidence.runtime_revalidation_state || "idle";
+        const strategyRuntimeRestored = capabilitySummary.self_derivation_runtime_revalidation_restored_count !== undefined ? capabilitySummary.self_derivation_runtime_revalidation_restored_count : (derivationEvidence.runtime_revalidation_restored_count || 0);
+        const strategyRuntimeKept = capabilitySummary.self_derivation_runtime_revalidation_kept_quarantined_count !== undefined ? capabilitySummary.self_derivation_runtime_revalidation_kept_quarantined_count : (derivationEvidence.runtime_revalidation_kept_quarantined_count || 0);
+        const strategyRuntimeReason = capabilitySummary.self_derivation_runtime_revalidation_reason || derivationEvidence.runtime_revalidation_reason || "";
+        const strategyFreshnessDelta = capabilitySummary.self_derivation_strategy_freshness_delta !== undefined ? capabilitySummary.self_derivation_strategy_freshness_delta : (derivationEvidence.strategy_freshness_delta || 0);
+        const strategySurfaceCounts = Object.entries((derivationEvidence && derivationEvidence.condition_surface_counts) || {}).slice(0, 6);
+        const strategyHistory = arrayItems((derivationEvidence && derivationEvidence.strategy_history_points) || ((derivationEvidence && derivationEvidence.strategy_history) || {}).points).slice(-5).reverse();
         const priorities = arrayItems((controllerRegistry && controllerRegistry.next_priority) || (controllerRegistry && controllerRegistry.highest_value_steps) || (toolRegistry && toolRegistry.highest_value_steps));
         const subsystems = arrayItems(controllerRegistry && controllerRegistry.subsystems);
       const missingTools = arrayItems(toolRegistry && toolRegistry.missing_tools);
@@ -1930,7 +1944,9 @@
             { label: "Missing Functions", value: String(controllerSummary.missing_function_count || 0) },
             { label: "Missing Tools", value: String(toolSummary.missing_tool_count || 0) },
             { label: "Tool Count", value: String(toolSummary.tool_count || 0) },
-            { label: "Autonomous Surface", value: capabilitySummary.autonomous_surface_score !== undefined ? `${capabilitySummary.autonomous_surface_score}%` : "n/a" }
+            { label: "Autonomous Surface", value: capabilitySummary.autonomous_surface_score !== undefined ? `${capabilitySummary.autonomous_surface_score}%` : "n/a" },
+            { label: "Strategy Freshness", value: String(strategyFreshness) },
+            { label: "Strategy Trend", value: escapeHtml(String(strategyTrend)) }
           ])}
           <div class="action-list">
             <div class="action-chip">
@@ -1940,6 +1956,34 @@
                 <button class="btn" data-home-command="zero ai next" data-home-label="Zero AI Next">Refresh Next</button>
                 <button class="btn" data-home-command="zero ai tools status" data-home-label="Zero AI Tools">Refresh Tools</button>
                 <button class="btn" data-home-command="zero ai capability map refresh" data-home-label="Capability Map">Refresh Capabilities</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Strategy Drift</div>
+              <div class="chip-copy">
+                Freshness ${escapeHtml(String(strategyFreshness))} with trend ${escapeHtml(String(strategyTrend))}.
+                <br/>Quarantined: ${escapeHtml(String(strategyQuarantined))} · Revalidation ready: ${escapeHtml(String(strategyRevalidationReady))} · Delta: ${escapeHtml(String(strategyFreshnessDelta))}
+                <br/>Runtime revalidation: ${escapeHtml(String(strategyRuntimeRevalidationState))} · Restored ${escapeHtml(String(strategyRuntimeRestored))} · Kept ${escapeHtml(String(strategyRuntimeKept))}${strategyRuntimeReason ? ` · ${escapeHtml(String(strategyRuntimeReason))}` : ""}
+                ${strategySurfaceCounts.length ? `<br/>Lane families: ${escapeHtml(strategySurfaceCounts.map(([key, value]) => `${key}=${value}`).join(", "))}` : ""}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String(strategyQuarantined))} quarantined</span>
+                <span class="mini-badge">${escapeHtml(String(strategyRevalidationReady))} ready</span>
+                <span class="mini-badge">runtime ${escapeHtml(String(strategyRuntimeRevalidationState))}</span>
+                <span class="mini-badge">${escapeHtml(String(derivationEvidence.top_recovery_profile || capabilitySummary.self_derivation_top_recovery_profile || "neutral"))}</span>
+              </div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai self derivation status" data-home-label="Self Derivation Status">Status</button>
+                <button class="btn" data-home-command="zero ai self derivation revalidate" data-home-label="Revalidate Strategy Memory">Revalidate</button>
+                <button class="btn" data-home-command="zero ai pressure run" data-home-label="Pressure Harness">Pressure</button>
+              </div>
+            </div>
+            <div class="action-chip">
+              <div class="chip-title">Recent Strategy History</div>
+              <div class="chip-copy">
+                ${strategyHistory.length ? strategyHistory.map((point) => `
+                  <div>${escapeHtml(String(point.generated_utc || "n/a"))}: freshness ${escapeHtml(String(point.freshness_score || 0))} · quarantined ${escapeHtml(String(point.quarantined_strategy_count || 0))} · mismatch ${escapeHtml(String(point.version_mismatch_count || 0))} · ${escapeHtml(String(point.top_recovery_profile || "neutral"))}</div>
+                `).join("") : "No strategy drift history yet. Run the pressure harness to create a live trend view."}
               </div>
             </div>
             ${(priorities.length ? priorities : ["Run `zero ai next` to generate the first control-map snapshot."]).map((step, index) => `

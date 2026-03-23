@@ -105,7 +105,7 @@ def _subgoal_target_hints(text: str) -> dict[str, list[str]]:
             [
                 match.group(1).strip(' "\'')
                 for match in re.finditer(
-                    r"([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+(?::\d+(?::\d+)?)?)",
+                    r"([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+(?::\d+(?:(?::|-)\d+)?)?)",
                     normalized,
                     flags=re.IGNORECASE,
                 )
@@ -114,6 +114,98 @@ def _subgoal_target_hints(text: str) -> dict[str, list[str]]:
         "repos": _unique(re.findall(r"\b[a-z0-9._-]+/[a-z0-9._-]+\b", normalized, flags=re.IGNORECASE)),
         "artifacts": _unique(re.findall(r"\bartifact\s+([A-Za-z0-9_./\\-]+)\b", normalized, flags=re.IGNORECASE)),
         "branches": _unique(re.findall(r"\bbranch\s+([A-Za-z0-9_./-]+)\b", normalized, flags=re.IGNORECASE)),
+    }
+
+
+def _extract_file_ranges(text: str) -> list[dict[str, Any]]:
+    normalized = _normalize_text(text)
+    matches: list[dict[str, Any]] = []
+    pattern = re.compile(
+        r"([A-Za-z]:\\[^\s:]+|[.]{0,2}[\\/][^\s:]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+):(\d+)(?:[-:](\d+))?",
+        flags=re.IGNORECASE,
+    )
+    for match in pattern.finditer(normalized):
+        path = match.group(1).strip(' "\'')
+        if path.lower().startswith("http"):
+            continue
+        start_line = int(match.group(2))
+        end_token = match.group(3)
+        end_line = int(end_token) if end_token else start_line
+        matches.append({"path": path, "start_line": start_line, "end_line": end_line})
+    unique_payloads: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in matches:
+        signature = f"{item['path']}:{item['start_line']}-{item['end_line']}"
+        if signature in seen:
+            continue
+        seen.add(signature)
+        unique_payloads.append(item)
+    return unique_payloads
+
+
+def _extract_conditional_metadata(text: str) -> dict[str, Any]:
+    normalized = _normalize_text(text)
+    lowered = normalized.lower()
+    outcome_patterns = (
+        (r"^if\s+(.+?)\s+succeeds?(?:\s+then|\s*,)?\s+(.+)$", "on_success"),
+        (r"^if\s+(.+?)\s+is\s+successful(?:\s+then|\s*,)?\s+(.+)$", "on_success"),
+        (r"^if\s+(.+?)\s+verifies?(?:\s+then|\s*,)?\s+(.+)$", "on_verified"),
+        (r"^if\s+(.+?)\s+is\s+verified(?:\s+then|\s*,)?\s+(.+)$", "on_verified"),
+    )
+    for pattern, condition_type in outcome_patterns:
+        match = re.match(pattern, normalized, flags=re.IGNORECASE)
+        if not match:
+            continue
+        trigger_text = _normalize_text(match.group(1))
+        action_text = _normalize_text(match.group(2))
+        return {
+            "text": action_text or normalized,
+            "condition_type": condition_type,
+            "trigger_text": trigger_text,
+            "trigger_hints": _subgoal_action_hints(trigger_text),
+        }
+    failure_patterns = (
+        r"^if\s+(.+?)\s+fails?(?:\s+then|\s*,)?\s+(.+)$",
+        r"^if\s+(.+?)\s+fail(?:ed)?(?:\s+then|\s*,)?\s+(.+)$",
+        r"^on\s+failure(?:\s+of\s+(.+?))?(?:\s+then|\s*,)?\s+(.+)$",
+    )
+    for pattern in failure_patterns:
+        match = re.match(pattern, normalized, flags=re.IGNORECASE)
+        if not match:
+            continue
+        if pattern.startswith("^on\\s+failure"):
+            trigger_text = _normalize_text(match.group(1) or "previous_subgoal")
+            action_text = _normalize_text(match.group(2))
+        else:
+            trigger_text = _normalize_text(match.group(1))
+            action_text = _normalize_text(match.group(2))
+        return {
+            "text": action_text or normalized,
+            "condition_type": "on_failure",
+            "trigger_text": trigger_text,
+            "trigger_hints": _subgoal_action_hints(trigger_text),
+        }
+    if lowered.startswith("otherwise ") or lowered.startswith("else "):
+        action_text = re.sub(r"^(otherwise|else)\s+", "", normalized, flags=re.IGNORECASE)
+        return {
+            "text": _normalize_text(action_text) or normalized,
+            "condition_type": "on_failure",
+            "trigger_text": "previous_subgoal",
+            "trigger_hints": [],
+        }
+    if lowered.startswith("if "):
+        action_text = re.sub(r"^if\s+", "", normalized, flags=re.IGNORECASE)
+        return {
+            "text": _normalize_text(action_text) or normalized,
+            "condition_type": "conditional",
+            "trigger_text": "",
+            "trigger_hints": [],
+        }
+    return {
+        "text": normalized,
+        "condition_type": "always",
+        "trigger_text": "",
+        "trigger_hints": [],
     }
 
 
@@ -137,7 +229,7 @@ def _split_subgoals(text: str) -> list[dict[str, Any]]:
             }
         ]
 
-    connector_pattern = re.compile(r"\b(and then|then|after|before|and|if)\b", flags=re.IGNORECASE)
+    connector_pattern = re.compile(r"\b(and then|then|after|before|otherwise|else|and|if)\b", flags=re.IGNORECASE)
     parts: list[tuple[str, str]] = []
     last_index = 0
     connector = ""
@@ -153,24 +245,52 @@ def _split_subgoals(text: str) -> list[dict[str, Any]]:
     if not parts:
         parts = [(normalized, "")]
 
+    merged_parts: list[tuple[str, str]] = []
+    index = 0
+    while index < len(parts):
+        part, incoming_connector = parts[index]
+        if incoming_connector == "if" and index + 1 < len(parts):
+            next_part, next_connector = parts[index + 1]
+            if next_connector == "then":
+                merged_parts.append((f"{part} then {next_part}", incoming_connector))
+                index += 2
+                continue
+        merged_parts.append((part, incoming_connector))
+        index += 1
+    parts = merged_parts
+
     subgoals: list[dict[str, Any]] = []
     blocking_tokens = ("verify", "check", "confirm", "inspect", "read", "show", "status")
     for index, (part, incoming_connector) in enumerate(parts):
-        lowered = part.lower()
+        conditional_input = part
+        if incoming_connector == "if" and not part.lower().startswith("if "):
+            conditional_input = f"if {part}"
+        elif incoming_connector in {"otherwise", "else"} and not part.lower().startswith(tuple({incoming_connector, "otherwise ", "else "})):
+            conditional_input = f"{incoming_connector} {part}"
+        conditional = _extract_conditional_metadata(conditional_input)
+        effective_text = str(conditional.get("text", part) or part)
+        lowered = effective_text.lower()
         subgoal_id = f"subgoal_{index}"
         subgoals.append(
             {
                 "id": subgoal_id,
-                "text": part,
+                "text": effective_text,
+                "raw_text": part,
                 "order": index,
                 "connector_from_previous": incoming_connector,
                 "dependency_kind": "root" if index == 0 else "parallel",
                 "depends_on": [],
                 "blocking": any(token in lowered for token in blocking_tokens),
-                "conditional": incoming_connector == "if" or lowered.startswith("if "),
+                "conditional": incoming_connector in {"if", "otherwise", "else"} or str(conditional.get("condition_type", "always")) != "always",
+                "condition_type": str(conditional.get("condition_type", "always")),
+                "condition_trigger_text": str(conditional.get("trigger_text", "")),
+                "condition_trigger_hints": list(conditional.get("trigger_hints", [])),
+                "conditional_fallback": str(conditional.get("condition_type", "")) == "on_failure",
+                "conditional_on_success": str(conditional.get("condition_type", "")) == "on_success",
+                "conditional_on_verified": str(conditional.get("condition_type", "")) == "on_verified",
                 "dependency_direction": "self" if index == 0 else "parallel",
-                "action_hints": _subgoal_action_hints(part),
-                "target_hints": _subgoal_target_hints(part),
+                "action_hints": _subgoal_action_hints(effective_text),
+                "target_hints": _subgoal_target_hints(effective_text),
                 "execution_order_hint": index,
             }
         )
@@ -188,6 +308,15 @@ def _split_subgoals(text: str) -> list[dict[str, Any]]:
             current["dependency_direction"] = "conditional_after_previous"
             current["depends_on"] = [str(previous.get("id", ""))]
             current["conditional"] = True
+        elif connector in {"otherwise", "else"}:
+            current["dependency_kind"] = "conditional"
+            current["dependency_direction"] = "fallback_after_previous"
+            current["depends_on"] = [str(previous.get("id", ""))]
+            current["conditional"] = True
+            if str(current.get("condition_type", "always")) == "always":
+                current["condition_type"] = "on_failure"
+                current["conditional_fallback"] = True
+                current["condition_trigger_text"] = str(previous.get("text", "previous_subgoal"))
         elif connector == "after":
             current["dependency_kind"] = "prerequisite"
             current["dependency_direction"] = "before_previous"
@@ -250,6 +379,13 @@ def extract_request_targets(request: str) -> dict[str, Any]:
         file_values.extend(match.group(1).strip(' "\'') for match in re.finditer(pattern, text, flags=re.IGNORECASE))
     for file_path in _unique([value for value in file_values if value]):
         _add_target(targets, "files", file_path, label=file_path)
+    for file_range in _extract_file_ranges(text):
+        _add_target(
+            targets,
+            "file_ranges",
+            file_range,
+            label=f"{file_range['path']}:{file_range['start_line']}-{file_range['end_line']}",
+        )
 
     install_match = re.search(r"install\s+app\s+([a-z0-9._-]+)", lowered)
     if install_match:
@@ -380,6 +516,12 @@ def extract_request_targets(request: str) -> dict[str, Any]:
             {"artifact": cloud_dep.group(1), "target": cloud_dep.group(2)},
             label=f"{cloud_dep.group(1)}->{cloud_dep.group(2)}",
         )
+
+    for artifact in _unique(re.findall(r"\bartifact\s+([A-Za-z0-9_./\\-]+)\b", text, flags=re.IGNORECASE)):
+        _add_target(targets, "artifacts", artifact, label=artifact)
+
+    for branch in _unique(re.findall(r"\b(?:branch|ref|revision)\s+([A-Za-z0-9_./-]+)\b", text, flags=re.IGNORECASE)):
+        _add_target(targets, "branches", branch, label=branch)
 
     feature_match = re.match(r"add\s+feature\s+(.+)$", text, flags=re.IGNORECASE)
     if feature_match:

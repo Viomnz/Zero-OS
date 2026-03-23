@@ -200,6 +200,173 @@ class ContradictionEngineTests(unittest.TestCase):
 
         self.assertEqual("high_confidence", selection["selected_branch"]["branch"]["id"])
 
+    def test_select_stable_branch_prefers_survivor_history_when_other_scores_match(self) -> None:
+        derivation_dir = self.base / ".zero_os" / "assistant" / "self_derivation"
+        derivation_dir.mkdir(parents=True, exist_ok=True)
+        (derivation_dir / "memory.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "patterns": {
+                        "verify": {
+                            "pattern_signature": "verify",
+                            "survival_count": 1,
+                            "average_score": 35.0,
+                            "contexts": [],
+                            "context_range": 0,
+                            "failure_conditions": [],
+                            "structure": "verify",
+                            "source_branch_ids": ["low_history"],
+                        },
+                        "verify -> prepare": {
+                            "pattern_signature": "verify -> prepare",
+                            "survival_count": 4,
+                            "average_score": 82.0,
+                            "contexts": [],
+                            "context_range": 0,
+                            "failure_conditions": [],
+                            "structure": "verify -> prepare",
+                            "source_branch_ids": ["high_history"],
+                        },
+                    },
+                    "knowledge": [],
+                    "meta_rules": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        selection = select_stable_branch(
+            str(self.base),
+            "open https://example.com",
+            [
+                {
+                    "intent": {"intent": "web", "goals": ["open https://example.com"]},
+                    "branch": {"id": "low_history", "source": "direct_plan", "note": "low", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "execution_mode": "deliberate",
+                    "steps": [{"kind": "web_verify", "target": "https://example.com"}],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+                {
+                    "intent": {"intent": "web", "goals": ["open https://example.com"]},
+                    "branch": {"id": "high_history", "source": "direct_plan", "note": "high", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "execution_mode": "deliberate",
+                    "steps": [
+                        {"kind": "web_verify", "target": "https://example.com"},
+                        {"kind": "browser_open", "target": "https://example.com"},
+                    ],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+            ],
+        )
+
+        self.assertEqual("high_history", selection["selected_branch"]["branch"]["id"])
+
+    def test_select_stable_branch_prefers_recent_proven_strategy_over_unsafe_strategy(self) -> None:
+        derivation_dir = self.base / ".zero_os" / "assistant" / "self_derivation"
+        derivation_dir.mkdir(parents=True, exist_ok=True)
+        (derivation_dir / "memory.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "patterns": {},
+                    "knowledge": [],
+                    "strategy_outcomes": {
+                        "dependency_aware": {
+                            "strategy": "dependency_aware",
+                            "run_count": 4,
+                            "success_count": 4,
+                            "failure_count": 0,
+                            "recovery_count": 1,
+                            "contradiction_hold_count": 0,
+                            "reroute_count": 1,
+                            "success_rate": 1.0,
+                            "failure_rate": 0.0,
+                            "recovery_rate": 0.25,
+                            "contradiction_hold_rate": 0.0,
+                            "average_outcome_quality": 0.92,
+                            "resilience_score": 0.9,
+                            "first_run_utc": "2026-03-21T00:00:00+00:00",
+                            "last_run_utc": "2026-03-21T00:00:00+00:00",
+                            "last_outcome": {"ok": True},
+                        },
+                        "verification_first": {
+                            "strategy": "verification_first",
+                            "run_count": 5,
+                            "success_count": 1,
+                            "failure_count": 4,
+                            "recovery_count": 1,
+                            "contradiction_hold_count": 2,
+                            "reroute_count": 1,
+                            "success_rate": 0.2,
+                            "failure_rate": 0.8,
+                            "recovery_rate": 0.2,
+                            "contradiction_hold_rate": 0.4,
+                            "average_outcome_quality": 0.31,
+                            "resilience_score": 0.22,
+                            "first_run_utc": "2026-03-21T00:00:00+00:00",
+                            "last_run_utc": "2026-03-21T00:00:00+00:00",
+                            "last_outcome": {"ok": False},
+                        },
+                    },
+                    "meta_rules": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        selection = select_stable_branch(
+            str(self.base),
+            "open https://example.com",
+            [
+                {
+                    "request": "open https://example.com",
+                    "request_targets": {"items": [{"id": "urls_0", "type": "urls", "value": "https://example.com"}]},
+                    "request_decomposition": [
+                        {"id": "subgoal_0", "depends_on": [], "conditional": False},
+                        {"id": "subgoal_1", "depends_on": ["subgoal_0"], "conditional": False},
+                    ],
+                    "intent": {"intent": "web", "goals": ["open https://example.com"]},
+                    "branch": {"id": "dependency_recent", "source": "direct_plan", "note": "dependency", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "execution_mode": "deliberate",
+                    "steps": [
+                        {"kind": "web_verify", "target": "https://example.com", "subgoal_id": "subgoal_0"},
+                        {"kind": "browser_open", "target": "https://example.com", "subgoal_id": "subgoal_1"},
+                    ],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+                {
+                    "request": "open https://example.com",
+                    "request_targets": {"items": [{"id": "urls_0", "type": "urls", "value": "https://example.com"}, {"id": "actions_0", "type": "actions", "value": "open"}]},
+                    "request_decomposition": [{"id": "subgoal_0", "depends_on": [], "conditional": False}],
+                    "intent": {"intent": "web", "goals": ["open https://example.com"]},
+                    "branch": {"id": "verify_unsafe", "source": "direct_plan", "note": "unsafe", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "execution_mode": "deliberate",
+                    "steps": [
+                        {"kind": "web_verify", "target": "https://example.com", "subgoal_id": "subgoal_0"},
+                        {"kind": "browser_open", "target": "https://example.com", "subgoal_id": "subgoal_0"},
+                    ],
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+            ],
+        )
+
+        self.assertEqual("dependency_recent", selection["selected_branch"]["branch"]["id"])
+        self.assertEqual("proven", selection["selected_branch"]["strategy_guidance"]["recovery_profile"])
+        self.assertEqual("fragile_and_unsafe", selection["discarded_branches"][0]["strategy_guidance"]["recovery_profile"])
+
     @patch(
         "zero_os.contradiction_engine._workflow_signals",
         return_value={

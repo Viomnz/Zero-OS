@@ -72,12 +72,15 @@ def _planner_gate_kwargs(plan_context: dict | None) -> dict:
         "planner_confidence": context.get("planner_confidence"),
         "planner_risk_level": context.get("risk_level"),
         "planner_ambiguity_count": len(list(context.get("ambiguity_flags", []))),
+        "planner_execution_mode": context.get("execution_mode"),
+        "planner_strategy": context.get("smart_strategy"),
     }
 
 
 def execute_step(cwd: str, step: dict, *, run_id: str = "", plan_context: dict | None = None) -> dict:
     kind = step.get("kind", "")
     target = step.get("target", "")
+    execution_mode = str(dict(plan_context or {}).get("execution_mode", "normal") or "normal")
     policy = classify_action(cwd, kind)
     if policy["decision"] == "deny":
         audit_event(cwd, kind, "denied", {"target": target})
@@ -150,6 +153,12 @@ def execute_step(cwd: str, step: dict, *, run_id: str = "", plan_context: dict |
         return {"ok": True, "kind": kind, "result": browser_session_open(cwd, str(target))}
     if kind == "browser_action":
         effective_target = _browser_action_target(cwd, dict(target or {}))
+        if execution_mode == "safe":
+            action_name = str(effective_target.get("action", "")).strip().lower()
+            selector = str(effective_target.get("selector", "")).strip().lower()
+            if action_name in {"click", "submit"} and selector in {"", "body"}:
+                audit_event(cwd, kind, "safe_mode_blocked", {"target": effective_target, "execution_mode": execution_mode})
+                return {"ok": False, "kind": kind, "reason": "safe_mode_requires_specific_selector", "execution_mode": execution_mode}
         approval_state = _matching_approval(cwd, "browser_action", run_id, effective_target)
         approved = approval_state["approved"]
         if approved.get("ok", False):

@@ -9,7 +9,27 @@ from typing import Any
 
 from zero_os.memory_tier_filter import build_memory_context, score_branch_support
 from zero_os.playbook_memory import lookup
-from zero_os.smart_planner import derive_smart_planner_profile, record_smart_planner_snapshot, smart_planner_status as _smart_planner_status
+from zero_os.semantic_reasoner import generate_semantic_interpretations, semantic_abstraction_profile
+from zero_os.self_derivation_engine import (
+    derive_interpretations,
+    pattern_guided_steps,
+    self_derivation_revalidate as _self_derivation_revalidate,
+    self_derivation_status as _self_derivation_status,
+    survivor_generation_guidance,
+    survivor_history_score,
+    survivor_strategy_guidance,
+)
+from zero_os.smart_planner import (
+    analyze_goal_structure,
+    critique_plan,
+    derive_smart_planner_profile,
+    explain_plan,
+    phase_plan,
+    record_smart_planner_snapshot,
+    simulate_plan,
+    simulate_plan_conflicts,
+    smart_planner_status as _smart_planner_status,
+)
 from zero_os.structured_intent import extract_intent
 from zero_os.task_planner_composer import compose_primary_steps, make_step, step_allows_mutation
 from zero_os.task_planner_parsing import _normalize_text, _request_is_read_only, _split_subgoals, extract_request_targets
@@ -60,24 +80,40 @@ def _save_feedback(cwd: str, payload: dict[str, Any]) -> None:
     _feedback_path(cwd).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _metrics_quality_bias(metrics: dict[str, Any]) -> float:
+    count = int(metrics.get("count", 0) or 0)
+    if count < 2:
+        return 0.0
+    success = float(metrics.get("successful_completion_rate", 0.0) or 0.0)
+    hold = float(metrics.get("contradiction_hold_rate", 0.0) or 0.0)
+    failure = float(metrics.get("execution_failure_rate", 0.0) or 0.0)
+    target_drop = float(metrics.get("target_drop_rate", 0.0) or 0.0)
+    reroute = float(metrics.get("reroute_after_failure_rate", 0.0) or 0.0)
+    approval_surprise = float(metrics.get("approval_required_surprise_rate", 0.0) or 0.0)
+    quality = success - (hold * 0.45) - (failure * 0.35) - (target_drop * 0.25) - (reroute * 0.15) - (approval_surprise * 0.1)
+    value = round(max(-0.18, min(0.18, (quality - 0.55) * 0.3)), 3)
+    return value if abs(value) >= 0.01 else 0.0
+
+
 def _route_history_bias(cwd: str) -> dict[str, float]:
     summary = dict(_load_feedback(cwd).get("summary") or {})
     routes = dict(summary.get("routes") or {})
     bias: dict[str, float] = {}
     for route_name, metrics in routes.items():
-        count = int(metrics.get("count", 0) or 0)
-        if count < 2:
-            continue
-        success = float(metrics.get("successful_completion_rate", 0.0) or 0.0)
-        hold = float(metrics.get("contradiction_hold_rate", 0.0) or 0.0)
-        failure = float(metrics.get("execution_failure_rate", 0.0) or 0.0)
-        target_drop = float(metrics.get("target_drop_rate", 0.0) or 0.0)
-        reroute = float(metrics.get("reroute_after_failure_rate", 0.0) or 0.0)
-        approval_surprise = float(metrics.get("approval_required_surprise_rate", 0.0) or 0.0)
-        quality = success - (hold * 0.45) - (failure * 0.35) - (target_drop * 0.25) - (reroute * 0.15) - (approval_surprise * 0.1)
-        value = round(max(-0.18, min(0.18, (quality - 0.55) * 0.3)), 3)
+        value = _metrics_quality_bias(dict(metrics or {}))
         if abs(value) >= 0.01:
             bias[str(route_name)] = value
+    return bias
+
+
+def _route_variant_history_bias(cwd: str) -> dict[str, float]:
+    summary = dict(_load_feedback(cwd).get("summary") or {})
+    route_variants = dict(summary.get("route_variants") or {})
+    bias: dict[str, float] = {}
+    for route_variant, metrics in route_variants.items():
+        value = _metrics_quality_bias(dict(metrics or {}))
+        if abs(value) >= 0.01:
+            bias[str(route_variant)] = value
     return bias
 
 
@@ -140,6 +176,51 @@ def _step_sequence_rank(step: dict[str, Any]) -> int:
     return 2
 
 
+def _planner_route_variant(plan: dict[str, Any]) -> str:
+    explicit_variant = str(plan.get("route_variant", "") or "").strip()
+    if explicit_variant:
+        return explicit_variant
+    step_kinds = {str(step.get("kind", "")).strip() for step in list(plan.get("steps", [])) if str(step.get("kind", "")).strip()}
+    browser_actions = {
+        str(dict(step.get("target") or {}).get("action", "") or "").strip().lower()
+        for step in list(plan.get("steps", []))
+        if str(step.get("kind", "")).strip() == "browser_action"
+    }
+    for variant in (
+        "github_issue_reply_post",
+        "github_issue_reply_draft",
+        "github_issue_act",
+        "github_issue_plan",
+        "github_issue_comments",
+        "github_issue_read",
+        "github_pr_reply_post",
+        "github_pr_reply_draft",
+        "github_pr_act",
+        "github_pr_plan",
+        "github_pr_comments",
+        "github_pr_read",
+    ):
+        if variant in step_kinds:
+            return variant
+    if "submit" in browser_actions:
+        return "browser_submit"
+    if browser_actions & {"input", "type", "fill", "enter_text"}:
+        return "browser_input"
+    if "click" in browser_actions:
+        return "browser_click"
+    if "browser_open" in step_kinds:
+        return "browser_open"
+    if "cloud_deploy" in step_kinds:
+        return "cloud_deploy"
+    if "cloud_target_set" in step_kinds:
+        return "cloud_target_set"
+    if any(kind.startswith("github_issue_") for kind in step_kinds):
+        return "github_issue"
+    if any(kind.startswith("github_pr_") for kind in step_kinds):
+        return "github_pr"
+    return str(((plan.get("intent") or {}).get("primary_intent") or (plan.get("intent") or {}).get("intent") or "observe")).strip() or "observe"
+
+
 def _attach_target_hints_to_subgoals(decomposition: list[dict[str, Any]], targets: dict[str, Any]) -> list[dict[str, Any]]:
     enriched: list[dict[str, Any]] = []
     for subgoal in decomposition:
@@ -190,6 +271,23 @@ def _subgoal_execution_order(decomposition: list[dict[str, Any]]) -> dict[str, i
     return order
 
 
+def _dependency_depth(decomposition: list[dict[str, Any]]) -> int:
+    by_id = {str(item.get("id", "")): dict(item) for item in decomposition if str(item.get("id", ""))}
+
+    def depth(item_id: str, seen: set[str]) -> int:
+        if item_id in seen:
+            return 0
+        current = by_id.get(item_id, {})
+        dependencies = [str(dep) for dep in list(current.get("depends_on", [])) if str(dep)]
+        if not dependencies:
+            return 0
+        next_seen = set(seen)
+        next_seen.add(item_id)
+        return 1 + max(depth(dep, next_seen) for dep in dependencies if dep in by_id)
+
+    return max((depth(item_id, set()) for item_id in by_id), default=0)
+
+
 def _match_step_to_subgoal(step: dict[str, Any], decomposition: list[dict[str, Any]]) -> dict[str, Any] | None:
     attached_targets = set(str(item) for item in list(step.get("attached_targets", [])) if str(item))
     step_text = _stringify_target(step.get("target")).lower()
@@ -237,6 +335,14 @@ def _attach_step_decomposition(steps: list[dict[str, Any]], decomposition: list[
             updated["decomposition_depends_on"] = [str(item) for item in list(matched.get("depends_on", [])) if str(item)]
             updated["decomposition_blocking"] = bool(matched.get("blocking", False))
             updated["decomposition_conditional"] = bool(matched.get("conditional", False))
+            condition_type = str(matched.get("condition_type", "always"))
+            if condition_type in {"on_failure", "on_success", "on_verified"}:
+                updated["conditional_execution_mode"] = condition_type
+            else:
+                updated["conditional_execution_mode"] = "always"
+            updated["condition_type"] = str(matched.get("condition_type", "always"))
+            updated["condition_trigger_text"] = str(matched.get("condition_trigger_text", ""))
+            updated["condition_trigger_hints"] = [str(item) for item in list(matched.get("condition_trigger_hints", [])) if str(item)]
         else:
             updated["decomposition_subgoal_id"] = str(updated.get("subgoal_id", ""))
             updated["decomposition_order"] = original_index
@@ -244,6 +350,10 @@ def _attach_step_decomposition(steps: list[dict[str, Any]], decomposition: list[
             updated["decomposition_depends_on"] = []
             updated["decomposition_blocking"] = False
             updated["decomposition_conditional"] = False
+            updated["conditional_execution_mode"] = "always"
+            updated["condition_type"] = "always"
+            updated["condition_trigger_text"] = ""
+            updated["condition_trigger_hints"] = []
         sortable_steps.append((original_index, updated))
 
     sorted_steps = [
@@ -265,6 +375,136 @@ def _attach_step_decomposition(steps: list[dict[str, Any]], decomposition: list[
         )
     ]
     return sorted_steps, enriched_decomposition
+
+
+def _annotate_step_causality(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    indexed = [dict(step) for step in steps]
+    by_subgoal: dict[str, list[int]] = {}
+    subgoal_dependencies: dict[str, set[str]] = {}
+    for index, step in enumerate(indexed):
+        subgoal_id = str(step.get("decomposition_subgoal_id", "") or step.get("subgoal_id", ""))
+        if subgoal_id:
+            by_subgoal.setdefault(subgoal_id, []).append(index)
+            subgoal_dependencies.setdefault(subgoal_id, set()).update(
+                str(item) for item in list(step.get("decomposition_depends_on", [])) if str(item)
+            )
+
+    reverse_subgoal_dependents: dict[str, set[str]] = {}
+    for subgoal_id, depends_on in subgoal_dependencies.items():
+        for prerequisite in depends_on:
+            reverse_subgoal_dependents.setdefault(prerequisite, set()).add(subgoal_id)
+
+    dependent_cache: dict[str, set[str]] = {}
+
+    def _transitive_dependents(subgoal_id: str) -> set[str]:
+        if subgoal_id in dependent_cache:
+            return set(dependent_cache[subgoal_id])
+        visited: set[str] = set()
+        stack = list(reverse_subgoal_dependents.get(subgoal_id, set()))
+        while stack:
+            candidate = stack.pop()
+            if candidate in visited:
+                continue
+            visited.add(candidate)
+            stack.extend(reverse_subgoal_dependents.get(candidate, set()))
+        dependent_cache[subgoal_id] = set(visited)
+        return set(visited)
+
+    for index, step in enumerate(indexed):
+        depends_on = [str(item) for item in list(step.get("decomposition_depends_on", [])) if str(item)]
+        subgoal_id = str(step.get("decomposition_subgoal_id", "") or step.get("subgoal_id", ""))
+        impacted_indexes: list[int] = []
+        if subgoal_id:
+            impacted_indexes.extend(item for item in by_subgoal.get(subgoal_id, []) if item > index)
+            for dependent_subgoal in _transitive_dependents(subgoal_id):
+                impacted_indexes.extend(item for item in by_subgoal.get(dependent_subgoal, []) if item > index)
+        else:
+            impacted_indexes.extend(
+                item
+                for item in range(index + 1, len(indexed))
+                if indexed[item].get("decomposition_order", 0) >= step.get("decomposition_order", 0)
+            )
+        impacted = sorted(set(impacted_indexes))
+        failure_impact_mode = "local_step_only"
+        dependency_strength = "soft"
+        dependency_kind = str(step.get("decomposition_dependency_kind", ""))
+        if depends_on or dependency_kind in {"sequential", "prerequisite", "conditional"}:
+            dependency_strength = "hard" if dependency_kind in {"sequential", "prerequisite"} else "soft"
+            failure_impact_mode = "blocks_dependent_steps" if dependency_kind != "conditional" else "conditional_branch_invalidated"
+        elif bool(step.get("mutation_requested_explicitly", False)):
+            failure_impact_mode = "verification_required_before_continue"
+            dependency_strength = "soft"
+        conditional_mode = str(step.get("conditional_execution_mode", "always"))
+        if conditional_mode == "on_failure":
+            dependency_strength = "soft"
+            failure_impact_mode = "activated_only_if_prior_step_fails"
+        elif conditional_mode == "on_success":
+            dependency_strength = "soft"
+            failure_impact_mode = "activated_only_if_prior_step_succeeds"
+        elif conditional_mode == "on_verified":
+            dependency_strength = "soft"
+            failure_impact_mode = "activated_only_if_prior_verification_succeeds"
+
+        blocks = [str(indexed[item].get("kind", "")) for item in impacted[:6] if dependency_strength == "hard"]
+        degrades: list[str] = []
+        if dependency_strength != "hard":
+            degrades = [str(indexed[item].get("kind", "")) for item in impacted[:6]]
+        if bool(step.get("mutation_requested_explicitly", False)) and "post_action_verification" == str(step.get("verification_mode", "")):
+            degrades.append("post_action_verification")
+        degrades = list(dict.fromkeys([item for item in degrades if item]))
+
+        step["dependency_strength"] = dependency_strength
+        step["failure_impact"] = {
+            "mode": failure_impact_mode,
+            "blocks": blocks,
+            "degrades": degrades,
+        }
+        step["failure_impact_label"] = failure_impact_mode
+        step["invalidates_if_failed"] = [str(indexed[item].get("kind", "")) for item in impacted[:6]]
+        step["dependent_step_count"] = len(impacted)
+        step["executes_on_failure_of"] = depends_on if conditional_mode == "on_failure" else []
+        step["executes_on_success_of"] = depends_on if conditional_mode == "on_success" else []
+        step["executes_on_verified_of"] = depends_on if conditional_mode == "on_verified" else []
+    return indexed
+
+
+def _annotate_step_reasoning(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = [dict(step) for step in steps]
+    for index, step in enumerate(enriched):
+        requires = [str(item) for item in list(step.get("decomposition_depends_on", [])) if str(item)]
+        prior_kinds = [str(item.get("kind", "")) for item in enriched[:index]]
+        kind = str(step.get("kind", ""))
+        if kind == "browser_action" and "browser_open" in prior_kinds and "browser_open" not in requires:
+            requires.append("browser_open")
+        if kind == "web_fetch" and "web_verify" in prior_kinds and "web_verify" not in requires:
+            requires.append("web_verify")
+        if kind == "cloud_deploy" and "cloud_target_set" in prior_kinds and "cloud_target_set" not in requires:
+            requires.append("cloud_target_set")
+
+        failure_impact = dict(step.get("failure_impact") or {})
+        enables = list(dict.fromkeys([str(item) for item in list(failure_impact.get("blocks", [])) + list(failure_impact.get("degrades", [])) if str(item)]))
+        breaks_if_failed = [str(item) for item in list(failure_impact.get("blocks", [])) if str(item)] or enables
+        route_confidence = float(step.get("route_confidence", 0.0) or 0.0)
+        uncertainty = 1.0 - route_confidence
+        if str(step.get("precondition_state", "")) == "degraded":
+            uncertainty += 0.12
+        elif str(step.get("precondition_state", "")) == "blocked":
+            uncertainty += 0.2
+        if str(step.get("dependency_strength", "")) == "hard":
+            uncertainty += 0.08
+        if str(step.get("conditional_execution_mode", "always")) != "always":
+            uncertainty += 0.06
+        step["requires"] = requires
+        step["enables"] = enables
+        step["breaks_if_failed"] = breaks_if_failed
+        step["uncertainty"] = round(max(0.05, min(0.95, uncertainty)), 3)
+        step["reasoning_trace"] = {
+            "why_this_step_exists": str(step.get("justification", "") or step.get("source_of_route", "")),
+            "depends_on": requires,
+            "resolves": [str(item) for item in list(step.get("attached_targets", [])) if str(item)] or [str(step.get("target", ""))],
+            "condition": str(step.get("conditional_execution_mode", "always")),
+        }
+    return enriched
 
 
 def _step_signature(step: dict) -> str:
@@ -304,7 +544,7 @@ def _candidate_signature(plan: dict) -> str:
 
 def _candidate_semantic_signature(plan: dict) -> str:
     branch = dict(plan.get("branch") or {})
-    normalized_steps = sorted(
+    normalized_steps = [
         json.dumps(
             {
                 "kind": step.get("kind", ""),
@@ -316,7 +556,7 @@ def _candidate_semantic_signature(plan: dict) -> str:
             default=str,
         )
         for step in list(plan.get("steps", []))
-    )
+    ]
     return json.dumps(
         {
             "memory_mode": str(branch.get("memory_mode", "balanced")),
@@ -335,6 +575,8 @@ def _candidate_quality(plan: dict) -> tuple[Any, ...]:
     average_step_confidence = sum(float(step.get("route_confidence", 0.0) or 0.0) for step in steps) / max(1, len(steps))
     return (
         1 if bool(branch.get("preferred", False)) else 0,
+        float(dict(plan.get("survivor_history_prior") or {}).get("score", 0.0) or 0.0),
+        float(plan.get("route_variant_history_bias", 0.0) or 0.0),
         float(plan.get("planner_confidence", 0.0) or 0.0),
         float(coverage.get("coverage_ratio", 0.0) or 0.0),
         -len(list(plan.get("ambiguity_flags", []))),
@@ -371,20 +613,258 @@ def _clone_plan(plan: dict, steps: list[dict], *, branch_id: str, source: str, n
     return cloned
 
 
-def _attach_branch_support(plan: dict, memory_context: dict, *, memory_mode: str) -> dict:
+def _attach_branch_support(
+    cwd: str,
+    plan: dict,
+    memory_context: dict,
+    *,
+    memory_mode: str,
+    route_variant_bias_map: dict[str, float] | None = None,
+) -> dict:
     enriched = deepcopy(plan)
-    enriched["risk_level"] = _plan_risk_level(list(enriched.get("steps", [])))
+    memory_summary = _memory_context_summary(memory_context, mode=memory_mode)
+    targets = dict(enriched.get("request_targets", {}) or enriched.get("targets", {}))
+    request_decomposition = [dict(item) for item in list(enriched.get("request_decomposition", []))]
+    steps = [dict(step) for step in list(enriched.get("steps", []))]
+    attached = bool(steps) and all(
+        "decomposition_order" in step or "decomposition_subgoal_id" in step or "subgoal_id" in step
+        for step in steps
+    )
+    evaluated = _evaluate_primary_shape(
+        steps,
+        request_decomposition,
+        targets,
+        attached=attached,
+        intent_confidence=float(enriched.get("intent_confidence", 0.5) or 0.5),
+        ambiguity_flags=list(enriched.get("ambiguity_flags", [])),
+        conflicting_signals=list(enriched.get("conflicting_signals", [])),
+        route_history_bias=dict(enriched.get("route_history_bias", {})),
+        read_only_request=bool(enriched.get("read_only_request", False)),
+        memory_strength=str(memory_summary.get("memory_strength", "none")),
+    )
+    enriched["steps"] = list(evaluated.get("steps", []))
+    enriched["request_decomposition"] = list(evaluated.get("request_decomposition", request_decomposition))
+    enriched["planner_precheck"] = dict(evaluated.get("precheck", {}))
+    enriched["plan_simulation"] = dict(evaluated.get("simulation", {}))
+    enriched["planner_confidence"] = float(evaluated.get("planner_confidence", enriched.get("planner_confidence", 0.0)) or 0.0)
+    enriched["risk_level"] = str(evaluated.get("risk_level", _plan_risk_level(list(enriched.get("steps", [])))))
     enriched["risk"] = enriched["risk_level"]
-    enriched["memory_context"] = _memory_context_summary(memory_context, mode=memory_mode)
-    enriched["evidence"] = score_branch_support(enriched, memory_context)
-    enriched["memory_dependency"] = float(enriched["evidence"].get("memory_weight", 0.0) or 0.0)
-    enriched["target_coverage"] = _coverage_for_steps(dict(enriched.get("request_targets", {})), list(enriched.get("steps", [])))
-    enriched["dropped_targets"] = list(enriched["target_coverage"].get("unbound_targets", []))
+    enriched["predicted_risk"] = str((enriched.get("plan_simulation") or {}).get("predicted_risk", enriched.get("risk_level", "low")))
+    enriched["expected_success"] = float((enriched.get("plan_simulation") or {}).get("expected_success", enriched.get("planner_confidence", 0.0)) or 0.0)
+    enriched["memory_context"] = memory_summary
+    ambiguity_flags = list(dict.fromkeys(list(enriched.get("ambiguity_flags", [])) + list(evaluated.get("ambiguity_flags", []))))
+    coverage = dict(evaluated.get("coverage", _coverage_for_steps(targets, list(enriched.get("steps", [])))))
+    if coverage.get("unbound_targets"):
+        ambiguity_flags.extend(["unbound_explicit_targets", "dropped_target"])
+    enriched["ambiguity_flags"] = list(dict.fromkeys(ambiguity_flags))
+    enriched["ambiguity"] = list(enriched["ambiguity_flags"])
+    enriched["target_coverage"] = coverage
+    enriched["dropped_targets"] = list(coverage.get("unbound_targets", []))
     enriched["route_confidence_by_step"] = {
         str(index): float(step.get("route_confidence", 0.0) or 0.0)
         for index, step in enumerate(list(enriched.get("steps", [])))
     }
+    enriched["evidence"] = score_branch_support(enriched, memory_context)
+    enriched["memory_dependency"] = float(enriched["evidence"].get("memory_weight", 0.0) or 0.0)
+    route_variant = _planner_route_variant(enriched)
+    route_variant_bias = float(dict(route_variant_bias_map or {}).get(route_variant, 0.0) or 0.0)
+    enriched["route_variant"] = route_variant
+    enriched["route_surface"] = route_variant
+    enriched["route_variant_history_bias"] = round(route_variant_bias, 3)
+    branch = dict(enriched.get("branch") or {})
+    branch["route_variant"] = route_variant
+    branch["route_surface"] = route_variant
+    enriched["branch"] = branch
     return enriched
+
+
+def _branch_rejection_state(plan: dict[str, Any]) -> dict[str, Any]:
+    simulation = dict(plan.get("plan_simulation") or {})
+    precheck = dict(plan.get("planner_precheck") or {})
+    coverage = dict(plan.get("target_coverage") or {})
+    planner_confidence = float(plan.get("planner_confidence", 0.0) or 0.0)
+    expected_success = float(simulation.get("expected_success", planner_confidence) or 0.0)
+    predicted_risk = str(simulation.get("predicted_risk", plan.get("risk_level", "low")) or "low").lower()
+    mutating = any(step_allows_mutation(str(step.get("kind", ""))) for step in list(plan.get("steps", [])))
+    verification_count = int(simulation.get("verification_count", 0) or 0)
+    coverage_ratio = float(coverage.get("coverage_ratio", 0.0) or 0.0)
+    high_conflict = any(str(item.get("severity", "")) == "high" for item in list(precheck.get("issues", [])))
+    branch = dict(plan.get("branch") or {})
+    branch_id = str(branch.get("id", ""))
+    branch_source = str(branch.get("source", ""))
+    exempt_target_isolation = branch_source == "target_specific_branch" or branch_id.startswith("single_target_")
+    exempt_single_remediation = branch_source == "single_remediation_regeneration" or branch_id in {"single_recover", "single_self_repair"}
+    coverage_sensitive = not (exempt_target_isolation or exempt_single_remediation)
+    reasons: list[str] = []
+
+    if mutating and coverage_ratio < 1.0 and coverage_sensitive:
+        reasons.append("mutating_branch_drops_targets")
+    if high_conflict and expected_success < 0.72 and not exempt_target_isolation:
+        reasons.append("high_conflict_low_success")
+    if expected_success < 0.34 and not (exempt_target_isolation or exempt_single_remediation):
+        reasons.append("predicted_success_too_low")
+    if mutating and planner_confidence < 0.35:
+        reasons.append("planner_confidence_too_low_for_mutation")
+    if mutating and predicted_risk == "high" and verification_count == 0 and not exempt_target_isolation:
+        reasons.append("unverified_high_risk_mutation")
+
+    return {
+        "rejected": bool(reasons),
+        "reasons": reasons,
+        "expected_success": round(expected_success, 3),
+        "predicted_risk": predicted_risk,
+        "coverage_ratio": round(coverage_ratio, 3),
+        "conflict_count": int(precheck.get("conflict_count", 0) or 0),
+    }
+
+
+def _evaluate_primary_shape(
+    steps: list[dict[str, Any]],
+    request_decomposition: list[dict[str, Any]],
+    targets: dict[str, Any],
+    *,
+    attached: bool = False,
+    intent_confidence: float,
+    ambiguity_flags: list[str],
+    conflicting_signals: list[str],
+    route_history_bias: dict[str, float],
+    read_only_request: bool,
+    memory_strength: str,
+) -> dict[str, Any]:
+    if attached:
+        shaped_steps = [dict(step) for step in steps]
+        shaped_decomposition = [dict(item) for item in request_decomposition]
+    else:
+        shaped_steps, shaped_decomposition = _attach_step_decomposition([dict(step) for step in steps], [dict(item) for item in request_decomposition], targets)
+    shaped_steps = _annotate_step_causality(shaped_steps)
+    precheck = simulate_plan_conflicts(shaped_steps, shaped_decomposition, targets, read_only_request=read_only_request)
+    shaped_steps, precondition_flags = _annotate_step_contracts(shaped_steps)
+    shaped_steps = _annotate_step_reasoning(shaped_steps)
+    coverage = _coverage_for_steps(targets, shaped_steps)
+    combined_ambiguity = list(dict.fromkeys(list(ambiguity_flags) + list(precondition_flags)))
+    planner_confidence = _planner_confidence(
+        float(intent_confidence or 0.0),
+        float(coverage.get("coverage_ratio", 0.0) or 0.0),
+        len(combined_ambiguity),
+        len(set(conflicting_signals)),
+        len(list(coverage.get("unbound_targets", []))),
+    )
+    planner_confidence = max(
+        0.0,
+        round(
+            planner_confidence
+            - float(precheck.get("confidence_adjustment", 0.0) or 0.0)
+            - (0.08 if memory_strength == "conflicting" else 0.0)
+            - min(0.08, _dependency_depth(shaped_decomposition) * 0.02),
+            3,
+        ),
+    )
+    risk_level = _plan_risk_level(shaped_steps)
+    simulation = simulate_plan(
+        list(shaped_steps),
+        list(shaped_decomposition),
+        dict(targets),
+        planner_confidence=planner_confidence,
+        risk_level=str(risk_level),
+        ambiguity_flags=combined_ambiguity,
+        route_history_bias=dict(route_history_bias),
+        precheck=precheck,
+        memory_strength=memory_strength,
+    )
+    return {
+        "steps": shaped_steps,
+        "request_decomposition": shaped_decomposition,
+        "precheck": precheck,
+        "precondition_flags": precondition_flags,
+        "coverage": coverage,
+        "planner_confidence": planner_confidence,
+        "risk_level": risk_level,
+        "simulation": simulation,
+        "ambiguity_flags": combined_ambiguity,
+    }
+
+
+def _maybe_apply_survivor_guidance_to_primary(
+    cwd: str,
+    steps: list[dict[str, Any]],
+    request_decomposition: list[dict[str, Any]],
+    targets: dict[str, Any],
+    *,
+    attached: bool = False,
+    reasoning_trace: dict[str, Any],
+    read_only_request: bool,
+    intent_confidence: float,
+    ambiguity_flags: list[str],
+    conflicting_signals: list[str],
+    route_history_bias: dict[str, float],
+    memory_strength: str,
+) -> dict[str, Any]:
+    provisional_plan = {
+        "steps": [dict(step) for step in steps],
+        "request_targets": dict(targets),
+        "reasoning_trace": dict(reasoning_trace),
+    }
+    guidance = survivor_generation_guidance(cwd, provisional_plan)
+    current_prior = survivor_history_score(cwd, provisional_plan)
+    result = {
+        "steps": [dict(step) for step in steps],
+        "guidance": guidance,
+        "applied": False,
+        "applied_pattern": "",
+        "applied_score": 0.0,
+        "current_prior": current_prior,
+    }
+    if not bool(guidance.get("history_ready")) or _dependency_depth(request_decomposition) > 0:
+        return result
+
+    baseline = _evaluate_primary_shape(
+        list(steps),
+        request_decomposition,
+        targets,
+        attached=attached,
+        intent_confidence=intent_confidence,
+        ambiguity_flags=ambiguity_flags,
+        conflicting_signals=conflicting_signals,
+        route_history_bias=route_history_bias,
+        read_only_request=read_only_request,
+        memory_strength=memory_strength,
+    )
+    baseline_conflicts = int(dict(baseline.get("precheck") or {}).get("conflict_count", 0) or 0)
+    baseline_success = float(dict(baseline.get("simulation") or {}).get("expected_success", 0.0) or 0.0)
+
+    for recommendation in list(guidance.get("recommended_patterns", [])):
+        pattern_signature = str(recommendation.get("pattern_signature", "")).strip()
+        if not pattern_signature or not pattern_signature.startswith("verify"):
+            continue
+        if float(recommendation.get("score", 0.0) or 0.0) <= float(current_prior.get("score", 0.0) or 0.0) + 0.08:
+            continue
+        candidate_steps = pattern_guided_steps(list(steps), pattern_signature)
+        if _candidate_signature({"steps": candidate_steps}) == _candidate_signature({"steps": steps}):
+            continue
+        candidate = _evaluate_primary_shape(
+            candidate_steps,
+            request_decomposition,
+            targets,
+            attached=attached,
+            intent_confidence=intent_confidence,
+            ambiguity_flags=ambiguity_flags,
+            conflicting_signals=conflicting_signals,
+            route_history_bias=route_history_bias,
+            read_only_request=read_only_request,
+            memory_strength=memory_strength,
+        )
+        candidate_conflicts = int(dict(candidate.get("precheck") or {}).get("conflict_count", 0) or 0)
+        candidate_success = float(dict(candidate.get("simulation") or {}).get("expected_success", 0.0) or 0.0)
+        if candidate_conflicts > baseline_conflicts:
+            continue
+        if candidate_success + 0.001 < baseline_success:
+            continue
+        result["steps"] = [dict(step) for step in candidate_steps]
+        result["applied"] = True
+        result["applied_pattern"] = pattern_signature
+        result["applied_score"] = float(recommendation.get("score", 0.0) or 0.0)
+        break
+    return result
 
 
 def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None = None) -> dict:
@@ -392,12 +872,26 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
     request_text = str(primary.get("request", _normalize_text(request)))
     memory_context = build_memory_context(cwd, request_text, dict(primary.get("intent", {})))
     memory_free_context = _strip_memory_context(memory_context)
+    route_variant_bias_map = _route_variant_history_bias(cwd)
+    survivor_guidance = survivor_generation_guidance(cwd, primary)
+    strategy_guidance = dict(primary.get("survivor_strategy_guidance") or {})
     candidates: list[dict] = []
+    rejected_candidates: list[dict] = []
     exact_seen: set[str] = set()
     semantic_seen: dict[str, int] = {}
 
     def add(plan: dict, *, memory_ctx: dict, memory_mode: str) -> None:
-        attached = _attach_branch_support(plan, memory_ctx, memory_mode=memory_mode)
+        attached = _attach_branch_support(
+            cwd,
+            plan,
+            memory_ctx,
+            memory_mode=memory_mode,
+            route_variant_bias_map=route_variant_bias_map,
+        )
+        attached["branch_rejection"] = _branch_rejection_state(attached)
+        if bool(dict(attached.get("branch_rejection") or {}).get("rejected", False)):
+            rejected_candidates.append(attached)
+            return
         coverage = dict(attached.get("target_coverage", {}))
         if not attached.get("planner_confidence"):
             attached["planner_confidence"] = _planner_confidence(
@@ -407,6 +901,7 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
                 len(list(attached.get("conflicting_signals", []))),
                 len(list(coverage.get("unbound_targets", []))),
             )
+        attached["survivor_history_prior"] = survivor_history_score(cwd, attached)
         _add_candidate(candidates, exact_seen, semantic_seen, attached)
 
     add(
@@ -442,6 +937,14 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
     request_lowered = request_text.lower()
     explicit_mutation = any(token in request_lowered for token in MUTATION_TOKENS)
     ambiguous_request = bool(list(primary.get("ambiguity_flags", [])))
+    smart_profile = dict(primary.get("smart_planner") or {})
+    guided_strategy = str(strategy_guidance.get("preferred_strategy", "")).strip().lower()
+    guided_branch_types = {
+        str(item).strip().lower()
+        for item in list(strategy_guidance.get("preferred_branch_types", []))
+        if str(item).strip()
+    }
+    safe_strategy = str(smart_profile.get("planner_mode", "")) == "safe" or str(smart_profile.get("strategy", "")) == "conservative"
     verification_first = sorted(
         [dict(step) for step in steps],
         key=lambda step: (
@@ -451,6 +954,19 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
         ),
     )
     add(_clone_plan(primary, verification_first, branch_id="verification_first", source="verification_first", note="Verification-first branch reorders observation and verification before mutation.", memory_mode="balanced"), memory_ctx=memory_context, memory_mode="balanced")
+    if guided_strategy == "verification_first" or "verification_first" in guided_branch_types:
+        add(
+            _clone_plan(
+                primary,
+                verification_first,
+                branch_id="survivor_strategy_seed",
+                source="survivor_strategy_guidance",
+                note="Survivor strategy guidance seeded a verification-first branch because cross-context history validated this structure.",
+                memory_mode="balanced",
+            ),
+            memory_ctx=memory_context,
+            memory_mode="balanced",
+        )
 
     read_only_steps = [dict(step) for step in steps if str(step.get("kind", "")) in _READ_ONLY_STEP_KINDS]
     if read_only_steps and bool(primary.get("read_only_request")) and not explicit_mutation:
@@ -467,19 +983,52 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
             seen_subgoals.add(subgoal_id)
     if not minimal_safe:
         minimal_safe = [make_step("observe", request_text, subgoal_id="observe", route_confidence=0.4, source_of_route="minimal_safe_fallback")]
-    if bool(primary.get("read_only_request")) or (ambiguous_request and not explicit_mutation):
+    if bool(primary.get("read_only_request")) or (ambiguous_request and not explicit_mutation) or safe_strategy or guided_strategy == "conservative" or "minimal_safe" in guided_branch_types:
         add(_clone_plan(primary, minimal_safe, branch_id="minimal_safe", source="minimal_safe_branch", note="Minimal-safe branch keeps one low-risk verification step per subgoal.", memory_mode="balanced"), memory_ctx=memory_context, memory_mode="balanced")
 
-    if bool(primary.get("read_only_request")) or (ambiguous_request and not explicit_mutation) or any(str(step.get("risk_level", "")) == "high" for step in steps):
+    if bool(primary.get("read_only_request")) or (ambiguous_request and not explicit_mutation) or any(str(step.get("risk_level", "")) == "high" for step in steps) or safe_strategy or guided_strategy == "conservative" or "observation_only" in guided_branch_types:
         conservative = [dict(step) for step in steps if not step_allows_mutation(str(step.get("kind", "")))]
         if conservative:
             add(_clone_plan(primary, conservative, branch_id="conservative_execution", source="risk_conservative_branch", note="Conservative execution branch drops mutating steps while preserving observation coverage.", memory_mode="balanced"), memory_ctx=memory_context, memory_mode="balanced")
 
     evidence_first = sorted([dict(step) for step in steps], key=lambda step: (0 if str(step.get("verification_mode", "")) == "observe" else 1, -float(step.get("route_confidence", 0.0) or 0.0), 0 if str(step.get("risk_level", "")) == "low" else 1))
     add(_clone_plan(primary, evidence_first, branch_id="evidence_first", source="evidence_first_branch", note="Evidence-first branch prioritizes strongly-supported low-risk steps before other work.", memory_mode="balanced"), memory_ctx=memory_context, memory_mode="balanced")
+    if guided_strategy == "dependency_aware" or guided_strategy == "verification_first" or "evidence_first" in guided_branch_types:
+        add(
+            _clone_plan(
+                primary,
+                evidence_first,
+                branch_id="survivor_strategy_evidence",
+                source="survivor_strategy_guidance",
+                note="Survivor strategy guidance emphasized an evidence-first branch because validated history favored earlier verification or dependency resolution.",
+                memory_mode="balanced",
+            ),
+            memory_ctx=memory_context,
+            memory_mode="balanced",
+        )
+
+    for index, recommendation in enumerate(list(survivor_guidance.get("recommended_patterns", []))[:3]):
+        pattern_signature = str(recommendation.get("pattern_signature", "")).strip()
+        if not pattern_signature:
+            continue
+        guided_steps = pattern_guided_steps(steps, pattern_signature)
+        if not guided_steps:
+            continue
+        add(
+            _clone_plan(
+                primary,
+                guided_steps,
+                branch_id=f"survivor_guided_{index}",
+                source="survivor_history_generation",
+                note=f"Survivor-guided branch aligns the plan to historically surviving pattern `{pattern_signature}` for this request context.",
+                memory_mode="balanced",
+            ),
+            memory_ctx=memory_context,
+            memory_mode="balanced",
+        )
 
     target_items = list((primary.get("request_targets") or {}).get("items", []))
-    if len(target_items) > 1:
+    if len(target_items) > 1 or guided_strategy == "target_isolated" or "single_target" in guided_branch_types:
         for item in target_items:
             if str(item.get("type", "")) == "actions":
                 continue
@@ -509,9 +1058,24 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
                 )
             add(_clone_plan(primary, branch_steps, branch_id=f"single_{kind}", source="single_remediation_regeneration", note=f"Single remediation branch keeping only {kind}.", preferred=(kind == "recover"), memory_mode="balanced"), memory_ctx=memory_context, memory_mode="balanced")
 
-    if (ambiguous_request or float(primary.get("planner_confidence", 1.0) or 1.0) < 0.55) and not explicit_mutation:
+    if (ambiguous_request or float(primary.get("planner_confidence", 1.0) or 1.0) < 0.55 or safe_strategy or guided_strategy == "conservative" or "observation_only" in guided_branch_types) and not explicit_mutation:
         observe_only = [make_step("observe", request_text, subgoal_id="observe", route_confidence=max(0.35, float(primary.get("planner_confidence", 0.5)) - 0.2), source_of_route="ambiguity_observe_only")]
         add(_clone_plan(primary, observe_only, branch_id="observation_only", source="ambiguity_observation_branch", note="Observation-only branch reserved for high-ambiguity requests.", memory_mode="disabled"), memory_ctx=memory_free_context, memory_mode="disabled")
+
+    derivation = derive_interpretations(cwd, request_text, primary, candidates, desired_count=max(16, len(candidates) + 6))
+    derivation_scores = {str(item.get("source_branch_id", "")): float(item.get("survival_score", 0.0) or 0.0) for item in list(derivation.get("top_survivors", []))}
+    for candidate in candidates:
+        branch_id = str((candidate.get("branch") or {}).get("id", ""))
+        candidate["derivation_survival_score"] = float(derivation_scores.get(branch_id, 0.0) or 0.0)
+    candidates.sort(
+        key=lambda candidate: (
+            -float(candidate.get("derivation_survival_score", 0.0) or 0.0),
+            -float(dict(candidate.get("survivor_history_prior") or {}).get("score", 0.0) or 0.0),
+            -float(candidate.get("route_variant_history_bias", 0.0) or 0.0),
+            -float(candidate.get("planner_confidence", 0.0) or 0.0),
+            -float(dict(candidate.get("target_coverage") or {}).get("coverage_ratio", 0.0) or 0.0),
+        )
+    )
 
     return {
         "ok": True,
@@ -520,18 +1084,29 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
         "intent": dict(primary.get("intent", {})),
         "memory_context": _memory_context_summary(memory_context, mode="balanced"),
         "candidate_count": len(candidates),
+        "rejected_candidate_count": len(rejected_candidates),
         "candidates": candidates,
+        "rejected_candidates": rejected_candidates,
+        "self_derivation": derivation,
+        "survivor_guidance": survivor_guidance,
+        "survivor_strategy_guidance": strategy_guidance,
     }
 
 
-def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced") -> dict:
+def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", record_snapshot: bool = True) -> dict:
     text = _normalize_text(request)
     lowered = text.lower()
     targets = extract_request_targets(text)
     read_only_request = _request_is_read_only(lowered)
     memory_context = build_memory_context(cwd, text, extract_intent(text))
     route_history_bias = _route_history_bias(cwd)
-    resolved = _resolve_intents(text, targets, memory_context, memory_mode=memory_mode, route_history_bias=route_history_bias)
+    route_variant_bias_map = _route_variant_history_bias(cwd)
+    request_decomposition = _split_subgoals(text)
+    reasoning_trace = analyze_goal_structure(text, request_decomposition, targets)
+    semantic_interpretations = generate_semantic_interpretations(text, request_decomposition, targets)
+    semantic_frame = dict(semantic_interpretations[0]) if semantic_interpretations else {}
+    semantic_abstraction = semantic_abstraction_profile(text, targets, request_decomposition)
+    resolved = _resolve_intents(text, targets, memory_context, decomposition=request_decomposition, memory_mode=memory_mode, route_history_bias=route_history_bias)
     intent = dict(resolved["structured_intent"])
     intent["intent"] = str(resolved["primary_intent"])
     intent["primary_intent"] = str(resolved["primary_intent"])
@@ -544,7 +1119,6 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced") -
     remembered_plan = None
     if str(intent.get("constraints", {}).get("resume", "")).lower() == "true":
         remembered_plan = lookup(cwd, intent["intent"])
-    request_decomposition = _split_subgoals(text)
 
     composed = compose_primary_steps(
         text,
@@ -573,23 +1147,65 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced") -
             steps = filtered_steps
     if not steps:
         steps.append(make_step("observe", text, subgoal_id="observe", route_confidence=0.5, source_of_route="fallback_observe"))
+    memory_summary = _memory_context_summary(memory_context, mode=memory_mode)
     steps, request_decomposition = _attach_step_decomposition(steps, request_decomposition, targets)
+    steps = _annotate_step_causality(steps)
+    survivor_primary = _maybe_apply_survivor_guidance_to_primary(
+        cwd,
+        steps,
+        request_decomposition,
+        targets,
+        attached=True,
+        reasoning_trace=reasoning_trace,
+        read_only_request=read_only_request,
+        intent_confidence=float(resolved["primary_confidence"]),
+        ambiguity_flags=ambiguity_flags,
+        conflicting_signals=conflicting_signals,
+        route_history_bias=dict(resolved.get("route_history_bias", {})),
+        memory_strength=str(memory_summary.get("memory_strength", "none")),
+    )
+    survivor_guidance = dict(survivor_primary.get("guidance") or {})
+    survivor_guidance_applied = bool(survivor_primary.get("applied", False))
+    survivor_guidance_pattern = str(survivor_primary.get("applied_pattern", ""))
+    if survivor_guidance_applied:
+        steps = _annotate_step_reasoning(_annotate_step_causality([dict(step) for step in list(survivor_primary.get("steps", []))]))
+        ambiguity_flags.append("survivor_guided_primary")
+    planner_precheck = simulate_plan_conflicts(steps, request_decomposition, targets, read_only_request=read_only_request)
+    if planner_precheck.get("has_conflict", False):
+        ambiguity_flags.append("planner_precheck_conflict")
+        ambiguity_flags.extend(str(item.get("code", "")) for item in list(planner_precheck.get("issues", [])) if str(item.get("code", "")))
+        if any(str(item.get("severity", "")) == "high" for item in list(planner_precheck.get("issues", []))):
+            conflicting_signals.append("planner_precheck_high_conflict")
     steps, precondition_flags = _annotate_step_contracts(steps)
+    steps = _annotate_step_reasoning(steps)
     ambiguity_flags.extend(precondition_flags)
     coverage = _coverage_for_steps(targets, steps)
     if coverage["unbound_targets"]:
         ambiguity_flags.append("unbound_explicit_targets")
         ambiguity_flags.append("dropped_target")
     planner_confidence = _planner_confidence(float(resolved["primary_confidence"]), float(coverage["coverage_ratio"]), len(set(ambiguity_flags)), len(set(conflicting_signals)), len(list(coverage["unbound_targets"])))
+    planner_confidence = max(
+        0.0,
+        round(
+            planner_confidence
+            - float(planner_precheck.get("confidence_adjustment", 0.0) or 0.0)
+            - (0.08 if str(memory_summary.get("memory_strength", "")) == "conflicting" else 0.0)
+            - min(0.08, _dependency_depth(request_decomposition) * 0.02),
+            3,
+        ),
+    )
     conservative_fallback_active = False
     if planner_confidence < 0.45 and any(step_allows_mutation(str(step.get("kind", ""))) for step in steps):
         conservative_steps = [dict(step) for step in steps if not step_allows_mutation(str(step.get("kind", "")))]
         if not conservative_steps:
             conservative_steps = [make_step("observe", text, subgoal_id="observe", route_confidence=0.4, source_of_route="low_confidence_conservative_fallback")]
-        steps, _ = _annotate_step_contracts(conservative_steps)
+        steps, _ = _annotate_step_contracts(_annotate_step_causality(conservative_steps))
+        steps = _annotate_step_reasoning(steps)
         ambiguity_flags.append("low_confidence_conservative_primary")
         branch_id = "conservative_primary"
         conservative_fallback_active = True
+        survivor_guidance_applied = False
+        survivor_guidance_pattern = ""
         coverage = _coverage_for_steps(targets, steps)
         planner_confidence = _planner_confidence(float(resolved["primary_confidence"]), float(coverage["coverage_ratio"]), len(set(ambiguity_flags)), len(set(conflicting_signals)), len(list(coverage["unbound_targets"])))
     risk_level = _plan_risk_level(steps)
@@ -617,14 +1233,38 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced") -
         "route_confidence_by_step": {str(index): float(step.get("route_confidence", 0.0) or 0.0) for index, step in enumerate(steps)},
         "steps": steps,
         "request_decomposition": request_decomposition,
-        "branch_reason": "low_confidence_conservative_fallback" if conservative_fallback_active else "weighted_primary_route",
-        "branch": {"id": branch_id, "source": "weighted_intent_resolution", "note": "Primary branch built from weighted intent resolution and target-aware step composition." if not conservative_fallback_active else "Primary branch downgraded into conservative mode because planner confidence was too low for mutation.", "preferred": True, "memory_mode": memory_mode},
+        "branch_reason": "low_confidence_conservative_fallback" if conservative_fallback_active else "survivor_guided_primary" if survivor_guidance_applied else "weighted_primary_route",
+        "branch": {
+            "id": branch_id,
+            "source": "weighted_intent_resolution_survivor_guided" if survivor_guidance_applied else "weighted_intent_resolution",
+            "note": (
+                f"Primary branch shaped by survivor-guided history pattern `{survivor_guidance_pattern}` after safe precheck."
+                if survivor_guidance_applied
+                else "Primary branch built from weighted intent resolution and target-aware step composition."
+                if not conservative_fallback_active
+                else "Primary branch downgraded into conservative mode because planner confidence was too low for mutation."
+            ),
+            "preferred": True,
+            "memory_mode": memory_mode,
+        },
         "conservative_fallback_active": conservative_fallback_active,
+        "reasoning_trace": reasoning_trace,
+        "planner_precheck": planner_precheck,
+        "survivor_guidance": survivor_guidance,
+        "survivor_guidance_applied": survivor_guidance_applied,
+        "survivor_guidance_pattern": survivor_guidance_pattern,
+        "semantic_interpretations": semantic_interpretations,
+        "semantic_frame": semantic_frame,
+        "semantic_abstraction": semantic_abstraction,
     }
-    plan["memory_context"] = _memory_context_summary(memory_context, mode=memory_mode)
+    plan["memory_context"] = memory_summary
     plan["memory_reliability"] = str((plan["memory_context"] or {}).get("memory_strength", "none"))
+    plan["semantic_goal"] = str(resolved.get("semantic_goal", semantic_frame.get("goal", "")))
+    plan["semantic_roles"] = list(resolved.get("semantic_roles", semantic_frame.get("structure", [])))
     plan["evidence"] = score_branch_support(plan, memory_context if memory_mode != "disabled" else _strip_memory_context(memory_context))
     plan["memory_dependency"] = float(plan["evidence"].get("memory_weight", 0.0) or 0.0)
+    plan["survivor_history_prior"] = survivor_history_score(cwd, plan)
+    plan["survivor_strategy_guidance"] = survivor_strategy_guidance(cwd, plan)
     plan["smart_planner"] = derive_smart_planner_profile(
         text,
         list(plan.get("steps", [])),
@@ -634,8 +1274,54 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced") -
         risk_level=str(plan.get("risk_level", "low")),
         ambiguity_flags=list(plan.get("ambiguity_flags", [])),
         route_history_bias=dict(plan.get("route_history_bias", {})),
+        reasoning_trace=reasoning_trace,
+        precheck=planner_precheck,
+        survivor_strategy_guidance=dict(plan.get("survivor_strategy_guidance", {})),
     )
-    if memory_mode == "balanced":
+    plan["plan_simulation"] = simulate_plan(
+        list(plan.get("steps", [])),
+        list(plan.get("request_decomposition", [])),
+        dict(plan.get("request_targets", {})),
+        planner_confidence=float(plan.get("planner_confidence", 0.0) or 0.0),
+        risk_level=str(plan.get("risk_level", "low")),
+        ambiguity_flags=list(plan.get("ambiguity_flags", [])),
+        route_history_bias=dict(plan.get("route_history_bias", {})),
+        precheck=planner_precheck,
+        memory_strength=str(plan.get("memory_reliability", "none")),
+    )
+    plan["predicted_risk"] = str((plan.get("plan_simulation") or {}).get("predicted_risk", plan.get("risk_level", "low")))
+    plan["expected_success"] = float((plan.get("plan_simulation") or {}).get("expected_success", plan.get("planner_confidence", 0.0)) or 0.0)
+    plan["self_critique"] = critique_plan(
+        planner_confidence=float(plan.get("planner_confidence", 0.0) or 0.0),
+        coverage_ratio=float(dict(plan.get("target_coverage") or {}).get("coverage_ratio", 0.0) or 0.0),
+        simulation=dict(plan.get("plan_simulation") or {}),
+        precheck=planner_precheck,
+        memory_strength=str(plan.get("memory_reliability", "none")),
+    )
+    if bool(dict(plan.get("self_critique") or {}).get("downgrade_recommended", False)):
+        plan["smart_planner"]["planner_mode"] = "safe"
+        plan["smart_planner"]["strategy_mode"] = "safe"
+        plan["smart_planner"]["reasons"] = list(
+            dict.fromkeys(list(plan["smart_planner"].get("reasons", [])) + ["self_critique_safe_downgrade"])
+        )
+    plan["execution_mode"] = str((plan.get("smart_planner") or {}).get("planner_mode", "normal"))
+    plan["phases"] = phase_plan(list(plan.get("steps", [])))
+    plan["route_variant"] = _planner_route_variant(plan)
+    plan["route_surface"] = str(plan["route_variant"])
+    plan["route_variant_history_bias"] = round(float(route_variant_bias_map.get(str(plan["route_variant"]), 0.0) or 0.0), 3)
+    plan["branch"]["route_variant"] = str(plan["route_variant"])
+    plan["branch"]["route_surface"] = str(plan["route_surface"])
+    plan["explanation"] = explain_plan(
+        intent_candidate=dict((resolved.get("candidates") or [{}])[0]),
+        smart_profile=dict(plan.get("smart_planner", {})),
+        precheck=planner_precheck,
+        risk_level=risk_level,
+        branch_reason=str(plan.get("branch_reason", "")),
+        simulation=dict(plan.get("plan_simulation") or {}),
+        critique=dict(plan.get("self_critique") or {}),
+        planner_confidence=float(plan.get("planner_confidence", 0.0) or 0.0),
+    )
+    if memory_mode == "balanced" and record_snapshot:
         record_smart_planner_snapshot(cwd, dict(plan["smart_planner"]))
     return plan
 
@@ -647,6 +1333,7 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
     contradiction_gate = dict(run.get("contradiction_gate", {}))
     results = list(run.get("results", []))
     route = str(((selected_plan.get("intent") or {}).get("primary_intent") or (selected_plan.get("intent") or {}).get("intent") or "observe"))
+    route_variant = _planner_route_variant(selected_plan)
     approval_required_count = sum(1 for item in results if str(item.get("reason", "")) == "approval_required")
     target_coverage = dict(selected_plan.get("target_coverage") or {})
     entry = {
@@ -654,6 +1341,8 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
         "request": _normalize_text(request),
         "planner_version": str(selected_plan.get("planner_version", PLANNER_VERSION)),
         "route": route,
+        "route_variant": route_variant,
+        "route_surface": route_variant,
         "branch_id": str((selected_plan.get("branch") or {}).get("id", "primary")),
         "branch_reason": str(selected_plan.get("branch_reason", "")),
         "planner_confidence": float(selected_plan.get("planner_confidence", 0.0) or 0.0),
@@ -680,9 +1369,24 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
             "successful_completion_rate": round(sum(1 for item in route_entries if item.get("ok", False)) / total, 3),
             "reroute_after_failure_rate": round(sum(1 for item in route_entries if item.get("rerouted_after_failure")) / total, 3),
         }
+    route_variants_summary: dict[str, Any] = {}
+    route_variant_names = sorted({str(item.get("route_variant", "")) for item in data["history"] if str(item.get("route_variant", ""))})
+    for route_variant_name in route_variant_names:
+        route_variant_entries = [item for item in data["history"] if str(item.get("route_variant", "")) == route_variant_name]
+        total = max(1, len(route_variant_entries))
+        route_variants_summary[route_variant_name] = {
+            "count": len(route_variant_entries),
+            "contradiction_hold_rate": round(sum(1 for item in route_variant_entries if item.get("contradiction_hold")) / total, 3),
+            "execution_failure_rate": round(sum(1 for item in route_variant_entries if not item.get("ok", False)) / total, 3),
+            "approval_required_surprise_rate": round(sum(1 for item in route_variant_entries if item.get("approval_required_surprise")) / total, 3),
+            "target_drop_rate": round(sum(int(item.get("target_drop_count", 0)) for item in route_variant_entries) / total, 3),
+            "successful_completion_rate": round(sum(1 for item in route_variant_entries if item.get("ok", False)) / total, 3),
+            "reroute_after_failure_rate": round(sum(1 for item in route_variant_entries if item.get("rerouted_after_failure")) / total, 3),
+        }
     data["summary"] = {
         "history_count": len(data["history"]),
         "routes": routes_summary,
+        "route_variants": route_variants_summary,
     }
     _save_feedback(cwd, data)
     return {"ok": True, "path": str(_feedback_path(cwd)), "entry": entry, "summary": dict(data.get("summary", {}))}
@@ -697,8 +1401,31 @@ def smart_planner_status(cwd: str) -> dict[str, Any]:
     return _smart_planner_status(cwd)
 
 
+def self_derivation_status(cwd: str) -> dict[str, Any]:
+    return _self_derivation_status(cwd)
+
+
+def self_derivation_assess(request: str, cwd: str = ".") -> dict[str, Any]:
+    plan = build_plan(request, cwd, record_snapshot=False)
+    bundle = build_candidate_plans(request, cwd, base_plan=plan)
+    return {
+        "ok": True,
+        "request": str(plan.get("request", request)),
+        "planner_version": str(plan.get("planner_version", PLANNER_VERSION)),
+        "recommended_branch_id": str(dict(bundle.get("self_derivation", {})).get("recommended_branch_id", "")),
+        "candidate_count": int(bundle.get("candidate_count", 0) or 0),
+        "self_derivation": dict(bundle.get("self_derivation", {})),
+        "smart_planner": dict(plan.get("smart_planner", {})),
+    }
+
+
+def self_derivation_revalidate(cwd: str, *, strategy: str = "", limit: int = 3) -> dict[str, Any]:
+    return _self_derivation_revalidate(cwd, strategy=strategy, limit=limit)
+
+
 def smart_planner_assess(request: str, cwd: str = ".") -> dict[str, Any]:
     plan = build_plan(request, cwd)
+    bundle = build_candidate_plans(request, cwd, base_plan=plan)
     return {
         "ok": True,
         "request": str(plan.get("request", request)),
@@ -706,5 +1433,11 @@ def smart_planner_assess(request: str, cwd: str = ".") -> dict[str, Any]:
         "intent": dict(plan.get("intent", {})),
         "planner_confidence": float(plan.get("planner_confidence", 0.0) or 0.0),
         "risk_level": str(plan.get("risk_level", "low")),
+        "predicted_risk": str(plan.get("predicted_risk", plan.get("risk_level", "low"))),
+        "expected_success": float(plan.get("expected_success", plan.get("planner_confidence", 0.0)) or 0.0),
         "smart_planner": dict(plan.get("smart_planner", {})),
+        "plan_simulation": dict(plan.get("plan_simulation", {})),
+        "self_critique": dict(plan.get("self_critique", {})),
+        "self_derivation": dict(bundle.get("self_derivation", {})),
+        "explanation": dict(plan.get("explanation", {})),
     }

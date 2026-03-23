@@ -20,7 +20,11 @@ class WebCapability:
         lowered = task.text.lower().strip()
         if lowered.startswith("zero ai smart planner"):
             return False
+        if lowered.startswith("zero ai self derivation"):
+            return False
         if lowered == "smart planner status":
+            return False
+        if lowered == "self derivation status":
             return False
         if lowered.startswith("zero ai internet"):
             return False

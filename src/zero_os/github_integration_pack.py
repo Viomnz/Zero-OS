@@ -50,12 +50,17 @@ def _api_get(url: str, token: str = "") -> tuple[int, Any]:
             raw = resp.read().decode("utf-8", errors="replace")
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
         try:
-            payload = json.loads(raw) if raw.strip() else {}
-        except Exception:
-            payload = {"message": raw.strip() or str(exc)}
-        return exc.code, payload
+            raw = exc.read().decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw) if raw.strip() else {}
+            except Exception:
+                payload = {"message": raw.strip() or str(exc)}
+            return exc.code, payload
+        finally:
+            close = getattr(exc, "close", None)
+            if callable(close):
+                close()
     except Exception as exc:
         return 0, {"message": str(exc)}
 
@@ -70,12 +75,17 @@ def _api_post(url: str, payload: dict[str, Any], token: str = "") -> tuple[int, 
             raw = resp.read().decode("utf-8", errors="replace")
             return resp.status, json.loads(raw) if raw.strip() else {}
     except error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
         try:
-            body = json.loads(raw) if raw.strip() else {}
-        except Exception:
-            body = {"message": raw.strip() or str(exc)}
-        return exc.code, body
+            raw = exc.read().decode("utf-8", errors="replace")
+            try:
+                body = json.loads(raw) if raw.strip() else {}
+            except Exception:
+                body = {"message": raw.strip() or str(exc)}
+            return exc.code, body
+        finally:
+            close = getattr(exc, "close", None)
+            if callable(close):
+                close()
     except Exception as exc:
         return 0, {"message": str(exc)}
 

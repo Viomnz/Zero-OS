@@ -99,3 +99,41 @@ class WorldClassReadinessTests(unittest.TestCase):
         self.assertEqual("planner_route_drift", status["top_gap"])
         self.assertEqual("web", status["inputs"]["planner_feedback_worst_route"])
         self.assertLess(status["lanes"]["evidence"]["score"], 100.0)
+
+    def test_readiness_surfaces_strategy_memory_version_drift(self) -> None:
+        with patch(
+            "zero_os.world_class_readiness.zero_ai_capability_map_status",
+            return_value={
+                "summary": {
+                    "autonomous_surface_score": 100.0,
+                    "active_autonomous_surface_score": 100.0,
+                    "autonomous_count": 12,
+                    "active_autonomous_count": 12,
+                    "approval_gated_count": 0,
+                    "forbidden_count": 3,
+                    "planner_feedback_history_count": 4,
+                    "planner_route_quality_score": 100.0,
+                    "planner_feedback_worst_route": "",
+                    "planner_feedback_target_drop_rate": 0.0,
+                    "planner_feedback_contradiction_hold_rate": 0.0,
+                    "self_derivation_strategy_freshness_score": 0.88,
+                    "self_derivation_stale_strategy_count": 0,
+                    "self_derivation_version_mismatch_count": 2,
+                    "self_derivation_top_recovery_profile": "proven",
+                }
+            },
+        ), patch(
+            "zero_os.world_class_readiness.maintenance_status",
+            return_value={"next_action": {"reason": "stable"}},
+        ), patch(
+            "zero_os.world_class_readiness.internet_capability_status",
+            return_value={"summary": {"internet_ready": True, "connected_surface_count": 2}, "browser": {"connected": True}, "api_profiles": {"count": 1}},
+        ), patch(
+            "zero_os.zero_ai_pressure_harness.pressure_harness_status",
+            return_value={"missing": False, "overall_score": 100.0, "failed_count": 0},
+        ):
+            status = world_class_readiness_status(str(self.base))
+
+        self.assertEqual("strategy_memory_version_drift", status["top_gap"])
+        self.assertEqual(2, status["inputs"]["self_derivation_version_mismatch_count"])
+        self.assertIn("self_derivation_strategy_trend_direction", status["inputs"])

@@ -68,10 +68,23 @@ def world_class_readiness_status(cwd: str) -> dict[str, Any]:
     planner_worst_route = str(cap_summary.get("planner_feedback_worst_route", "") or "")
     planner_target_drop_rate = float(cap_summary.get("planner_feedback_target_drop_rate", 0.0) or 0.0)
     planner_hold_rate = float(cap_summary.get("planner_feedback_contradiction_hold_rate", 0.0) or 0.0)
+    derivation_strategy_freshness_score = float(cap_summary.get("self_derivation_strategy_freshness_score", 0.0) or 0.0)
+    derivation_stale_strategy_count = int(cap_summary.get("self_derivation_stale_strategy_count", 0) or 0)
+    derivation_version_mismatch_count = int(cap_summary.get("self_derivation_version_mismatch_count", 0) or 0)
+    derivation_quarantined_strategy_count = int(cap_summary.get("self_derivation_quarantined_strategy_count", 0) or 0)
+    derivation_revalidation_ready_count = int(cap_summary.get("self_derivation_revalidation_ready_count", 0) or 0)
+    derivation_top_recovery_profile = str(cap_summary.get("self_derivation_top_recovery_profile", "neutral") or "neutral")
+    derivation_strategy_trend_direction = str(cap_summary.get("self_derivation_strategy_trend_direction", "unknown") or "unknown")
+    derivation_strategy_freshness_delta = float(cap_summary.get("self_derivation_strategy_freshness_delta", 0.0) or 0.0)
+    derivation_strategy_quarantined_delta = int(cap_summary.get("self_derivation_strategy_quarantined_delta", 0) or 0)
     control_score = round((active_autonomous_count / max(1, autonomous_count)) * 100.0, 2)
     control_blockers: list[str] = []
     if int(cap_summary.get("approval_gated_count", 0) or 0) > 0:
         control_blockers.append("approval_gated_capabilities")
+    if derivation_version_mismatch_count > 0:
+        control_blockers.append("strategy_memory_version_drift")
+    if derivation_quarantined_strategy_count > 0:
+        control_blockers.append("strategy_memory_quarantined")
 
     execution_score = 100.0 if bool((internet.get("summary") or {}).get("internet_ready", False)) else 60.0
     execution_blockers: list[str] = []
@@ -91,6 +104,9 @@ def world_class_readiness_status(cwd: str) -> dict[str, Any]:
         evidence_score = round((evidence_score * 0.7) + (planner_route_quality_score * 0.3), 2)
         if planner_route_quality_score < 85.0:
             evidence_blockers.append("planner_route_drift")
+    if derivation_stale_strategy_count > 0 and derivation_strategy_freshness_score < 0.65:
+        evidence_score = round((evidence_score * 0.82) + (derivation_strategy_freshness_score * 18.0), 2)
+        evidence_blockers.append("strategy_memory_stale")
 
     lanes = {
         "reliability": _lane(reliability_score, "Pressure, contradiction, and task survivability under bounded stress.", reliability_blockers),
@@ -110,8 +126,14 @@ def world_class_readiness_status(cwd: str) -> dict[str, Any]:
         highest_value_step = "Add more typed API profiles so Zero AI can operate across real external systems with stronger evidence."
     elif top_gap == "approval_gated_capabilities":
         highest_value_step = "Keep converting high-value lanes into bounded typed workflows without dropping safety gates."
+    elif top_gap == "strategy_memory_version_drift":
+        highest_value_step = "Refresh self-derivation strategy memory against the current planner/code version before trusting older route behavior."
+    elif top_gap == "strategy_memory_quarantined":
+        highest_value_step = "Re-earn quarantined strategy memory under the current planner generation instead of silently reviving older behavior."
     elif top_gap == "planner_route_drift":
         highest_value_step = f"Improve planner route quality on `{planner_worst_route or 'the weakest route'}` before widening more autonomous execution."
+    elif top_gap == "strategy_memory_stale":
+        highest_value_step = "Run fresh planner/execution work so strategy memory reflects current behavior instead of stale survivorship."
     elif top_gap == "stable":
         highest_value_step = "Keep running real work through Zero AI and measure long-run survival."
     else:
@@ -140,6 +162,15 @@ def world_class_readiness_status(cwd: str) -> dict[str, Any]:
             "planner_feedback_worst_route": planner_worst_route,
             "planner_feedback_target_drop_rate": planner_target_drop_rate,
             "planner_feedback_contradiction_hold_rate": planner_hold_rate,
+            "self_derivation_strategy_freshness_score": derivation_strategy_freshness_score,
+            "self_derivation_stale_strategy_count": derivation_stale_strategy_count,
+            "self_derivation_version_mismatch_count": derivation_version_mismatch_count,
+            "self_derivation_quarantined_strategy_count": derivation_quarantined_strategy_count,
+            "self_derivation_revalidation_ready_count": derivation_revalidation_ready_count,
+            "self_derivation_top_recovery_profile": derivation_top_recovery_profile,
+            "self_derivation_strategy_trend_direction": derivation_strategy_trend_direction,
+            "self_derivation_strategy_freshness_delta": derivation_strategy_freshness_delta,
+            "self_derivation_strategy_quarantined_delta": derivation_strategy_quarantined_delta,
         },
         "highest_value_steps": [highest_value_step],
         "path": str(_path(cwd)),

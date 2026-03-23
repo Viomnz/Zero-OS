@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from zero_os.semantic_reasoner import semantic_intent_votes
 from zero_os.structured_intent import extract_intent
 from zero_os.task_planner_parsing import MUTATION_TOKENS, READ_ONLY_TOKENS, _tokenize
 
@@ -159,7 +160,7 @@ def _target_signal_strength(intent_name: str, targets: dict[str, Any]) -> float:
         "api": float(any(targets.get(key) for key in ("api_requests", "api_workflows"))),
         "cloud": float(any(targets.get(key) for key in ("cloud_targets", "deployments"))),
         "store_install": float(len(list(targets.get("apps", []))) > 0),
-        "highway": float(any(targets.get(key) for key in ("commands", "files"))),
+        "highway": float(any(targets.get(key) for key in ("commands", "files", "file_ranges", "branches", "artifacts"))),
     }
     return float(coverage.get(intent_name, 1.0))
 
@@ -221,6 +222,28 @@ def _step_covers_target(step: dict[str, Any], item: dict[str, Any]) -> bool:
             return False
         target_text = str(target or "")
         return kind == "highway_dispatch" and file_value in target_text
+
+    if target_type == "file_ranges":
+        target_map = dict(target_value or {})
+        file_path = str(target_map.get("path", "")).strip()
+        if not file_path:
+            return False
+        target_text = str(target or "")
+        return kind == "highway_dispatch" and file_path in target_text and str(target_map.get("start_line", "")) in target_text
+
+    if target_type == "branches":
+        branch_value = str(target_value or "").strip()
+        if not branch_value:
+            return False
+        return kind == "highway_dispatch" and branch_value in str(target or "")
+
+    if target_type == "artifacts":
+        artifact_value = str(target_value or "").strip()
+        if not artifact_value:
+            return False
+        if kind == "cloud_deploy":
+            return artifact_value == str(dict(target or {}).get("artifact", "")).strip()
+        return kind == "highway_dispatch" and artifact_value in str(target or "")
 
     if target_type == "commands":
         return kind == "highway_dispatch" and str(target or "").strip() == str(target_value or "").strip()
@@ -416,6 +439,7 @@ def _resolve_intents(
     targets: dict[str, Any],
     memory_context: dict[str, Any],
     *,
+    decomposition: list[dict[str, Any]] | None = None,
     memory_mode: str,
     route_history_bias: dict[str, float] | None = None,
 ) -> dict[str, Any]:
@@ -431,9 +455,15 @@ def _resolve_intents(
 
     if structured.get("intent", "observe") != "observe":
         bump(str(structured.get("intent")), 0.8, "structured_intent")
+    semantic = semantic_intent_votes(text, targets, decomposition)
+    for intent_name, vote in dict(semantic.get("votes") or {}).items():
+        if float(vote or 0.0) > 0.0:
+            bump(str(intent_name), float(vote), "semantic_reasoning")
+    matched_exclusive: set[str] = set()
     for intent_name, matcher in _EXCLUSIVE_PATTERNS:
         if matcher(lowered):
-            bump(intent_name, 2.0, "exclusive_match")
+            matched_exclusive.add(intent_name)
+            bump(intent_name, 2.15, "exclusive_match")
     if targets.get("urls"):
         bump("web", 1.2, "explicit_url")
         if any(token in lowered for token in ("open", "click", "submit", "type", "inspect page", "browser status")):
@@ -449,7 +479,19 @@ def _resolve_intents(
         bump("web", 0.45, "web_phrase_without_target")
     if any(token in lowered for token in ("tools", "capabilities", "what can you do")):
         bump("tools", 1.0, "tools_phrase")
-    if any(token in lowered for token in ("status", "diagnostic", "health", "check")) and not targets.get("urls") and "browser status" not in lowered:
+    status_reserved_phrases = {
+        "reasoning",
+        "capability_expansion_protocol",
+        "planning",
+        "pressure",
+        "feature_generation",
+    }
+    if (
+        any(token in lowered for token in ("status", "diagnostic", "health", "check"))
+        and not targets.get("urls")
+        and "browser status" not in lowered
+        and not (matched_exclusive & status_reserved_phrases)
+    ):
         bump("status", 0.8, "status_phrase")
     if "smart workspace" in lowered:
         bump("workspace", 1.1, "workspace_phrase")
@@ -555,4 +597,7 @@ def _resolve_intents(
         "ambiguity_flags": list(dict.fromkeys(ambiguity_flags)),
         "conflicting_signals": conflicting_signals,
         "route_history_bias": {str(key): round(float(value), 3) for key, value in dict(route_history_bias or {}).items()},
+        "semantic_intent_votes": dict(semantic.get("votes") or {}),
+        "semantic_roles": list(semantic.get("roles") or []),
+        "semantic_goal": str(semantic.get("goal", "")),
     }

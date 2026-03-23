@@ -16,6 +16,8 @@ from zero_os.conscious_machine_architecture import (
     consciousness_architecture_phase8_status,
     consciousness_architecture_phase9_status,
 )
+from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state, state_cache_status
+from zero_os.state_registry import boot_state_registry, flush_state_registry, put_state_store, state_registry_status
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_loop_status,
     zero_ai_autonomy_loop_tick,
@@ -34,17 +36,18 @@ def _runtime(cwd: str) -> Path:
 
 
 def _load(path: Path, default):
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception:
-        return default
+    return load_json_state(path, default)
 
 
 def _save(path: Path, payload) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    queue_json_state(path, payload)
+
+
+def _flush_runtime_state(*paths: Path) -> None:
+    if paths:
+        flush_state_writes(paths=list(paths))
+        return
+    flush_state_writes()
 
 
 def _parse_utc(value: str) -> datetime | None:
@@ -531,6 +534,7 @@ def zero_ai_runtime_agent_status(cwd: str) -> dict:
     state["entry_script_present"] = _runtime_agent_entry_script(cwd).exists()
     state["updated_utc"] = _utc_now()
     _save(_runtime_agent_path(cwd), state)
+    _flush_runtime_state(_runtime_agent_path(cwd))
     return {
         "ok": True,
         "pid_alive": pid_alive,
@@ -619,6 +623,7 @@ def zero_ai_runtime_agent_install(cwd: str) -> dict:
         except OSError:
             pass
     _runtime_agent_update(cwd, installed=True, auto_start_on_login=True)
+    _flush_runtime_state(_runtime_agent_path(cwd))
     _runtime_agent_log_append(cwd, f"runtime agent installed launcher={startup_path}")
     started = zero_ai_runtime_agent_start(cwd)
     return {
@@ -682,11 +687,13 @@ def zero_ai_runtime_agent_worker_run(cwd: str, poll_seconds: int = 30) -> dict:
                 last_failure="" if ok else str(tick.get("reason", "runtime agent tick failed")),
                 poll_interval_seconds=max(10, int(poll_seconds)),
             )
+            _flush_runtime_state(_runtime_agent_path(cwd))
             time.sleep(max(10, int(poll_seconds)))
     except KeyboardInterrupt:
         _runtime_agent_log_append(cwd, "runtime agent worker interrupted")
     finally:
         _runtime_agent_update(cwd, running=False, worker_pid=None, last_stop_utc=_utc_now(), last_reason="runtime agent worker exited")
+        _flush_runtime_state(_runtime_agent_path(cwd))
         _runtime_agent_log_append(cwd, f"runtime agent worker offline pid={pid}")
     return {"ok": True, "worker_pid": pid}
 
@@ -695,29 +702,40 @@ def zero_ai_runtime_status(cwd: str) -> dict:
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
+    from zero_os.self_derivation_engine import self_derivation_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
+    boot_state_registry(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
+    from zero_os.zero_engine import zero_engine_status
     p = _runtime(cwd) / "phase_runtime_status.json"
     if not p.exists():
         return {
             "ok": False,
             "missing": True,
             "hint": "run: zero ai runtime run",
+            "state_cache": state_cache_status(),
+            "state_registry": state_registry_status(cwd),
             "runtime_loop": runtime_loop,
             "runtime_agent": runtime_agent,
+            "zero_engine": zero_engine_status(cwd),
             "control_workflows": zero_ai_control_workflows_status(cwd),
             "capability_control_map": zero_ai_capability_map_status(cwd),
             "evolution": zero_ai_evolution_status(cwd),
+            "self_derivation": self_derivation_status(cwd),
             "source_evolution": zero_ai_source_evolution_status(cwd),
         }
     status = _load(p, {"ok": False, "missing": True, "hint": "run: zero ai runtime run"})
+    status["state_cache"] = state_cache_status()
+    status["state_registry"] = state_registry_status(cwd)
     status["runtime_loop"] = runtime_loop
     status["runtime_agent"] = runtime_agent
+    status["zero_engine"] = zero_engine_status(cwd)
     status["control_workflows"] = zero_ai_control_workflows_status(cwd)
     status["capability_control_map"] = zero_ai_capability_map_status(cwd)
     status["evolution"] = zero_ai_evolution_status(cwd)
+    status["self_derivation"] = self_derivation_status(cwd)
     status["source_evolution"] = zero_ai_source_evolution_status(cwd)
     return status
 
@@ -731,6 +749,7 @@ def zero_ai_runtime_loop_status(cwd: str) -> dict:
         state["next_run_utc"] = _utc_now()
     state["updated_utc"] = _utc_now()
     _save(_runtime_loop_path(cwd), state)
+    _flush_runtime_state(_runtime_loop_path(cwd))
     next_run = _parse_utc(str(state.get("next_run_utc", "")))
     due_now = bool(state.get("enabled", False)) and (next_run is None or datetime.now(timezone.utc) >= next_run)
     return {
@@ -753,6 +772,7 @@ def zero_ai_runtime_loop_set(cwd: str, enabled: bool, interval_seconds: int | No
         state["backoff_seconds"] = 0
     state["updated_utc"] = _utc_now()
     _save(_runtime_loop_path(cwd), state)
+    _flush_runtime_state(_runtime_loop_path(cwd))
     return zero_ai_runtime_loop_status(cwd)
 
 
@@ -764,6 +784,7 @@ def zero_ai_runtime_loop_tick(cwd: str, force: bool = False) -> dict:
 
     if not bool(state.get("enabled", False)) and not force:
         _save(_runtime_loop_path(cwd), state)
+        _flush_runtime_state(_runtime_loop_path(cwd))
         return {
             "ok": True,
             "ran": False,
@@ -775,6 +796,7 @@ def zero_ai_runtime_loop_tick(cwd: str, force: bool = False) -> dict:
     next_run = _parse_utc(str(state.get("next_run_utc", "")))
     if not force and next_run is not None and now < next_run:
         _save(_runtime_loop_path(cwd), state)
+        _flush_runtime_state(_runtime_loop_path(cwd))
         return {
             "ok": True,
             "ran": False,
@@ -811,6 +833,7 @@ def zero_ai_runtime_loop_tick(cwd: str, force: bool = False) -> dict:
         state["next_run_utc"] = ""
     state["updated_utc"] = _utc_now()
     _save(_runtime_loop_path(cwd), state)
+    _flush_runtime_state(_runtime_loop_path(cwd))
     return {
         "ok": ok,
         "ran": True,
@@ -827,11 +850,16 @@ def zero_ai_runtime_loop_run(cwd: str) -> dict:
 def zero_ai_runtime_run(cwd: str) -> dict:
     from zero_os.calendar_time import calendar_reminder_tick
     from zero_os.communications import communications_tick
+    from zero_os.contradiction_engine import contradiction_engine_status
+    from zero_os.self_derivation_engine import self_derivation_revalidate, self_derivation_status
+    from zero_os.zero_engine import zero_engine_tick, zero_engine_status
+    from zero_os.zero_ai_pressure_harness import pressure_harness_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
+    boot_state_registry(cwd)
     phase8 = consciousness_architecture_phase8_status()
     phase9 = consciousness_architecture_phase9_status()
     runtime_agent_before = zero_ai_runtime_agent_status(cwd)
@@ -892,6 +920,8 @@ def zero_ai_runtime_run(cwd: str) -> dict:
     status = {
         "ok": True,
         "time_utc": _utc_now(),
+        "state_cache": state_cache_status(),
+        "state_registry": state_registry_status(cwd),
         "orchestrator_active": True,
         "phase_active": [8, 9],
         "phase8_ready": bool(phase8.get("phase8_condition_met", False)),
@@ -961,6 +991,44 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         autonomy_background = {"ok": True, "ran": False, "reason": "autonomy loop is off", "autonomy_loop": autonomy_loop}
     communications_background = communications_tick(cwd)
     calendar_background = calendar_reminder_tick(cwd)
+    contradiction = contradiction_engine_status(cwd)
+    pressure = pressure_harness_status(cwd)
+    derivation_before = self_derivation_status(cwd)
+    revalidation_ready_count = int(derivation_before.get("revalidation_ready_count", 0) or 0)
+    continuity = dict(contradiction.get("continuity") or {})
+    pressure_score = float(pressure.get("overall_score", 0.0) or 0.0)
+    pressure_ready = not bool(pressure.get("missing", False)) and pressure_score >= 100.0
+    continuity_ready = bool(continuity.get("same_system", False)) and not bool(continuity.get("has_contradiction", False))
+    if revalidation_ready_count > 0 and pressure_ready and continuity_ready:
+        self_derivation_background = dict(self_derivation_revalidate(cwd, limit=min(3, revalidation_ready_count)))
+        self_derivation_background.setdefault("ran", True)
+    else:
+        reasons: list[str] = []
+        if revalidation_ready_count <= 0:
+            reasons.append("no strategies ready for revalidation")
+        if not pressure_ready:
+            reasons.append("pressure baseline not ready")
+        if not continuity_ready:
+            reasons.append("continuity not ready")
+        self_derivation_background = {
+            "ok": True,
+            "ran": False,
+            "reason": "; ".join(reasons) or "self derivation revalidation skipped",
+            "revalidation_ready_count": revalidation_ready_count,
+            "pressure_missing": bool(pressure.get("missing", False)),
+            "pressure_score": pressure_score,
+            "continuity": continuity,
+        }
+    derivation_after = self_derivation_status(cwd)
+    zero_engine_background = zero_engine_tick(
+        cwd,
+        runtime_context={
+            "pressure_ready": pressure_ready,
+            "pressure_score": pressure_score,
+            "continuity_ready": continuity_ready,
+            "continuity": continuity,
+        },
+    )
 
     status["autonomy"] = autonomy.get("status", {})
     status["autonomy_background"] = autonomy_background
@@ -969,6 +1037,10 @@ def zero_ai_runtime_run(cwd: str) -> dict:
     status["control_workflows"] = zero_ai_control_workflows_status(cwd)
     status["capability_control_map"] = zero_ai_capability_map_status(cwd)
     status["evolution"] = zero_ai_evolution_status(cwd)
+    status["self_derivation"] = derivation_after
+    status["self_derivation_background"] = self_derivation_background
+    status["zero_engine"] = zero_engine_status(cwd)
+    status["zero_engine_background"] = zero_engine_background
     status["source_evolution"] = zero_ai_source_evolution_status(cwd)
     status["runtime_checks"]["autonomy_goal_manager"] = bool(autonomy.get("ok", False))
     status["runtime_checks"]["autonomy_loop_state"] = bool(autonomy_loop.get("ok", False))
@@ -978,6 +1050,10 @@ def zero_ai_runtime_run(cwd: str) -> dict:
     status["runtime_checks"]["control_workflows"] = bool(status["control_workflows"].get("ok", False))
     status["runtime_checks"]["capability_control_map"] = bool(status["capability_control_map"].get("ok", False))
     status["runtime_checks"]["evolution_engine"] = bool(status["evolution"].get("ok", False))
+    status["runtime_checks"]["self_derivation_engine"] = bool(derivation_after.get("ok", False))
+    status["runtime_checks"]["self_derivation_background"] = bool(self_derivation_background.get("ok", False))
+    status["runtime_checks"]["zero_engine"] = bool(status["zero_engine"].get("ok", False))
+    status["runtime_checks"]["zero_engine_background"] = bool(zero_engine_background.get("ok", False))
     status["runtime_checks"]["source_evolution_engine"] = bool(status["source_evolution"].get("ok", False))
 
     status["runtime_score"] = round(
@@ -999,5 +1075,10 @@ def zero_ai_runtime_run(cwd: str) -> dict:
             "law_compliance": benchmark["law_compliance"],
         },
     )
+    put_state_store(cwd, "phase_runtime_status", status)
     _save(_runtime(cwd) / "phase_runtime_status.json", status)
+    _flush_runtime_state()
+    flush_state_registry(cwd, names=["phase_runtime_status", "zero_engine_status"])
+    status["state_cache"] = state_cache_status()
+    status["state_registry"] = state_registry_status(cwd)
     return status
