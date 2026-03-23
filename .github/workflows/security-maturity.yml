@@ -51,15 +51,16 @@ jobs:
         run: python tools/export_compliance_evidence.py
 
       - name: Verify Security Artifact Directory
-        shell: powershell
+        shell: bash
         run: |
-          if (-not (Test-Path "security/artifacts")) {
-            Write-Error "security/artifacts directory not found"
-          }
-          $files = Get-ChildItem "security/artifacts" -File -ErrorAction SilentlyContinue
-          if (-not $files) {
-            Write-Error "security/artifacts directory is empty"
-          }
+          if [ ! -d "security/artifacts" ]; then
+            echo "security/artifacts directory not found" >&2
+            exit 1
+          fi
+          if ! find "security/artifacts" -maxdepth 1 -type f | grep -q .; then
+            echo "security/artifacts directory is empty" >&2
+            exit 1
+          fi
 
       - name: Upload Security Artifacts
         uses: actions/upload-artifact@v6
