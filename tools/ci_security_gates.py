@@ -1,22 +1,27 @@
 from __future__ import annotations
 
+import argparse
 import subprocess
+import sys
 
 
 def _run(cmd: list[str]) -> int:
     return subprocess.run(cmd).returncode
 
 
-def main() -> int:
-    cmds = [
-        ["python", "tools/security_gate.py"],
-        ["python", "tools/sign_artifacts.py"],
-        ["python", "tools/release_verify.py"],
-        ["python", "tools/independent_runtime_validator.py"],
-        ["python", "src/main.py", "triad balance run"],
-        ["python", "tools/slo_release_gate.py"],
-        ["python", "-m", "unittest", "tests.test_security_integrity_layer", "tests.test_zero_ai_gate", "-q"],
-    ]
+def commands_for_profile(profile: str) -> list[list[str]]:
+    if profile == "ci":
+        return [
+            [sys.executable, "tools/security_gate.py", "--profile", "ci"],
+        ]
+    raise ValueError(f"unsupported CI security gate profile: {profile}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run the fast CI security gate bundle.")
+    parser.add_argument("--profile", choices=("ci",), default="ci")
+    args = parser.parse_args(argv)
+    cmds = commands_for_profile(args.profile)
     for cmd in cmds:
         rc = _run(cmd)
         if rc != 0:

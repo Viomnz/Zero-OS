@@ -9,6 +9,7 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from zero_os.scan_coordinator import build_workspace_scan_snapshot, snapshot_hash_for_path, snapshot_target_paths
 from zero_os.smart_logic_governance import apply_governance
 
 def _utc_now() -> str:
@@ -264,8 +265,17 @@ def _protected_source_surface(rel_path: str) -> bool:
     }
 
 
-def _iter_targets(cwd: str, raw_target: str, max_files: int) -> list[Path]:
+def _iter_targets(cwd: str, raw_target: str, max_files: int, *, scan_snapshot: dict | None = None) -> list[Path]:
     base = Path(cwd).resolve()
+    snapshot_targets = snapshot_target_paths(scan_snapshot, raw_target, max_files=max_files)
+    if snapshot_targets:
+        out: list[Path] = []
+        for rel in snapshot_targets:
+            candidate = (base / rel).resolve()
+            if candidate.exists() and candidate.is_file():
+                out.append(candidate)
+        if out:
+            return out
     target = (base / raw_target).resolve() if not Path(raw_target).is_absolute() else Path(raw_target).resolve()
     out: list[Path] = []
     if target.is_file():
@@ -436,13 +446,15 @@ def _smart_logic_antivirus(findings: list[dict], process_findings: list[dict], h
     }
 
 
-def scan_target(cwd: str, target: str) -> dict:
+def scan_target(cwd: str, target: str, *, scan_snapshot: dict | None = None) -> dict:
     base = Path(cwd).resolve()
     feed = threat_feed_status(cwd)
     policy = policy_status(cwd)
-    files = _iter_targets(cwd, target, max_files=int(policy.get("max_files_per_scan", 5000)))
+    files = _iter_targets(cwd, target, max_files=int(policy.get("max_files_per_scan", 5000)), scan_snapshot=scan_snapshot)
     findings = []
     skipped_large = 0
+    hash_cache_hit_count = 0
+    hash_cache_miss_count = 0
 
     for f in files:
         try:
@@ -466,9 +478,21 @@ def scan_target(cwd: str, target: str) -> dict:
         archive_hits = [h for h in archive_hits if not _is_suppressed(cwd, rel, str(h.get("signature", "")))]
 
         if sig_hits or archive_hits or heur_score >= int(policy.get("heuristic_threshold", 65)):
+            stat = f.stat()
+            cached_sha = snapshot_hash_for_path(
+                scan_snapshot,
+                rel,
+                size=int(stat.st_size),
+                mtime_ns=int(stat.st_mtime_ns),
+            )
+            if cached_sha:
+                hash_cache_hit_count += 1
+            else:
+                cached_sha = _sha256(f)
+                hash_cache_miss_count += 1
             item = {
                 "path": str(f.relative_to(base)).replace("\\", "/"),
-                "sha256": _sha256(f),
+                "sha256": cached_sha,
                 "signature_hits": sig_hits,
                 "heuristic_score": heur_score,
                 "heuristic_reasons": heur_tags,
@@ -502,6 +526,9 @@ def scan_target(cwd: str, target: str) -> dict:
         "highest_severity": highest,
         "incident_actions": _recommend_actions(highest),
         "smart_logic": smart_logic,
+        "scan_snapshot_reused": bool(scan_snapshot),
+        "hash_cache_hit_count": hash_cache_hit_count,
+        "hash_cache_miss_count": hash_cache_miss_count,
         "findings": findings[:500],
         "process_findings": process_findings[:200],
         "time_utc": _utc_now(),
@@ -618,18 +645,13 @@ def quarantine_restore(cwd: str, item_id: str) -> dict:
 
 
 def _collect_snapshot(cwd: str, target: str, policy: dict) -> dict:
-    base = Path(cwd).resolve()
-    files = _iter_targets(cwd, target, max_files=int(policy.get("max_files_per_scan", 5000)))
-    snap = {}
-    for f in files:
-        try:
-            rel = str(f.resolve().relative_to(base)).replace("\\", "/")
-        except ValueError:
-            continue
-        if _excluded(base, f, policy):
-            continue
-        snap[rel] = {"size": f.stat().st_size, "mtime_ns": f.stat().st_mtime_ns}
-    return snap
+    shared = build_workspace_scan_snapshot(
+        cwd,
+        target=target,
+        max_files=int(policy.get("max_files_per_scan", 5000)),
+        force=True,
+    )
+    return dict(shared.get("inventory") or {})
 
 
 def monitor_status(cwd: str) -> dict:

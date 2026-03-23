@@ -56,10 +56,17 @@ def run_cure_firewall_agent(
     targets: list[str] | None = None,
     urls: list[str] | None = None,
     verify: bool = True,
+    *,
+    scan_snapshot: dict | None = None,
 ) -> dict:
     base = Path(cwd).resolve()
     pressure = max(0, min(100, int(pressure)))
-    file_targets = targets or _discover_targets(base)
+    if targets:
+        file_targets = targets
+    elif scan_snapshot and list(scan_snapshot.get("preferred_firewall_targets") or []):
+        file_targets = list(scan_snapshot.get("preferred_firewall_targets") or [])
+    else:
+        file_targets = _discover_targets(base)
     net_targets = urls or []
 
     file_runs = []
@@ -120,6 +127,7 @@ def run_cure_firewall_agent(
     report = {
         "ok": True,
         "pressure": pressure,
+        "scan_snapshot_reused": bool(scan_snapshot and not targets),
         "file_targets": len(file_runs),
         "file_survived": file_ok,
         "file_verified": file_verified,

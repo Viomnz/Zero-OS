@@ -28,10 +28,13 @@ class ZeroEngineTests(unittest.TestCase):
         status = zero_engine_status(str(self.base))
 
         self.assertTrue(report["ok"])
+        self.assertEqual("parallel", report["latest_report"]["scan_mode"])
+        self.assertIn("scan_snapshot", report["latest_report"])
         self.assertIn("antivirus", report["latest_report"]["subsystems"])
         self.assertIn("recovery", report["latest_report"]["subsystems"])
         self.assertIn("resilience", report["latest_report"]["subsystems"])
         self.assertTrue((self.base / ".zero_os" / "runtime" / "zero_engine_status.json").exists())
+        self.assertTrue((self.base / ".zero_os" / "runtime" / "workspace_scan_snapshot.json").exists())
         self.assertEqual(report["last_run_utc"], status["last_run_utc"])
 
     def test_zero_engine_creates_recovery_baseline_when_missing(self) -> None:

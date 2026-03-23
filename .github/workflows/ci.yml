@@ -25,7 +25,7 @@ jobs:
 
       - name: Run Security Gate
         run: |
-          python tools/ci_security_gates.py
+          python tools/ci_security_gates.py --profile ci
 
       - name: Run Core Tests
         run: |

@@ -13,8 +13,14 @@ def _runtime_report_path(cwd: str) -> Path:
     return p
 
 
-def run_antivirus_agent(cwd: str, target: str = ".", auto_quarantine: bool = False) -> dict:
-    scan = scan_target(cwd, target)
+def run_antivirus_agent(
+    cwd: str,
+    target: str = ".",
+    auto_quarantine: bool = False,
+    *,
+    scan_snapshot: dict | None = None,
+) -> dict:
+    scan = scan_target(cwd, target, scan_snapshot=scan_snapshot)
     quarantined = []
     if auto_quarantine:
         for finding in scan.get("findings", [])[:100]:
@@ -26,6 +32,7 @@ def run_antivirus_agent(cwd: str, target: str = ".", auto_quarantine: bool = Fal
         "ok": True,
         "target": target,
         "auto_quarantine": bool(auto_quarantine),
+        "scan_snapshot_reused": bool(scan_snapshot),
         "finding_count": int(scan.get("finding_count", 0)),
         "highest_severity": scan.get("highest_severity", "low"),
         "incident_actions": scan.get("incident_actions", []),

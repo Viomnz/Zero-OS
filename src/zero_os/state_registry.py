@@ -40,6 +40,11 @@ def _store_specs(cwd: str) -> dict[str, dict[str, Any]]:
             "default": {},
             "hot": True,
         },
+        "workspace_scan_snapshot": {
+            "path": runtime / "workspace_scan_snapshot.json",
+            "default": {},
+            "hot": True,
+        },
         "maintenance_state": {
             "path": assistant / "maintenance_orchestrator.json",
             "default": {},

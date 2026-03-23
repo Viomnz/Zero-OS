@@ -8,7 +8,7 @@ on:
 
 jobs:
   security:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -30,7 +30,16 @@ jobs:
         run: python tools/vuln_scan.py
 
       - name: Run Security Gate
-        run: python tools/security_gate.py
+        run: python tools/security_gate.py --profile maturity
+
+      - name: Run Independent Runtime Validator
+        run: python tools/independent_runtime_validator.py
+
+      - name: Run Triad Balance
+        run: python src/main.py "triad balance run"
+
+      - name: Run SLO Release Gate
+        run: python tools/slo_release_gate.py
 
       - name: Sign Security Artifacts
         run: python tools/sign_artifacts.py
