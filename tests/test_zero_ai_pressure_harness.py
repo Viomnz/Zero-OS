@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -75,6 +76,17 @@ class ZeroAiPressureHarnessTests(unittest.TestCase):
         self.assertIn("trend", status["strategy_drift"])
         self.assertGreaterEqual(status["planner_feedback"]["history_count"], 1)
         self.assertIn("path", status["planner_feedback"])
+
+    def test_pressure_harness_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        pressure_harness_run(str(self.base))
+        first = pressure_harness_status(str(self.base))
+
+        with patch("zero_os.zero_ai_pressure_harness._build_pressure_harness_status", side_effect=AssertionError("should use cache")):
+            second = pressure_harness_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
+        self.assertEqual(first["overall_score"], second["overall_score"])
 
     def test_pressure_harness_history_view_tracks_recent_strategy_points(self) -> None:
         first = pressure_harness_run(str(self.base))

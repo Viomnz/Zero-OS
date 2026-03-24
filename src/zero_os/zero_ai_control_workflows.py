@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -24,6 +27,85 @@ def _state_path(cwd: str) -> Path:
 
 def _history_path(cwd: str) -> Path:
     return _assistant_dir(cwd) / "control_workflow_runs.jsonl"
+
+
+def _runtime_dir(cwd: str) -> Path:
+    path = Path(cwd).resolve() / ".zero_os" / "runtime"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _connectors_dir(cwd: str) -> Path:
+    path = Path(cwd).resolve() / ".zero_os" / "connectors"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _browser_session_path(cwd: str) -> Path:
+    return _connectors_dir(cwd) / "browser_session.json"
+
+
+def _browser_dom_path(cwd: str) -> Path:
+    return _connectors_dir(cwd) / "browser_dom.json"
+
+
+def _store_registry_path(cwd: str) -> Path:
+    return Path(cwd).resolve() / ".zero_os" / "store" / "registry.json"
+
+
+def _self_repair_path(cwd: str) -> Path:
+    return _runtime_dir(cwd) / "self_repair_state.json"
+
+
+def _continuity_path(cwd: str) -> Path:
+    return _runtime_dir(cwd) / "zero_ai_self_continuity.json"
+
+
+def _directory_signature(path: Path) -> dict[str, Any]:
+    if not path.exists() or not path.is_dir():
+        return {"exists": False, "mtime_ns": 0, "entries": []}
+    try:
+        entries = sorted(item.name for item in path.iterdir())
+    except OSError:
+        entries = []
+    try:
+        stat = path.stat()
+        mtime_ns = int(stat.st_mtime_ns)
+    except OSError:
+        mtime_ns = 0
+    return {
+        "exists": True,
+        "mtime_ns": mtime_ns,
+        "entries": entries,
+    }
+
+
+def _readiness_signature(cwd: str) -> dict[str, Any]:
+    base = Path(cwd).resolve()
+    return {
+        "drivers_manifest": json_state_revision(base / "drivers" / "manifest.json"),
+        "apps_registry": json_state_revision(base / "apps" / "registry.json"),
+        "services_manifest": json_state_revision(base / "services" / "manifest.json"),
+        "security_policy": json_state_revision(base / "security" / "policy.json"),
+        "system_profile": json_state_revision(base / "zero_os_config" / "system_profile.json"),
+        "ci_pipeline": json_state_revision(base / ".github" / "workflows" / "ci.yml"),
+    }
+
+
+def _control_workflows_signature(cwd: str) -> dict[str, Any]:
+    base = Path(cwd).resolve()
+    return {
+        "state": json_state_revision(_state_path(cwd)),
+        "history": json_state_revision(_history_path(cwd)),
+        "browser_session": json_state_revision(_browser_session_path(cwd)),
+        "browser_dom": json_state_revision(_browser_dom_path(cwd)),
+        "store_registry": json_state_revision(_store_registry_path(cwd)),
+        "snapshots_root": _directory_signature(base / ".zero_os" / "backups" / "snapshots"),
+        "cure_firewall_backup": _directory_signature(base / ".zero_os" / "backups" / "cure_firewall"),
+        "self_repair_state": json_state_revision(_self_repair_path(cwd)),
+        "self_continuity": json_state_revision(_continuity_path(cwd)),
+        "readiness": _readiness_signature(cwd),
+    }
 
 
 def _load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
@@ -137,6 +219,19 @@ def _load_state(cwd: str) -> dict[str, Any]:
 def _save_state(cwd: str, state: dict[str, Any]) -> dict[str, Any]:
     _save_json(_state_path(cwd), state)
     return state
+
+
+def _payload_without_updated(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(payload or {})
+    normalized.pop("updated_utc", None)
+    return normalized
+
+
+def _persist_state_if_changed(cwd: str, state: dict[str, Any]) -> None:
+    current = _load_json(_state_path(cwd), {})
+    if _payload_without_updated(current) == _payload_without_updated(state):
+        return
+    _save_state(cwd, state)
 
 
 def _lane_state(cwd: str, lane_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -301,7 +396,7 @@ def _self_repair_lane_status(cwd: str, lane: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def zero_ai_control_workflows_status(cwd: str) -> dict[str, Any]:
+def _build_zero_ai_control_workflows_status(cwd: str, *, write: bool) -> dict[str, Any]:
     state = _load_state(cwd)
     browser_lane = _browser_lane_status(cwd, dict(state["lanes"]["browser"]))
     store_lane = _store_lane_status(cwd, dict(state["lanes"]["store_install"]))
@@ -341,12 +436,27 @@ def zero_ai_control_workflows_status(cwd: str) -> dict[str, Any]:
         "recent_runs": _history_tail(cwd, limit=10),
         "highest_value_steps": highest_value_steps,
     }
-    _save_state(cwd, state)
+    if write:
+        _persist_state_if_changed(cwd, state)
     return status
 
 
+def zero_ai_control_workflows_status(cwd: str) -> dict[str, Any]:
+    payload, cache_meta = cached_compute(
+        "zero_ai_control_workflows_status",
+        str(Path(cwd).resolve()),
+        lambda: _control_workflows_signature(cwd),
+        lambda: _build_zero_ai_control_workflows_status(cwd, write=True),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    return payload
+
+
 def zero_ai_control_workflows_refresh(cwd: str) -> dict[str, Any]:
-    return zero_ai_control_workflows_status(cwd)
+    payload = _build_zero_ai_control_workflows_status(cwd, write=True)
+    payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+    return payload
 
 
 def zero_ai_control_workflow_browser_open(cwd: str, url: str) -> dict[str, Any]:

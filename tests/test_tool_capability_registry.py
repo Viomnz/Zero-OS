@@ -4,21 +4,25 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.tool_capability_registry import registry_status
 
 
 class ToolCapabilityRegistryTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="tool_capability_registry_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_tool_registry_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="tool_capability_registry_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_registry_persists_status_and_reports_missing_tools(self) -> None:
@@ -75,6 +79,19 @@ class ToolCapabilityRegistryTests(unittest.TestCase):
 
         self.assertFalse(out["tools"]["api_profiles"]["active"])
         self.assertIn("api_profiles", {item["tool"] for item in out["missing_tools"]})
+
+    def test_registry_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        (self.base / "src").mkdir(parents=True, exist_ok=True)
+        (self.base / "src" / "main.py").write_text("# stub\n", encoding="utf-8")
+        (self.base / "README.md").write_text("# test\n", encoding="utf-8")
+
+        first = registry_status(str(self.base))
+
+        with patch("zero_os.tool_capability_registry._build_registry_status", side_effect=AssertionError("should use cache")):
+            second = registry_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

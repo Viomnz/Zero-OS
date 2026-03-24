@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from zero_os.approval_workflow import decide as approval_decide, latest_approved, request_approval, status as approval_status
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
 
 
 def _utc_now() -> str:
@@ -57,6 +59,18 @@ def _benchmark_history_api():
     from ai_from_scratch.benchmark_history import benchmark_remediation_status
 
     return benchmark_remediation_status
+
+
+def _history_input_signature(cwd: str) -> dict[str, Any]:
+    root = Path(cwd).resolve()
+    history_dir = root / ".zero_os" / "benchmarks" / "model"
+    return {
+        "workflow": json_state_revision(_workflow_path(cwd)),
+        "approvals": json_state_revision(root / ".zero_os" / "assistant" / "approvals.json"),
+        "history": json_state_revision(history_dir / "history.jsonl"),
+        "gate_config": json_state_revision(root / "laws" / "model_benchmark_thresholds.json"),
+        "alert_route_config": json_state_revision(root / "laws" / "model_benchmark_alert_routes.json"),
+    }
 
 
 def _pending_or_latest_approval(cwd: str) -> dict[str, Any]:
@@ -115,7 +129,7 @@ def _augment_status(cwd: str, remediation: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def status(cwd: str, *, write: bool = False) -> dict[str, Any]:
+def _build_status(cwd: str, *, write: bool = False) -> dict[str, Any]:
     benchmark_remediation_status = _benchmark_history_api()
     remediation = benchmark_remediation_status(
         history_dir=Path(cwd).resolve() / ".zero_os" / "benchmarks" / "model",
@@ -126,6 +140,20 @@ def status(cwd: str, *, write: bool = False) -> dict[str, Any]:
         state = _load_workflow_state(cwd)
         state["latest_status"] = payload
         _save_workflow_state(cwd, state)
+    return payload
+
+
+def status(cwd: str, *, write: bool = False) -> dict[str, Any]:
+    if write:
+        return _build_status(cwd, write=True)
+    payload, fast_path = cached_compute(
+        "benchmark_remediation_workflow_status",
+        str(Path(cwd).resolve()),
+        lambda: _history_input_signature(cwd),
+        lambda: _build_status(cwd, write=False),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = fast_path
     return payload
 
 

@@ -11,17 +11,23 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.recovery import (
+    _verify_python_tree,
     zero_ai_backup_create,
     zero_ai_backup_pin,
     zero_ai_backup_prune,
     zero_ai_recover,
+    zero_ai_recovery_preflight,
     zero_ai_recovery_inventory,
 )
 
 
 class RecoveryMergeTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="recovery_python_tree_verification")
+        clear_fast_path_cache(namespace="recovery_snapshot_candidate")
+        clear_fast_path_cache(namespace="recovery_inventory")
         self.tempdir = tempfile.mkdtemp(prefix="zero_recovery_merge_")
         self.base = Path(self.tempdir)
         (self.base / "zero_os_config").mkdir(parents=True, exist_ok=True)
@@ -29,6 +35,9 @@ class RecoveryMergeTests(unittest.TestCase):
         (self.base / "ai_from_scratch").mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="recovery_python_tree_verification")
+        clear_fast_path_cache(namespace="recovery_snapshot_candidate")
+        clear_fast_path_cache(namespace="recovery_inventory")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_recovery_merges_existing_config_changes(self) -> None:
@@ -97,8 +106,6 @@ class RecoveryMergeTests(unittest.TestCase):
         verification_sequence = [
             {"ok": True, "root": "snapshot-src", "checked_files": 1, "error_count": 0, "errors": []},
             {"ok": True, "root": "snapshot-ai", "checked_files": 0, "error_count": 0, "errors": []},
-            {"ok": True, "root": "snapshot-src", "checked_files": 1, "error_count": 0, "errors": []},
-            {"ok": True, "root": "snapshot-ai", "checked_files": 0, "error_count": 0, "errors": []},
             {"ok": False, "root": "live-src", "checked_files": 2, "error_count": 1, "errors": [{"path": "broken_after_restore.py", "error": "synthetic"}]},
             {"ok": True, "root": "live-ai", "checked_files": 0, "error_count": 0, "errors": []},
         ]
@@ -143,6 +150,66 @@ class RecoveryMergeTests(unittest.TestCase):
         self.assertTrue(recovered["ok"])
         self.assertEqual(first["id"], recovered["snapshot_used"])
         self.assertEqual("VALUE = 'older-compatible'\n", (self.base / "src" / "zero_os" / "flow_monitor.py").read_text(encoding="utf-8"))
+
+    def test_recovery_preflight_uses_cached_verification_without_creating_rollback_snapshot(self) -> None:
+        module = self.base / "src" / "main.py"
+        module.write_text("value = 'stable'\n", encoding="utf-8")
+        snap = zero_ai_backup_create(str(self.base))
+
+        inventory_before = zero_ai_recovery_inventory(str(self.base))
+        preflight = zero_ai_recovery_preflight(str(self.base), snap["id"])
+        inventory_after = zero_ai_recovery_inventory(str(self.base))
+
+        self.assertTrue(preflight["ok"])
+        self.assertEqual("preflight", preflight["stage"])
+        self.assertTrue(preflight["verification_cached"])
+        self.assertEqual(snap["id"], preflight["snapshot_used"])
+        self.assertEqual(inventory_before["snapshot_count"], inventory_after["snapshot_count"])
+
+    def test_recovery_preflight_reuses_cached_snapshot_candidate_verification(self) -> None:
+        module = self.base / "src" / "main.py"
+        module.write_text("value = 'stable'\n", encoding="utf-8")
+        snap = zero_ai_backup_create(str(self.base))
+
+        responses = [
+            {"ok": True, "root": "snapshot-src", "checked_files": 1, "error_count": 0, "errors": []},
+            {"ok": True, "root": "snapshot-ai", "checked_files": 0, "error_count": 0, "errors": []},
+        ]
+        with patch("zero_os.recovery._verify_python_tree", side_effect=responses) as verify:
+            first = zero_ai_recovery_preflight(str(self.base), snap["id"])
+            second = zero_ai_recovery_preflight(str(self.base), snap["id"])
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertFalse(first["snapshot_selection"]["selected"]["verification_cache_hit"])
+        self.assertTrue(second["snapshot_selection"]["selected"]["verification_cache_hit"])
+        self.assertEqual(2, verify.call_count)
+
+    def test_verify_python_tree_reuses_cached_compile_result_when_tree_is_unchanged(self) -> None:
+        module = self.base / "src" / "main.py"
+        module.write_text("value = 'stable'\n", encoding="utf-8")
+
+        with patch("zero_os.recovery.py_compile.compile") as compile_mock:
+            first = _verify_python_tree(self.base / "src")
+            second = _verify_python_tree(self.base / "src")
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertFalse(first["verification_cache_hit"])
+        self.assertTrue(second["verification_cache_hit"])
+        self.assertEqual(1, compile_mock.call_count)
+
+    def test_recovery_inventory_uses_cache_when_snapshot_state_is_unchanged(self) -> None:
+        zero_ai_backup_create(str(self.base))
+
+        first = zero_ai_recovery_inventory(str(self.base))
+        second = zero_ai_recovery_inventory(str(self.base))
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertFalse(first["inventory_cache_hit"])
+        self.assertTrue(second["inventory_cache_hit"])
+        self.assertEqual(first["snapshot_count"], second["snapshot_count"])
 
     def test_recovery_inventory_and_prune_preserve_known_good_snapshot(self) -> None:
         required_src = self.base / "src" / "zero_os"

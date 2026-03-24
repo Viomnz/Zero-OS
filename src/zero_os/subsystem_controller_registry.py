@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
 from zero_os.tool_capability_registry import registry_status
 from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
 
@@ -412,7 +414,7 @@ def _missing_functions_for(
     return _platform_missing(capabilities)
 
 
-def controller_registry_status(cwd: str) -> dict:
+def _build_controller_registry_status(cwd: str) -> dict:
     capability_map = zero_ai_capability_map_status(cwd)
     tool_status = registry_status(cwd)
     tools = dict(tool_status.get("tools") or {})
@@ -485,6 +487,8 @@ def controller_registry_status(cwd: str) -> dict:
             "forbidden_subsystem_count": sum(1 for item in subsystems if item["control_level"] == "forbidden"),
             "active_subsystem_count": sum(1 for item in subsystems if item["active"]),
             "missing_function_count": len(missing_functions),
+            "tool_registry_cache_hit": bool((tool_status.get("fast_path_cache") or {}).get("hit", False)),
+            "capability_map_cache_hit": bool((capability_map.get("fast_path_cache") or {}).get("hit", False)),
         },
         "tool_summary": dict(tool_status.get("summary") or {}),
         "subsystems": subsystems,
@@ -494,6 +498,28 @@ def controller_registry_status(cwd: str) -> dict:
     }
     _save(path, status)
     return status
+
+
+def controller_registry_status(cwd: str) -> dict:
+    base = Path(cwd).resolve()
+
+    def _signature() -> dict:
+        return {
+            "controller_path": json_state_revision(_controller_path(cwd)),
+            "tool_registry_path": json_state_revision(base / ".zero_os" / "runtime" / "tool_registry_status.json"),
+            "capability_map_path": json_state_revision(base / ".zero_os" / "assistant" / "capability_map.json"),
+        }
+
+    payload, cache_meta = cached_compute(
+        "controller_registry_status",
+        str(base),
+        _signature,
+        lambda: _build_controller_registry_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
+    return payload
 
 
 def controller_registry_refresh(cwd: str) -> dict:

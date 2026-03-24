@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 _DEFAULT_EXPIRY_HOURS = 24
 _SHORT_EXPIRY_HOURS = 6
@@ -79,7 +82,7 @@ def _load_and_sweep(cwd: str) -> tuple[dict, int]:
     return data, changed
 
 
-def status(cwd: str) -> dict:
+def _build_status(cwd: str) -> dict:
     data, expired_count = _load_and_sweep(cwd)
     items = list(data.get("items", []))
     counts_by_state: dict[str, int] = {}
@@ -98,6 +101,18 @@ def status(cwd: str) -> dict:
         "counts_by_state": counts_by_state,
         "items": items[-20:],
     }
+
+
+def status(cwd: str) -> dict:
+    payload, fast_path = cached_compute(
+        "approval_workflow_status",
+        str(Path(cwd).resolve()),
+        lambda: json_state_revision(_path(cwd)),
+        lambda: _build_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = fast_path
+    return payload
 
 
 def _target_signature(target: Any) -> str:

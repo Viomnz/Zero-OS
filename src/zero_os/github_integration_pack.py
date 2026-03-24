@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -119,8 +122,22 @@ def _build_reply_text(kind: str, item: dict[str, Any], plan: dict[str, Any], act
     return "\n".join(lines).strip()
 
 
-def status(cwd: str) -> dict:
+def _build_status(cwd: str) -> dict:
     return _load(cwd)
+
+
+def status(cwd: str) -> dict:
+    path = _path(cwd)
+    data, cache_meta = cached_compute(
+        "github_integration_status",
+        str(path),
+        lambda: {"github_integration": json_state_revision(path)},
+        lambda: _build_status(cwd),
+        ttl_seconds=None,
+    )
+    data = dict(data)
+    data["fast_path_cache"] = {"hit": bool(cache_meta.get("hit", False))}
+    return data
 
 
 def connect_repo(cwd: str, repo: str, token: str = "") -> dict:

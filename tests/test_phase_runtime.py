@@ -1,8 +1,10 @@
 import json
 import os
+import subprocess
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +43,7 @@ from zero_os.phase_runtime import (
 )
 from zero_os.self_continuity import zero_ai_continuity_governance_set, zero_ai_self_continuity_update
 from zero_os.state_cache import clear_state_cache, state_cache_status
+from zero_os.state_registry import get_state_store, state_registry_status, update_state_store
 from zero_os.zero_ai_identity import zero_ai_identity
 
 
@@ -53,6 +56,25 @@ class ZeroAIRuntimeTests(unittest.TestCase):
     def tearDown(self) -> None:
         clear_state_cache()
         shutil.rmtree(self.tempdir, ignore_errors=True)
+
+    def _spawn_runtime_run_subprocess(self, runs: int = 1) -> subprocess.Popen:
+        script = (
+            "import sys, time\n"
+            "from pathlib import Path\n"
+            "src = Path(sys.argv[1])\n"
+            "cwd = sys.argv[2]\n"
+            "runs = int(sys.argv[3])\n"
+            "sys.path.insert(0, str(src))\n"
+            "from zero_os.phase_runtime import zero_ai_runtime_run\n"
+            "for _ in range(runs):\n"
+            "    zero_ai_runtime_run(cwd)\n"
+            "    time.sleep(0.02)\n"
+        )
+        return subprocess.Popen(
+            [sys.executable, "-c", script, str(SRC), str(self.base), str(runs)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     def test_runtime_run_turns_off_background_continuity_when_stable(self) -> None:
         zero_ai_identity(str(self.base))
@@ -77,6 +99,7 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("capability_control_map", runtime)
         self.assertIn("evolution", runtime)
         self.assertIn("source_evolution", runtime)
+        self.assertIn("runtime_subsystems", runtime)
         self.assertTrue(runtime["autonomy"]["ok"])
         self.assertTrue(runtime["autonomy_background"]["ok"])
         self.assertTrue(runtime["zero_engine"]["ok"])
@@ -85,6 +108,7 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertTrue(runtime["capability_control_map"]["ok"])
         self.assertTrue(runtime["evolution"]["ok"])
         self.assertTrue(runtime["source_evolution"]["ok"])
+        self.assertGreaterEqual(int(runtime["runtime_subsystems"]["adapter_count"]), 1)
 
         saved = zero_ai_runtime_status(str(self.base))
         self.assertIn("continuity_governance_background", saved)
@@ -95,6 +119,18 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("evolution", saved)
         self.assertIn("self_derivation", saved)
         self.assertIn("source_evolution", saved)
+
+    def test_runtime_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        zero_ai_identity(str(self.base))
+        zero_ai_runtime_run(str(self.base))
+        first = zero_ai_runtime_status(str(self.base))
+
+        with patch("zero_os.phase_runtime._build_runtime_status", side_effect=AssertionError("should use cache")):
+            second = zero_ai_runtime_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
+        self.assertEqual(first["runtime_ready"], second["runtime_ready"])
 
     def test_runtime_run_turns_on_background_continuity_when_risky(self) -> None:
         zero_ai_identity(str(self.base))
@@ -248,6 +284,82 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertEqual(0, int(runtime["state_cache"]["pending_write_count"]))
         self.assertEqual(0, int(cache_status["pending_write_count"]))
         self.assertTrue((self.base / ".zero_os" / "runtime" / "phase_runtime_status.json").exists())
+
+    def test_runtime_run_subprocess_wins_over_local_dirty_phase_runtime_state(self) -> None:
+        zero_ai_identity(str(self.base))
+
+        worker = self._spawn_runtime_run_subprocess(runs=2)
+        try:
+            for tick in range(8):
+                update_state_store(
+                    str(self.base),
+                    "phase_runtime_status",
+                    lambda current, current_tick=tick: {
+                        "writer": "direct_command",
+                        "tick": current_tick,
+                        "ok": False,
+                    },
+                )
+                time.sleep(0.02)
+        finally:
+            worker.wait(timeout=120)
+
+        reconciled = get_state_store(str(self.base), "phase_runtime_status", {})
+        saved = zero_ai_runtime_status(str(self.base))
+        registry = state_registry_status(str(self.base))
+
+        self.assertTrue(reconciled.get("ok"))
+        self.assertTrue(reconciled.get("orchestrator_active"))
+        self.assertTrue(saved["ok"])
+        self.assertTrue(saved["orchestrator_active"])
+        self.assertTrue(saved["runtime_ready"])
+        self.assertNotEqual("direct_command", saved.get("writer", ""))
+        self.assertEqual(1, registry["conflict_store_count"])
+        self.assertTrue(registry["stores"]["phase_runtime_status"]["conflict"])
+
+    def test_runtime_run_subprocess_converges_multiple_hot_stores_after_sustained_contention(self) -> None:
+        zero_ai_identity(str(self.base))
+
+        worker = self._spawn_runtime_run_subprocess(runs=4)
+        try:
+            for tick in range(12):
+                update_state_store(
+                    str(self.base),
+                    "phase_runtime_status",
+                    lambda current, current_tick=tick: {"writer": "direct_command", "tick": current_tick, "ok": False},
+                )
+                update_state_store(
+                    str(self.base),
+                    "zero_engine_status",
+                    lambda current, current_tick=tick: {"writer": "direct_command", "tick": current_tick, "subsystems": {}},
+                )
+                update_state_store(
+                    str(self.base),
+                    "workspace_scan_snapshot",
+                    lambda current, current_tick=tick: {"writer": "direct_command", "tick": current_tick, "inventory": {}, "file_count": 0},
+                )
+                time.sleep(0.015)
+        finally:
+            worker.wait(timeout=180)
+
+        phase = get_state_store(str(self.base), "phase_runtime_status", {})
+        engine = get_state_store(str(self.base), "zero_engine_status", {})
+        snapshot = get_state_store(str(self.base), "workspace_scan_snapshot", {})
+        registry = state_registry_status(str(self.base))
+
+        self.assertTrue(phase.get("ok"))
+        self.assertTrue(phase.get("orchestrator_active"))
+        self.assertTrue(dict(engine.get("latest_report") or {}).get("ok"))
+        self.assertIn("subsystems", dict(engine.get("latest_report") or {}))
+        self.assertIn("file_count", snapshot)
+        self.assertIn("hash_cache_entry_count", snapshot)
+        self.assertNotEqual("direct_command", phase.get("writer", ""))
+        self.assertNotEqual("direct_command", engine.get("writer", ""))
+        self.assertNotEqual("direct_command", snapshot.get("writer", ""))
+        self.assertGreaterEqual(registry["conflict_store_count"], 3)
+        self.assertTrue(registry["stores"]["phase_runtime_status"]["conflict"])
+        self.assertTrue(registry["stores"]["zero_engine_status"]["conflict"])
+        self.assertTrue(registry["stores"]["workspace_scan_snapshot"]["conflict"])
 
     def test_runtime_loop_status_defaults(self) -> None:
         status = zero_ai_runtime_loop_status(str(self.base))

@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.approval_workflow import cleanup_expired, decide, latest_approved, latest_pending, mark_executed, request_approval, status
 
 
@@ -18,8 +19,10 @@ class ApprovalWorkflowTests(unittest.TestCase):
         self.tempdir = tempfile.mkdtemp(prefix="zero_approval_")
         self.base = Path(self.tempdir)
         (self.base / ".zero_os").mkdir(parents=True, exist_ok=True)
+        clear_fast_path_cache(namespace="approval_workflow_status")
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="approval_workflow_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_latest_approved_matches_exact_run_and_target_and_is_single_use(self) -> None:
@@ -95,6 +98,15 @@ class ApprovalWorkflowTests(unittest.TestCase):
 
         self.assertFalse(latest_approved(str(self.base), "store_install", run_id="run-1", target="nativecalc")["ok"])
         self.assertEqual("expired", status(str(self.base))["items"][-1]["state"])
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        request_approval(str(self.base), "self_repair", "need approval", {"run_id": "run-1", "target": "runtime"})
+
+        first = status(str(self.base))
+        second = status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

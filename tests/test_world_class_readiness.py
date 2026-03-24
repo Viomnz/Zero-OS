@@ -137,3 +137,13 @@ class WorldClassReadinessTests(unittest.TestCase):
         self.assertEqual("strategy_memory_version_drift", status["top_gap"])
         self.assertEqual(2, status["inputs"]["self_derivation_version_mismatch_count"])
         self.assertIn("self_derivation_strategy_trend_direction", status["inputs"])
+
+    def test_readiness_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        first = world_class_readiness_status(str(self.base))
+
+        with patch("zero_os.world_class_readiness._build_world_class_readiness_status", side_effect=AssertionError("should use cache")):
+            second = world_class_readiness_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
+        self.assertEqual(first["overall_score"], second["overall_score"])

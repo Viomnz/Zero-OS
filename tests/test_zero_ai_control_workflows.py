@@ -19,14 +19,17 @@ from zero_os.zero_ai_control_workflows import (
     zero_ai_control_workflow_self_repair,
     zero_ai_control_workflows_status,
 )
+from zero_os.fast_path_cache import clear_fast_path_cache
 
 
 class ZeroAiControlWorkflowTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="zero_ai_control_workflows_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_ai_control_workflows_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="zero_ai_control_workflows_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _store_registry_path(self) -> Path:
@@ -73,6 +76,13 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         self.assertEqual("autonomous", status["lanes"]["store_install"]["control_level"])
         self.assertEqual("autonomous", status["lanes"]["recovery"]["control_level"])
         self.assertEqual("autonomous", status["lanes"]["self_repair"]["control_level"])
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        first = zero_ai_control_workflows_status(str(self.base))
+        second = zero_ai_control_workflows_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
     def test_browser_workflow_runs_canary_backed_open_and_action(self) -> None:
         with patch("zero_os.browser_session_connector.webbrowser.open", return_value=True):

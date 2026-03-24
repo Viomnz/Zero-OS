@@ -4,6 +4,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -27,6 +30,12 @@ def _capability_path(cwd: str) -> Path:
     return _assistant_dir(cwd) / "capability_map.json"
 
 
+def _domain_pack_root(cwd: str) -> Path:
+    path = Path(cwd).resolve() / ".zero_os" / "domain_packs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _load(path: Path, default):
     if not path.exists():
         return default
@@ -39,6 +48,33 @@ def _load(path: Path, default):
 def _save(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _directory_signature(path: Path) -> dict:
+    if not path.exists() or not path.is_dir():
+        return {"exists": False, "mtime_ns": 0, "entries": []}
+    try:
+        entries = sorted(item.name for item in path.iterdir())
+    except OSError:
+        entries = []
+    try:
+        stat = path.stat()
+        mtime_ns = int(stat.st_mtime_ns)
+    except OSError:
+        mtime_ns = 0
+    return {
+        "exists": True,
+        "mtime_ns": mtime_ns,
+        "entries": entries,
+    }
+
+
+def _general_agent_signature(cwd: str) -> dict:
+    return {
+        "controller": json_state_revision(_controller_path(cwd)),
+        "capability_map": json_state_revision(_capability_path(cwd)),
+        "domain_packs": _directory_signature(_domain_pack_root(cwd)),
+    }
 
 
 def _keyword_domains(request: str) -> list[str]:
@@ -106,7 +142,7 @@ def _next_actions(required: list[dict], request: str) -> list[str]:
     return actions[:4]
 
 
-def general_agent_orchestrator_status(cwd: str, request: str = "") -> dict:
+def _build_general_agent_orchestrator_status(cwd: str, request: str = "", *, write: bool) -> dict:
     from zero_os.domain_pack_factory import domain_pack_factory_status
     from zero_os.structured_intent import extract_intent
 
@@ -193,9 +229,24 @@ def general_agent_orchestrator_status(cwd: str, request: str = "") -> dict:
             ),
         },
     }
-    _save(_status_path(cwd), status)
+    if write:
+        _save(_status_path(cwd), status)
     return status
 
 
+def general_agent_orchestrator_status(cwd: str, request: str = "") -> dict:
+    payload, cache_meta = cached_compute(
+        "general_agent_orchestrator_status",
+        json.dumps({"cwd": str(Path(cwd).resolve()), "request": str(request or "").strip()}, sort_keys=True),
+        lambda: _general_agent_signature(cwd),
+        lambda: _build_general_agent_orchestrator_status(cwd, request=request, write=True),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    return payload
+
+
 def general_agent_orchestrator_refresh(cwd: str, request: str = "") -> dict:
-    return general_agent_orchestrator_status(cwd, request=request)
+    payload = _build_general_agent_orchestrator_status(cwd, request=request, write=True)
+    payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+    return payload

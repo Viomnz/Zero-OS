@@ -4,6 +4,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -41,7 +44,14 @@ def _controller_path(cwd: str) -> Path:
     return _assistant_dir(cwd) / "controller_registry.json"
 
 
-def capability_expansion_protocol_status(cwd: str) -> dict:
+def _protocol_signature(cwd: str) -> dict:
+    return {
+        "capability_map": json_state_revision(_map_path(cwd)),
+        "controller_registry": json_state_revision(_controller_path(cwd)),
+    }
+
+
+def _build_capability_expansion_protocol_status(cwd: str, *, write: bool) -> dict:
     capability_map = _load(_map_path(cwd), {})
     controller = _load(_controller_path(cwd), {})
     capabilities = list(capability_map.get("capabilities", []))
@@ -171,9 +181,24 @@ def capability_expansion_protocol_status(cwd: str) -> dict:
             "Require tests and pressure coverage before claiming a domain is production-ready.",
         ],
     }
-    _save(_protocol_path(cwd), protocol)
+    if write:
+        _save(_protocol_path(cwd), protocol)
     return protocol
 
 
+def capability_expansion_protocol_status(cwd: str) -> dict:
+    payload, cache_meta = cached_compute(
+        "capability_expansion_protocol_status",
+        str(Path(cwd).resolve()),
+        lambda: _protocol_signature(cwd),
+        lambda: _build_capability_expansion_protocol_status(cwd, write=True),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    return payload
+
+
 def capability_expansion_protocol_refresh(cwd: str) -> dict:
-    return capability_expansion_protocol_status(cwd)
+    payload = _build_capability_expansion_protocol_status(cwd, write=True)
+    payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+    return payload

@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.phase_runtime import zero_ai_runtime_run
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.self_continuity import zero_ai_self_continuity_update
 from zero_os.subsystem_controller_registry import controller_registry_status
 from zero_os.zero_ai_identity import zero_ai_identity
@@ -20,10 +21,16 @@ from zero_os.zero_ai_identity import zero_ai_identity
 
 class SubsystemControllerRegistryTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="tool_capability_registry_status")
+        clear_fast_path_cache(namespace="controller_registry_status")
+        clear_fast_path_cache(namespace="zero_ai_capability_map_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_controller_registry_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="tool_capability_registry_status")
+        clear_fast_path_cache(namespace="controller_registry_status")
+        clear_fast_path_cache(namespace="zero_ai_capability_map_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _prime_runtime(self) -> None:
@@ -95,6 +102,8 @@ class SubsystemControllerRegistryTests(unittest.TestCase):
         self.assertEqual([], subsystems["runtime"]["missing_functions"])
         self.assertIn("zero ai runtime status", subsystems["runtime"]["commands"])
         self.assertTrue(any("app package" in step.lower() for step in out["highest_value_steps"]))
+        self.assertIn("tool_registry_cache_hit", out["summary"])
+        self.assertIn("capability_map_cache_hit", out["summary"])
 
     def test_registry_surfaces_missing_runtime_functions_without_runtime_baseline(self) -> None:
         zero_ai_identity(str(self.base))
@@ -106,6 +115,17 @@ class SubsystemControllerRegistryTests(unittest.TestCase):
         self.assertIn("background runtime agent", subsystems["runtime"]["missing_functions"])
         self.assertIn("scheduled runtime loop", subsystems["runtime"]["missing_functions"])
         self.assertIn("runtime orchestration baseline", subsystems["runtime"]["missing_functions"])
+
+    def test_registry_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        self._prime_runtime()
+        with patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            first = controller_registry_status(str(self.base))
+
+        with patch("zero_os.subsystem_controller_registry._build_controller_registry_status", side_effect=AssertionError("should use cache")):
+            second = controller_registry_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

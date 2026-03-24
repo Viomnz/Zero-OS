@@ -6,6 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from zero_os.fast_path_cache import clear_fast_path_cache
 from ai_from_scratch.benchmark_history import (
     benchmark_adaptive_curriculum_status,
     benchmark_alert_routes_status,
@@ -20,16 +26,21 @@ from ai_from_scratch.model import TinyBigramModel
 from ai_from_scratch.tokenizer_dataset import ZeroTokenizer
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
 class BenchmarkHistoryTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="benchmark_gate_status")
+        clear_fast_path_cache(namespace="benchmark_alert_routes_status")
+        clear_fast_path_cache(namespace="benchmark_remediation_status")
+        clear_fast_path_cache(namespace="benchmark_dashboard_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_benchmark_history_")
         self.base = Path(self.tempdir)
         self.history_dir = self.base / "history"
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="benchmark_gate_status")
+        clear_fast_path_cache(namespace="benchmark_alert_routes_status")
+        clear_fast_path_cache(namespace="benchmark_remediation_status")
+        clear_fast_path_cache(namespace="benchmark_dashboard_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _make_manifest_and_checkpoints(self) -> tuple[Path, Path, Path]:
@@ -348,6 +359,39 @@ class BenchmarkHistoryTests(unittest.TestCase):
         remediation_payload, _ = json.JSONDecoder().raw_decode(remediation.stdout.lstrip())
         self.assertIn("status", remediation_payload)
         self.assertTrue((self.history_dir / "remediation_latest.md").exists())
+
+    def test_benchmark_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        manifest, checkpoint_a, checkpoint_b = self._make_manifest_and_checkpoints()
+        out_a = self.base / "run_a.json"
+        out_b = self.base / "run_b.json"
+
+        record_benchmark_run(
+            str(checkpoint_a),
+            manifest_path=str(manifest),
+            out_path=str(out_a),
+            history_dir=self.history_dir,
+            label="base",
+        )
+        record_benchmark_run(
+            str(checkpoint_b),
+            manifest_path=str(manifest),
+            out_path=str(out_b),
+            history_dir=self.history_dir,
+            label="tuned",
+        )
+
+        first_alerts = benchmark_alert_routes_status(history_dir=self.history_dir)
+        second_alerts = benchmark_alert_routes_status(history_dir=self.history_dir)
+        first_dashboard = benchmark_dashboard_status(history_dir=self.history_dir)
+        second_dashboard = benchmark_dashboard_status(history_dir=self.history_dir)
+
+        self.assertFalse(first_alerts["fast_path_cache"]["hit"])
+        self.assertTrue(second_alerts["fast_path_cache"]["hit"])
+        self.assertFalse(first_dashboard["fast_path_cache"]["hit"])
+        self.assertTrue(second_dashboard["fast_path_cache"]["hit"])
+        self.assertIn("gate", second_dashboard["cache_surfaces"])
+        self.assertIn("alert_routes", second_dashboard["cache_surfaces"])
+        self.assertIn("remediation", second_dashboard["cache_surfaces"])
 
     def test_evaluate_benchmark_gate_flags_regression_and_family_failures(self) -> None:
         gate_config = {

@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
 from zero_os.capability_expansion_protocol import capability_expansion_protocol_status
 
 
@@ -57,6 +59,27 @@ def _load(path: Path, default):
 def _normalize_domain_key(name: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
     return normalized or "new_domain"
+
+
+def _domain_pack_signature(cwd: str) -> dict:
+    root = _domain_pack_root(cwd)
+    manifests: list[dict] = []
+    for domain_dir in sorted(root.iterdir()) if root.exists() else []:
+        if not domain_dir.is_dir():
+            continue
+        manifests.append(
+            {
+                "domain_dir": domain_dir.name,
+                "manifest": json_state_revision(domain_dir / "domain_pack.json"),
+            }
+        )
+    return {
+        "root": {
+            "exists": root.exists(),
+            "entries": sorted(item.name for item in root.iterdir()) if root.exists() else [],
+        },
+        "manifests": manifests,
+    }
 
 
 def _manifest_path(cwd: str, domain_key: str) -> Path:
@@ -416,7 +439,7 @@ def domain_pack_verify(cwd: str, name: str) -> dict:
     }
 
 
-def domain_pack_factory_status(cwd: str) -> dict:
+def _build_domain_pack_factory_status(cwd: str, *, write: bool) -> dict:
     protocol = capability_expansion_protocol_status(cwd)
     packs: list[dict] = []
     ready_count = 0
@@ -461,5 +484,22 @@ def domain_pack_factory_status(cwd: str) -> dict:
             "Use the factory to ship research, communications, and calendar_time next.",
         ],
     }
-    _save(_factory_path(cwd), payload)
+    if write:
+        _save(_factory_path(cwd), payload)
+    return payload
+
+
+def domain_pack_factory_status(cwd: str) -> dict:
+    payload, cache_meta = cached_compute(
+        "domain_pack_factory_status",
+        str(Path(cwd).resolve()),
+        lambda: {
+            "capability_map": json_state_revision(_assistant_dir(cwd) / "capability_map.json"),
+            "controller_registry": json_state_revision(_assistant_dir(cwd) / "controller_registry.json"),
+            "domain_packs": _domain_pack_signature(cwd),
+        },
+        lambda: _build_domain_pack_factory_status(cwd, write=True),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
     return payload

@@ -1631,6 +1631,7 @@ public partial class MainWindow : Window
             lines.Add($"- Active subsystems: {ReadNestedNumber(controller, "summary", "active_subsystem_count")}");
             lines.Add($"- Missing functions: {ReadNestedNumber(controller, "summary", "missing_function_count")}");
             lines.Add($"- Missing tools: {ReadNestedNumber(controller, "tool_summary", "missing_tool_count")}");
+            lines.Add($"- Cache: {(ReadNestedBool(controller, "fast_path_cache", "hit") ? "cache" : "recompute")}");
             lines.Add("");
             lines.Add("Next priorities:");
             if (controller.TryGetProperty("next_priority", out var nextPriority) && nextPriority.ValueKind == JsonValueKind.Array && nextPriority.GetArrayLength() > 0)
@@ -1674,6 +1675,7 @@ public partial class MainWindow : Window
             lines.Add($"- Tool count: {ReadNestedNumber(tools, "summary", "tool_count")}");
             lines.Add($"- Active tools: {ReadNestedNumber(tools, "summary", "active_count")}");
             lines.Add($"- Missing tools: {ReadNestedNumber(tools, "summary", "missing_tool_count")}");
+            lines.Add($"- Cache: {(ReadNestedBool(tools, "fast_path_cache", "hit") ? "cache" : "recompute")}");
             if (tools.TryGetProperty("missing_tools", out var missingTools) && missingTools.ValueKind == JsonValueKind.Array && missingTools.GetArrayLength() > 0)
             {
                 foreach (var item in missingTools.EnumerateArray().Take(4))
@@ -1698,6 +1700,23 @@ public partial class MainWindow : Window
             lines.Add($"- Approval-gated count: {ReadNestedNumber(capability, "summary", "approval_gated_count")}");
             lines.Add($"- Forbidden count: {ReadNestedNumber(capability, "summary", "forbidden_count")}");
             lines.Add($"- Highest-value steps: {ReadArrayPreview(capability, "highest_value_steps", 2)}");
+            lines.Add("Poll fast paths:");
+            lines.Add($"- Capability map: {(ReadNestedBool(capability, "fast_path_cache", "hit") ? "cache" : "recompute")}");
+            lines.Add($"- Internet surfaces cached: {ReadNestedNumber(capability, "summary", "internet_surface_cache_hit_count")}/{ReadNestedNumber(capability, "summary", "internet_surface_cache_total_count")}");
+            lines.Add($"- Browser session: {(ReadNestedBool(capability, "summary", "internet_browser_session_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Browser DOM: {(ReadNestedBool(capability, "summary", "internet_browser_dom_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- API profiles: {(ReadNestedBool(capability, "summary", "internet_api_profiles_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- GitHub integration: {(ReadNestedBool(capability, "summary", "internet_github_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Local control cached: {ReadNestedNumber(capability, "summary", "local_control_cache_hit_count")}/{ReadNestedNumber(capability, "summary", "local_control_cache_total_count")}");
+            lines.Add($"- Approvals: {(ReadNestedBool(capability, "summary", "approval_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Benchmark remediation: {(ReadNestedBool(capability, "summary", "benchmark_remediation_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Communications: {(ReadNestedBool(capability, "summary", "communications_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Calendar: {(ReadNestedBool(capability, "summary", "calendar_time_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Workflow status cached: {ReadNestedNumber(capability, "summary", "workflow_status_cache_hit_count")}/{ReadNestedNumber(capability, "summary", "workflow_status_cache_total_count")}");
+            lines.Add($"- Control workflows: {(ReadNestedBool(capability, "summary", "control_workflows_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- General agent: {(ReadNestedBool(capability, "summary", "general_agent_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Expansion protocol: {(ReadNestedBool(capability, "summary", "capability_expansion_protocol_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add($"- Domain-pack factory: {(ReadNestedBool(capability, "summary", "domain_pack_factory_status_cache_hit") ? "cache" : "recompute")}");
             if (capability.TryGetProperty("capabilities", out var capabilityItems) && capabilityItems.ValueKind == JsonValueKind.Array)
             {
                 JsonElement derivationCapability = default;
@@ -1751,6 +1770,7 @@ public partial class MainWindow : Window
                 benchmark.TryGetProperty("dashboard", out var dashboard);
                 benchmark.TryGetProperty("gate", out var gate);
                 benchmark.TryGetProperty("alert_routes", out var alertRoutes);
+                var capabilitySummarySource = capabilityResult.Payload.GetValueOrDefault();
                 dashboard.TryGetProperty("latest_run", out var latestRun);
                 lines.Add("Benchmark dashboard:");
                 lines.Add($"- History count: {ReadNumber(benchmark, "history_count")}");
@@ -1759,6 +1779,10 @@ public partial class MainWindow : Window
                 lines.Add($"- Primary perplexity: {ReadString(latestRun, "primary_perplexity")}");
                 lines.Add($"- Highest alert severity: {ReadString(alertRoutes, "highest_severity")}");
                 lines.Add($"- Alert routes: {ReadNumber(alertRoutes, "route_count")}");
+                lines.Add($"- Cache: {ReadNestedNumber(capabilitySummarySource, "summary", "benchmark_status_cache_hit_count")}/{ReadNestedNumber(capabilitySummarySource, "summary", "benchmark_status_cache_total_count")}");
+                lines.Add($"- Dashboard cache: {(ReadNestedBool(capabilitySummarySource, "summary", "benchmark_dashboard_status_cache_hit") ? "cache" : "recompute")}");
+                lines.Add($"- Gate cache: {(ReadNestedBool(capabilitySummarySource, "summary", "benchmark_gate_status_cache_hit") ? "cache" : "recompute")}");
+                lines.Add($"- Alerts cache: {(ReadNestedBool(capabilitySummarySource, "summary", "benchmark_alert_routes_status_cache_hit") ? "cache" : "recompute")}");
                 lines.Add($"- Route counts: {ReadObjectPairs(alertRoutes, "route_counts")}");
                 lines.Add($"- Top families: {ReadArrayFieldPreview(dashboard, "family_slices", "family", 3)}");
             }

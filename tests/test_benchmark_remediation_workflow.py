@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.approval_workflow import decide as approval_decide
 from zero_os.benchmark_remediation_workflow import decide, execute, request, status
 
@@ -19,8 +20,12 @@ class BenchmarkRemediationWorkflowTests(unittest.TestCase):
         self.tempdir = tempfile.mkdtemp(prefix="zero_benchmark_remediation_")
         self.base = Path(self.tempdir)
         (self.base / ".zero_os").mkdir(parents=True, exist_ok=True)
+        clear_fast_path_cache(namespace="benchmark_remediation_workflow_status")
+        clear_fast_path_cache(namespace="approval_workflow_status")
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="benchmark_remediation_workflow_status")
+        clear_fast_path_cache(namespace="approval_workflow_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _proposal_payload(self) -> dict:
@@ -91,6 +96,16 @@ class BenchmarkRemediationWorkflowTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(requested["approval"]["id"], result["approval"]["id"])
         self.assertEqual("approved", result["approval"]["state"])
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        history_api = lambda **kwargs: self._proposal_payload()
+        with patch("zero_os.benchmark_remediation_workflow._benchmark_history_api", return_value=history_api) as mock_api:
+            first = status(str(self.base))
+            second = status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
+        self.assertEqual(1, mock_api.call_count)
 
 
 if __name__ == "__main__":

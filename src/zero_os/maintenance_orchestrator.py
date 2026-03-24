@@ -12,7 +12,7 @@ from zero_os.phase_runtime import zero_ai_runtime_run, zero_ai_runtime_status
 from zero_os.recovery import zero_ai_backup_status
 from zero_os.self_repair import self_repair_status
 from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state
-from zero_os.state_registry import put_state_store
+from zero_os.state_registry import flush_state_registry, update_state_store
 from zero_os.zero_ai_control_workflows import zero_ai_control_workflow_self_repair, zero_ai_control_workflows_status
 
 
@@ -164,9 +164,8 @@ def maintenance_run(cwd: str) -> dict[str, Any]:
     history = list(state.get("history", []))
     history.append({"time_utc": report["time_utc"], "action": action, "ok": report["ok"], "reason": report["reason"]})
     state["history"] = history[-20:]
-    put_state_store(cwd, "maintenance_state", state)
-    _save(_path(cwd), state)
-    flush_state_writes(paths=[_path(cwd)])
+    update_state_store(cwd, "maintenance_state", lambda current, payload=dict(state): dict(payload))
+    flush_state_registry(cwd, names=["maintenance_state"])
     report["path"] = str(_path(cwd))
     return report
 

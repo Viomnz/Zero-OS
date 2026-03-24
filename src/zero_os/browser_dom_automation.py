@@ -5,7 +5,9 @@ import re
 from pathlib import Path
 
 from zero_os.browser_session_connector import browser_session_action, browser_session_remember_page
+from zero_os.fast_path_cache import cached_compute
 from zero_os.net_client import request_text
+from zero_os.state_cache import json_state_revision
 
 
 def _path(cwd: str) -> Path:
@@ -16,8 +18,22 @@ def _path(cwd: str) -> Path:
     return path
 
 
-def status(cwd: str) -> dict:
+def _build_status(cwd: str) -> dict:
     return json.loads(_path(cwd).read_text(encoding="utf-8", errors="replace"))
+
+
+def status(cwd: str) -> dict:
+    path = _path(cwd)
+    data, cache_meta = cached_compute(
+        "browser_dom_status",
+        str(path),
+        lambda: {"browser_dom": json_state_revision(path)},
+        lambda: _build_status(cwd),
+        ttl_seconds=None,
+    )
+    data = dict(data)
+    data["fast_path_cache"] = {"hit": bool(cache_meta.get("hit", False))}
+    return data
 
 
 def _save(cwd: str, payload: dict) -> None:

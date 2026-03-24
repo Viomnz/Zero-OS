@@ -4,6 +4,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -92,13 +95,15 @@ def _capability(
     }
 
 
-def zero_ai_capability_map_status(cwd: str) -> dict:
+def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.agent_permission_policy import policy_status
     from zero_os.approval_workflow import status as approval_status
     from zero_os.assistant_job_runner import status as jobs_status
+    from zero_os.benchmark_remediation_workflow import status as benchmark_remediation_status
     from zero_os.contradiction_engine import contradiction_engine_status
     from zero_os.flow_monitor import flow_status
     from zero_os.general_agent_orchestrator import general_agent_orchestrator_status
+    from zero_os.internet_capability import internet_capability_status
     from zero_os.smart_workspace import workspace_status
     from zero_os.capability_expansion_protocol import capability_expansion_protocol_status
     from zero_os.calendar_time import calendar_time_status
@@ -112,6 +117,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
+    from ai_from_scratch.benchmark_history import benchmark_dashboard_status
 
     runtime_status = _load(_runtime_status_path(cwd), {})
     runtime_self_derivation_background = dict(runtime_status.get("self_derivation_background") or {})
@@ -137,6 +143,9 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     communications = communications_status(cwd)
     calendar_time = calendar_time_status(cwd)
     domain_pack_factory = domain_pack_factory_status(cwd)
+    internet_capability = internet_capability_status(cwd)
+    benchmark_remediation = benchmark_remediation_status(cwd)
+    benchmark_dashboard = benchmark_dashboard_status(history_dir=Path(cwd).resolve() / ".zero_os" / "benchmarks" / "model")
     guard = _load(
         _self_mod_guard_path(cwd),
         {
@@ -188,6 +197,60 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     strategy_trend_direction = str(strategy_drift_trend.get("direction", "unknown") or "unknown")
     strategy_freshness_delta = float(strategy_drift_trend.get("freshness_delta", 0.0) or 0.0)
     strategy_quarantined_delta = int(strategy_drift_trend.get("quarantined_delta", 0) or 0)
+    internet_summary = dict(internet_capability.get("summary") or {})
+    internet_cache_surfaces = dict(internet_capability.get("cache_surfaces") or {})
+    internet_surface_cache_hit_count = int(internet_summary.get("surface_cache_hit_count", 0) or 0)
+    internet_surface_cache_total_count = int(internet_summary.get("surface_cache_total_count", 0) or 0)
+    internet_browser_session_cache_hit = bool(dict(internet_cache_surfaces.get("browser_session") or {}).get("hit", False))
+    internet_browser_dom_cache_hit = bool(dict(internet_cache_surfaces.get("browser_dom") or {}).get("hit", False))
+    internet_api_profiles_cache_hit = bool(dict(internet_cache_surfaces.get("api_profiles") or {}).get("hit", False))
+    internet_github_cache_hit = bool(dict(internet_cache_surfaces.get("github_integration") or {}).get("hit", False))
+    internet_status_cache_hit = bool((internet_capability.get("fast_path_cache") or {}).get("hit", False))
+    approval_status_cache_hit = bool((approvals.get("fast_path_cache") or {}).get("hit", False))
+    benchmark_remediation_status_cache_hit = bool((benchmark_remediation.get("fast_path_cache") or {}).get("hit", False))
+    communications_status_cache_hit = bool((communications.get("fast_path_cache") or {}).get("hit", False))
+    calendar_time_status_cache_hit = bool((calendar_time.get("fast_path_cache") or {}).get("hit", False))
+    control_workflows_status_cache_hit = bool((workflows.get("fast_path_cache") or {}).get("hit", False))
+    general_agent_status_cache_hit = bool((general_agent.get("fast_path_cache") or {}).get("hit", False))
+    capability_expansion_protocol_status_cache_hit = bool((expansion_protocol.get("fast_path_cache") or {}).get("hit", False))
+    domain_pack_factory_status_cache_hit = bool((domain_pack_factory.get("fast_path_cache") or {}).get("hit", False))
+    benchmark_dashboard_status_cache_hit = bool((benchmark_dashboard.get("fast_path_cache") or {}).get("hit", False))
+    benchmark_cache_surfaces = dict(benchmark_dashboard.get("cache_surfaces") or {})
+    benchmark_gate_status_cache_hit = bool(dict(benchmark_cache_surfaces.get("gate") or {}).get("hit", False))
+    benchmark_alert_routes_status_cache_hit = bool(dict(benchmark_cache_surfaces.get("alert_routes") or {}).get("hit", False))
+    benchmark_nested_remediation_cache_hit = bool(dict(benchmark_cache_surfaces.get("remediation") or {}).get("hit", False))
+    local_control_cache_hit_count = sum(
+        1
+        for item in (
+            approval_status_cache_hit,
+            benchmark_remediation_status_cache_hit,
+            communications_status_cache_hit,
+            calendar_time_status_cache_hit,
+        )
+        if item
+    )
+    local_control_cache_total_count = 4
+    workflow_status_cache_hit_count = sum(
+        1
+        for item in (
+            control_workflows_status_cache_hit,
+            general_agent_status_cache_hit,
+            capability_expansion_protocol_status_cache_hit,
+            domain_pack_factory_status_cache_hit,
+        )
+        if item
+    )
+    workflow_status_cache_total_count = 4
+    benchmark_status_cache_hit_count = sum(
+        1
+        for item in (
+            benchmark_dashboard_status_cache_hit,
+            benchmark_gate_status_cache_hit,
+            benchmark_alert_routes_status_cache_hit,
+        )
+        if item
+    )
+    benchmark_status_cache_total_count = 3
     worst_planner_route = ""
     worst_target_drop = -1.0
     worst_hold = -1.0
@@ -272,6 +335,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "required_subsystem_count": int(general_agent.get("required_subsystem_count", 0) or 0),
                 "blocked_subsystem_count": int(general_agent.get("blocked_subsystem_count", 0) or 0),
                 "recommended_mode": str(general_agent.get("recommended_mode", "")),
+                "status_cache_hit": general_agent_status_cache_hit,
             },
         ),
         _capability(
@@ -448,6 +512,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "required_contract_count": len(expansion_protocol.get("required_contracts", [])),
                 "installed_domain_count": int((expansion_protocol.get("summary") or {}).get("installed_domain_count", 0) or 0),
                 "missing_function_count": int((expansion_protocol.get("summary") or {}).get("missing_function_count", 0) or 0),
+                "status_cache_hit": capability_expansion_protocol_status_cache_hit,
             },
         ),
         _capability(
@@ -463,6 +528,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "domain_pack_count": int((domain_pack_factory.get("summary") or {}).get("domain_pack_count", 0) or 0),
                 "ready_count": int((domain_pack_factory.get("summary") or {}).get("ready_count", 0) or 0),
                 "required_contract_count": int((domain_pack_factory.get("summary") or {}).get("required_contract_count", 0) or 0),
+                "status_cache_hit": domain_pack_factory_status_cache_hit,
             },
         ),
         _capability(
@@ -478,6 +544,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "draft_count": int((communications.get("summary") or {}).get("draft_count", 0) or 0),
                 "outbox_count": int((communications.get("summary") or {}).get("outbox_count", 0) or 0),
                 "audit_count": int((communications.get("summary") or {}).get("audit_count", 0) or 0),
+                "status_cache_hit": communications_status_cache_hit,
             },
         ),
         _capability(
@@ -493,6 +560,57 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "reminder_count": int((calendar_time.get("summary") or {}).get("reminder_count", 0) or 0),
                 "calendar_item_count": int((calendar_time.get("summary") or {}).get("calendar_item_count", 0) or 0),
                 "audit_count": int((calendar_time.get("summary") or {}).get("audit_count", 0) or 0),
+                "status_cache_hit": calendar_time_status_cache_hit,
+            },
+        ),
+        _capability(
+            "approval_gate_state",
+            "Approval gate state",
+            "approval",
+            "autonomous",
+            active=bool(approvals.get("pending_count", 0)),
+            ready=bool(approvals.get("ok", False)),
+            action_kind="approval_status",
+            notes="Tracks approval queue state and whether recent approval status polls hit cache or recomputed.",
+            evidence={
+                "pending_count": int(approvals.get("pending_count", 0) or 0),
+                "expired_count": int(approvals.get("expired_count", 0) or 0),
+                "status_cache_hit": approval_status_cache_hit,
+            },
+        ),
+        _capability(
+            "benchmark_remediation_lane",
+            "Benchmark remediation lane",
+            "benchmark",
+            "autonomous",
+            active=not bool(benchmark_remediation.get("missing", False)),
+            ready=bool(benchmark_remediation.get("ok", False)),
+            action_kind="benchmark_remediation_status",
+            notes="Tracks remediation proposal/execution state and whether recent benchmark remediation status polls hit cache or recomputed.",
+            evidence={
+                "status": str(benchmark_remediation.get("status", "missing") or "missing"),
+                "approval_ready": bool(dict(benchmark_remediation.get("approval") or {}).get("approved_ready", False)),
+                "status_cache_hit": benchmark_remediation_status_cache_hit,
+            },
+        ),
+        _capability(
+            "internet_surfaces",
+            "Internet surfaces",
+            "integration",
+            "autonomous",
+            active=bool(internet_summary.get("connected_surface_count", 0)),
+            ready=bool(internet_capability.get("ok", False)),
+            action_kind="internet_status",
+            notes="Tracks browser, DOM, API-profile, and GitHub internet surfaces and shows whether recent status polls hit cache or recomputed.",
+            evidence={
+                "connected_surface_count": int(internet_summary.get("connected_surface_count", 0) or 0),
+                "surface_cache_hit_count": internet_surface_cache_hit_count,
+                "surface_cache_total_count": internet_surface_cache_total_count,
+                "browser_session_cache_hit": internet_browser_session_cache_hit,
+                "browser_dom_cache_hit": internet_browser_dom_cache_hit,
+                "api_profiles_cache_hit": internet_api_profiles_cache_hit,
+                "github_cache_hit": internet_github_cache_hit,
+                "status_cache_hit": internet_status_cache_hit,
             },
         ),
         _capability(
@@ -508,6 +626,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "pending_approvals": approval_counts.get("browser_action", 0),
                 "workflow": browser_workflow,
                 "raw_action_policy": _policy_decision(policy, "browser_action"),
+                "workflow_status_cache_hit": control_workflows_status_cache_hit,
             },
         ),
         _capability(
@@ -523,6 +642,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "pending_approvals": approval_counts.get("store_install", 0),
                 "workflow": store_install_workflow,
                 "raw_action_policy": _policy_decision(policy, "store_install"),
+                "workflow_status_cache_hit": control_workflows_status_cache_hit,
             },
         ),
         _capability(
@@ -538,6 +658,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "pending_approvals": approval_counts.get("recover", 0),
                 "workflow": recovery_workflow,
                 "raw_action_policy": _policy_decision(policy, "recover"),
+                "workflow_status_cache_hit": control_workflows_status_cache_hit,
             },
         ),
         _capability(
@@ -553,6 +674,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
                 "pending_approvals": approval_counts.get("self_repair", 0),
                 "workflow": self_repair_workflow,
                 "raw_action_policy": _policy_decision(policy, "self_repair"),
+                "workflow_status_cache_hit": control_workflows_status_cache_hit,
             },
         ),
         _capability(
@@ -674,6 +796,31 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             "self_derivation_strategy_freshness_delta": round(strategy_freshness_delta, 3),
             "self_derivation_strategy_quarantined_delta": strategy_quarantined_delta,
             "self_derivation_strategy_history_point_count": int(strategy_drift_history.get("point_count", 0) or 0),
+            "internet_surface_cache_hit_count": internet_surface_cache_hit_count,
+            "internet_surface_cache_total_count": internet_surface_cache_total_count,
+            "internet_browser_session_cache_hit": internet_browser_session_cache_hit,
+            "internet_browser_dom_cache_hit": internet_browser_dom_cache_hit,
+            "internet_api_profiles_cache_hit": internet_api_profiles_cache_hit,
+            "internet_github_cache_hit": internet_github_cache_hit,
+            "internet_status_cache_hit": internet_status_cache_hit,
+            "benchmark_status_cache_hit_count": benchmark_status_cache_hit_count,
+            "benchmark_status_cache_total_count": benchmark_status_cache_total_count,
+            "benchmark_dashboard_status_cache_hit": benchmark_dashboard_status_cache_hit,
+            "benchmark_gate_status_cache_hit": benchmark_gate_status_cache_hit,
+            "benchmark_alert_routes_status_cache_hit": benchmark_alert_routes_status_cache_hit,
+            "benchmark_nested_remediation_cache_hit": benchmark_nested_remediation_cache_hit,
+            "approval_status_cache_hit": approval_status_cache_hit,
+            "benchmark_remediation_status_cache_hit": benchmark_remediation_status_cache_hit,
+            "communications_status_cache_hit": communications_status_cache_hit,
+            "calendar_time_status_cache_hit": calendar_time_status_cache_hit,
+            "local_control_cache_hit_count": local_control_cache_hit_count,
+            "local_control_cache_total_count": local_control_cache_total_count,
+            "control_workflows_status_cache_hit": control_workflows_status_cache_hit,
+            "general_agent_status_cache_hit": general_agent_status_cache_hit,
+            "capability_expansion_protocol_status_cache_hit": capability_expansion_protocol_status_cache_hit,
+            "domain_pack_factory_status_cache_hit": domain_pack_factory_status_cache_hit,
+            "workflow_status_cache_hit_count": workflow_status_cache_hit_count,
+            "workflow_status_cache_total_count": workflow_status_cache_total_count,
         },
         "control_workflows": workflows,
         "capability_expansion_protocol": expansion_protocol,
@@ -685,6 +832,47 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
     }
     _save(_map_path(cwd), status)
     return status
+
+
+def zero_ai_capability_map_status(cwd: str) -> dict:
+    base = Path(cwd).resolve()
+
+    def _signature() -> dict[str, Any]:
+        return {
+            "phase_runtime_status": json_state_revision(_runtime_status_path(cwd)),
+            "runtime_loop": json_state_revision(_runtime_dir(cwd) / "runtime_loop_state.json"),
+            "runtime_agent": json_state_revision(_runtime_dir(cwd) / "runtime_agent_state.json"),
+            "goals": json_state_revision(_goals_path(cwd)),
+            "autonomy_loop": json_state_revision(_autonomy_loop_path(cwd)),
+            "self_mod_guard": json_state_revision(_self_mod_guard_path(cwd)),
+            "planner_feedback": json_state_revision(_assistant_dir(cwd) / "planner_feedback.json"),
+            "approvals": json_state_revision(_assistant_dir(cwd) / "approvals.json"),
+            "communications": json_state_revision(_assistant_dir(cwd) / "communications.json"),
+            "calendar_time": json_state_revision(_assistant_dir(cwd) / "calendar_time.json"),
+            "benchmark_remediation_workflow": json_state_revision(_assistant_dir(cwd) / "benchmark_remediation_workflow.json"),
+            "benchmark_history": json_state_revision(base / ".zero_os" / "benchmarks" / "model" / "history.jsonl"),
+            "benchmark_gate_config": json_state_revision(base / "laws" / "model_benchmark_thresholds.json"),
+            "benchmark_alert_route_config": json_state_revision(base / "laws" / "model_benchmark_alert_routes.json"),
+            "pressure_latest": json_state_revision(_assistant_dir(cwd) / "pressure_harness" / "latest.json"),
+            "pressure_strategy_drift": json_state_revision(_assistant_dir(cwd) / "pressure_harness" / "strategy_drift_history.json"),
+            "self_derivation_latest": json_state_revision(_assistant_dir(cwd) / "self_derivation" / "latest.json"),
+            "self_derivation_memory": json_state_revision(_assistant_dir(cwd) / "self_derivation" / "memory.json"),
+            "browser_session": json_state_revision(base / ".zero_os" / "connectors" / "browser_session.json"),
+            "browser_dom": json_state_revision(base / ".zero_os" / "connectors" / "browser_dom.json"),
+            "api_profiles": json_state_revision(base / ".zero_os" / "connectors" / "api_profiles.json"),
+            "github_integration": json_state_revision(base / ".zero_os" / "integrations" / "github.json"),
+        }
+
+    payload, cache_meta = cached_compute(
+        "zero_ai_capability_map_status",
+        str(base),
+        _signature,
+        lambda: _build_zero_ai_capability_map_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
+    return payload
 
 
 def zero_ai_capability_map_refresh(cwd: str) -> dict:

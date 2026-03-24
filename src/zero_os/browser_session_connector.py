@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
+import os
+import threading
+import time
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
+
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
 
 
 def _session_path(cwd: str) -> Path:
@@ -28,6 +35,46 @@ def _default_session() -> dict:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _lock_path(cwd: str) -> Path:
+    return _session_path(cwd).with_name("browser_session.lock")
+
+
+@contextmanager
+def _session_lock(cwd: str, *, timeout_seconds: float = 2.0, stale_after_seconds: float = 10.0):
+    lock_path = _lock_path(cwd)
+    deadline = time.monotonic() + timeout_seconds
+    owner = f"{os.getpid()}:{threading.get_ident()}:{_utc_now()}"
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(fd, owner.encode("utf-8", errors="replace"))
+            finally:
+                os.close(fd)
+            break
+        except FileExistsError:
+            try:
+                age_seconds = time.time() - lock_path.stat().st_mtime
+            except FileNotFoundError:
+                continue
+            if age_seconds >= stale_after_seconds:
+                try:
+                    lock_path.unlink()
+                except FileNotFoundError:
+                    continue
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"browser_session_lock_timeout:{lock_path}")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _parse_utc(value: str) -> datetime | None:
@@ -127,65 +174,86 @@ def _recent_duplicate_open(data: dict, normalized: str, cooldown_seconds: int = 
     return False
 
 
+def _build_browser_session_status(cwd: str) -> dict:
+    loaded = _load_session(cwd)
+    compacted = _compact_tabs(dict(loaded))
+    if compacted != loaded:
+        _save_session(cwd, compacted)
+    return compacted
+
+
 def browser_session_status(cwd: str) -> dict:
-    data = _compact_tabs(_load_session(cwd))
-    _save_session(cwd, data)
-    return data
+    path = _session_path(cwd)
+    status, cache_meta = cached_compute(
+        "browser_session_status",
+        str(path),
+        lambda: {"session": json_state_revision(path)},
+        lambda: _build_browser_session_status(cwd),
+        ttl_seconds=None,
+    )
+    status = dict(status)
+    status["fast_path_cache"] = {"hit": bool(cache_meta.get("hit", False))}
+    return status
 
 
 def browser_session_open(cwd: str, url: str) -> dict:
     normalized = _normalize_url(url)
-    data = browser_session_status(cwd)
-    existing_tab = next((tab for tab in data.get("tabs", []) if tab.get("url") == normalized), None)
-    recent_duplicate = _recent_duplicate_open(data, normalized)
-    already_active = normalized and normalized in {
-        _normalize_url(data.get("active_tab", "")),
-        _normalize_url(data.get("last_opened", "")),
-    }
+    with _session_lock(cwd):
+        loaded = _load_session(cwd)
+        data = _compact_tabs(dict(loaded))
+        if data != loaded:
+            _save_session(cwd, data)
 
-    reused_existing = existing_tab is not None or recent_duplicate or already_active
-    launch_attempted = bool(existing_tab.get("launch_attempted", False)) if existing_tab else False
-    launch_result = bool(existing_tab.get("launch_result", False)) if existing_tab else False
-    if existing_tab:
-        opened = bool(existing_tab.get("opened", False) or launch_attempted)
-    elif reused_existing:
-        launch_attempted = True
-        opened = True
-    else:
-        launch_result = bool(webbrowser.open(normalized, new=2))
-        launch_attempted = True
-        opened = True
-    opened_utc = _utc_now()
+        existing_tab = next((tab for tab in data.get("tabs", []) if tab.get("url") == normalized), None)
+        recent_duplicate = _recent_duplicate_open(data, normalized)
+        already_active = normalized and normalized in {
+            _normalize_url(data.get("active_tab", "")),
+            _normalize_url(data.get("last_opened", "")),
+        }
 
-    if not existing_tab:
-        data.setdefault("tabs", []).append(
+        reused_existing = existing_tab is not None or recent_duplicate or already_active
+        launch_attempted = bool(existing_tab.get("launch_attempted", False)) if existing_tab else False
+        launch_result = bool(existing_tab.get("launch_result", False)) if existing_tab else False
+        if existing_tab:
+            opened = bool(existing_tab.get("opened", False) or launch_attempted)
+        elif reused_existing:
+            launch_attempted = True
+            opened = True
+        else:
+            launch_result = bool(webbrowser.open(normalized, new=2))
+            launch_attempted = True
+            opened = True
+        opened_utc = _utc_now()
+
+        if not existing_tab:
+            data.setdefault("tabs", []).append(
+                {
+                    "url": normalized,
+                    "opened": opened,
+                    "launch_attempted": launch_attempted,
+                    "launch_result": launch_result,
+                    "opened_utc": opened_utc,
+                }
+            )
+            data["tabs"] = data["tabs"][-20:]
+        else:
+            existing_tab["opened"] = opened
+            existing_tab["launch_attempted"] = bool(existing_tab.get("launch_attempted", False) or launch_attempted)
+            existing_tab["launch_result"] = bool(existing_tab.get("launch_result", False) or launch_result)
+        data["last_opened"] = normalized
+        data["active_tab"] = normalized
+        data.setdefault("history", []).append(
             {
                 "url": normalized,
                 "opened": opened,
+                "reused_existing": reused_existing,
                 "launch_attempted": launch_attempted,
                 "launch_result": launch_result,
                 "opened_utc": opened_utc,
             }
         )
-        data["tabs"] = data["tabs"][-20:]
-    else:
-        existing_tab["opened"] = opened
-        existing_tab["launch_attempted"] = bool(existing_tab.get("launch_attempted", False) or launch_attempted)
-        existing_tab["launch_result"] = bool(existing_tab.get("launch_result", False) or launch_result)
-    data["last_opened"] = normalized
-    data["active_tab"] = normalized
-    data.setdefault("history", []).append(
-        {
-            "url": normalized,
-            "opened": opened,
-            "reused_existing": reused_existing,
-            "launch_attempted": launch_attempted,
-            "launch_result": launch_result,
-            "opened_utc": opened_utc,
-        }
-    )
-    data["history"] = data["history"][-100:]
-    _save_session(cwd, _compact_tabs(data))
+        data["history"] = data["history"][-100:]
+        _save_session(cwd, _compact_tabs(data))
     return {
         "ok": True,
         "url": normalized,

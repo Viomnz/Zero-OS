@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.highway import Highway
 from zero_os.task_executor import run_task, run_task_resume
 from zero_os.recovery import zero_ai_backup_create
 from zero_os.api_connector_profiles import profile_set
@@ -79,6 +80,45 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
     def test_run_task_can_use_highway_dispatch(self) -> None:
         out = run_task(str(self.base), "whoami")
         self.assertTrue(any(step["kind"] == "highway_dispatch" for step in out["plan"]["steps"]))
+
+    def test_highway_dispatches_general_agent_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai general agent status", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("required_subsystems", out.summary)
+
+    def test_highway_dispatches_capability_expansion_protocol_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai capability expansion protocol status", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("required_contracts", out.summary)
+
+    def test_highway_dispatches_domain_pack_factory_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai domain pack factory status", cwd=str(self.base))
+        self.assertEqual("system", out.capability)
+        self.assertIn("domain_pack_count", out.summary)
+
+    def test_highway_dispatches_communications_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai communications status", cwd=str(self.base))
+        payload = json.loads(out.summary)
+        self.assertEqual("system", out.capability)
+        self.assertIn("draft_count", payload["summary"])
+
+    def test_highway_dispatches_calendar_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai calendar status", cwd=str(self.base))
+        payload = json.loads(out.summary)
+        self.assertEqual("system", out.capability)
+        self.assertIn("reminder_count", payload["summary"])
+
+    def test_highway_dispatches_benchmark_dashboard_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai benchmark dashboard status", cwd=str(self.base))
+        payload = json.loads(out.summary)
+        self.assertEqual("system", out.capability)
+        self.assertIn("cache_surfaces", payload)
+
+    def test_highway_dispatches_benchmark_alert_routes_status(self) -> None:
+        out = Highway(cwd=str(self.base)).dispatch("zero ai benchmark alert routes status", cwd=str(self.base))
+        payload = json.loads(out.summary)
+        self.assertEqual("system", out.capability)
+        self.assertIn("fast_path_cache", payload)
 
     def test_run_task_browser_status(self) -> None:
         out = run_task(str(self.base), "browser status")

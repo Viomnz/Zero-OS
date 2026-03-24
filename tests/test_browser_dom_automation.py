@@ -10,15 +10,18 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.browser_dom_automation import act, inspect_page, status
 
 
 class BrowserDomAutomationTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="browser_dom_status")
         self.tempdir = tempfile.mkdtemp(prefix="browser_dom_automation_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="browser_dom_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_inspect_page_extracts_real_page_summary(self) -> None:
@@ -57,3 +60,12 @@ class BrowserDomAutomationTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertEqual("upstream_down", result["reason"])
+
+    def test_status_uses_fast_path_when_dom_state_is_unchanged(self) -> None:
+        first = status(str(self.base))
+
+        with patch("zero_os.browser_dom_automation._build_status", side_effect=AssertionError("should use cache")):
+            second = status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])

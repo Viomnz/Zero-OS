@@ -5,8 +5,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from zero_os.fast_path_cache import cached_compute
 from zero_os.internet_capability import internet_capability_status
 from zero_os.maintenance_orchestrator import maintenance_status
+from zero_os.state_cache import json_state_revision
 from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
 
 
@@ -45,7 +47,7 @@ def _lane(score: float, summary: str, blockers: list[str]) -> dict[str, Any]:
     return {"score": round(score, 2), "summary": summary, "blockers": blockers}
 
 
-def world_class_readiness_status(cwd: str) -> dict[str, Any]:
+def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
     from zero_os.zero_ai_pressure_harness import pressure_harness_status
 
     capability_map = zero_ai_capability_map_status(cwd)
@@ -176,6 +178,30 @@ def world_class_readiness_status(cwd: str) -> dict[str, Any]:
         "path": str(_path(cwd)),
     }
     _save(_path(cwd), payload)
+    return payload
+
+
+def world_class_readiness_status(cwd: str) -> dict[str, Any]:
+    base = Path(cwd).resolve()
+
+    def _signature() -> dict[str, Any]:
+        return {
+            "capability_map": json_state_revision(base / ".zero_os" / "assistant" / "capability_map.json"),
+            "pressure_latest": json_state_revision(base / ".zero_os" / "assistant" / "pressure_harness" / "latest.json"),
+            "internet_capability": json_state_revision(base / ".zero_os" / "assistant" / "internet_capability.json"),
+            "maintenance_state": json_state_revision(base / ".zero_os" / "assistant" / "maintenance_orchestrator.json"),
+            "phase_runtime_status": json_state_revision(base / ".zero_os" / "runtime" / "phase_runtime_status.json"),
+        }
+
+    payload, cache_meta = cached_compute(
+        "world_class_readiness_status",
+        str(base),
+        _signature,
+        lambda: _build_world_class_readiness_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
     return payload
 
 

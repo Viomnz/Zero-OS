@@ -9,6 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.approval_workflow import decide as approval_decide
 from zero_os.calendar_time import calendar_reminder_add, calendar_reminder_tick, calendar_time_refresh, calendar_time_status
 from zero_os.communications import communications_draft_add, communications_refresh, communications_send_execute, communications_send_request, communications_status, communications_tick
@@ -18,8 +19,12 @@ class DomainSubsystemTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.mkdtemp(prefix="zero_ai_domain_subsystems_")
         self.base = Path(self.tempdir)
+        clear_fast_path_cache(namespace="communications_status")
+        clear_fast_path_cache(namespace="calendar_time_status")
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="communications_status")
+        clear_fast_path_cache(namespace="calendar_time_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_communications_status_and_refresh_create_state(self) -> None:
@@ -37,6 +42,15 @@ class DomainSubsystemTests(unittest.TestCase):
         refreshed = calendar_time_refresh(str(self.base))
         self.assertTrue(refreshed["last_refreshed_utc"])
         self.assertIn("summary", refreshed)
+
+    def test_domain_status_calls_use_fast_path_when_inputs_are_unchanged(self) -> None:
+        communications_status(str(self.base))
+        communications_cached = communications_status(str(self.base))
+        calendar_time_status(str(self.base))
+        calendar_cached = calendar_time_status(str(self.base))
+
+        self.assertTrue(communications_cached["fast_path_cache"]["hit"])
+        self.assertTrue(calendar_cached["fast_path_cache"]["hit"])
 
     def test_communications_draft_add_updates_state(self) -> None:
         out = communications_draft_add(str(self.base), "vincent@example.com", "ship the matrix update")

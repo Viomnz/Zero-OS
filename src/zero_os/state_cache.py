@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import threading
 import time
 from copy import deepcopy
@@ -155,3 +156,44 @@ def state_cache_status() -> dict[str, Any]:
             "pending_write_count": len(_PENDING_JSON_WRITES),
             "dirty_path_count": sum(1 for item in _JSON_CACHE.values() if bool(item.get("dirty", False))),
         }
+
+
+def json_state_revision(path: Path | str) -> dict[str, Any]:
+    key, resolved = _path_key(path)
+    with _LOCK:
+        pending = _PENDING_JSON_WRITES.get(key)
+        if pending is not None:
+            serialized = json.dumps(pending.get("payload"), sort_keys=True, default=str)
+            return {
+                "exists": True,
+                "pending": True,
+                "mtime_ns": None,
+                "size": len(serialized),
+                "content_sha256": hashlib.sha256(serialized.encode("utf-8", errors="replace")).hexdigest(),
+            }
+        cached = _JSON_CACHE.get(key)
+        if cached and not bool(cached.get("dirty", False)):
+            return {
+                "exists": cached.get("mtime_ns") is not None,
+                "pending": False,
+                "mtime_ns": cached.get("mtime_ns"),
+                "size": cached.get("size"),
+                "content_sha256": "",
+            }
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return {
+            "exists": False,
+            "pending": False,
+            "mtime_ns": 0,
+            "size": 0,
+            "content_sha256": "",
+        }
+    return {
+        "exists": True,
+        "pending": False,
+        "mtime_ns": int(stat.st_mtime_ns),
+        "size": int(stat.st_size),
+        "content_sha256": "",
+    }

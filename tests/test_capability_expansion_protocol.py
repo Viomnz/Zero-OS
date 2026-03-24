@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.capability_expansion_protocol import capability_expansion_protocol_status
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.phase_runtime import zero_ai_runtime_run
 from zero_os.self_continuity import zero_ai_self_continuity_update
 from zero_os.zero_ai_identity import zero_ai_identity
@@ -20,10 +21,12 @@ from zero_os.zero_ai_identity import zero_ai_identity
 
 class CapabilityExpansionProtocolTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="capability_expansion_protocol_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_ai_expansion_protocol_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="capability_expansion_protocol_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def _prime_runtime(self) -> None:
@@ -76,6 +79,15 @@ class CapabilityExpansionProtocolTests(unittest.TestCase):
         self.assertTrue(any(item["stage"] == "typed_plan_steps" for item in out["required_contracts"]))
         self.assertTrue(any(item["key"] == "research" for item in out["candidate_domains"]))
         self.assertTrue(Path(out["path"]).exists())
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        self._prime_runtime()
+
+        first = capability_expansion_protocol_status(str(self.base))
+        second = capability_expansion_protocol_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

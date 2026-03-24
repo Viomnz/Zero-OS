@@ -4,6 +4,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -65,9 +68,24 @@ def _summarize(state: dict, cwd: str) -> dict:
     return state
 
 
+def _build_status(cwd: str) -> dict:
+    path = _path(cwd)
+    prior = _state(cwd)
+    state = _summarize(prior, cwd)
+    if state != prior or not path.exists():
+        _save(path, state)
+    return state
+
+
 def calendar_time_status(cwd: str) -> dict:
-    state = _summarize(_state(cwd), cwd)
-    _save(_path(cwd), state)
+    state, fast_path = cached_compute(
+        "calendar_time_status",
+        str(Path(cwd).resolve()),
+        lambda: json_state_revision(_path(cwd)),
+        lambda: _build_status(cwd),
+        ttl_seconds=2.0,
+    )
+    state["fast_path_cache"] = fast_path
     return state
 
 

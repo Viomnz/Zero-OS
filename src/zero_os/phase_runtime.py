@@ -16,8 +16,9 @@ from zero_os.conscious_machine_architecture import (
     consciousness_architecture_phase8_status,
     consciousness_architecture_phase9_status,
 )
-from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state, state_cache_status
-from zero_os.state_registry import boot_state_registry, flush_state_registry, put_state_store, state_registry_status
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import flush_state_writes, json_state_revision, load_json_state, queue_json_state, state_cache_status
+from zero_os.state_registry import boot_state_registry, flush_state_registry, state_registry_status, update_state_store
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_loop_status,
     zero_ai_autonomy_loop_tick,
@@ -57,6 +58,14 @@ def _parse_utc(value: str) -> datetime | None:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _path_revision(path: Path) -> dict:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"exists": False, "mtime_ns": 0, "size": 0}
+    return {"exists": True, "mtime_ns": int(stat.st_mtime_ns), "size": int(stat.st_size)}
 
 
 def _runtime_loop_path(cwd: str) -> Path:
@@ -698,7 +707,7 @@ def zero_ai_runtime_agent_worker_run(cwd: str, poll_seconds: int = 30) -> dict:
     return {"ok": True, "worker_pid": pid}
 
 
-def zero_ai_runtime_status(cwd: str) -> dict:
+def _build_runtime_status(cwd: str) -> dict:
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
@@ -738,6 +747,26 @@ def zero_ai_runtime_status(cwd: str) -> dict:
     status["self_derivation"] = self_derivation_status(cwd)
     status["source_evolution"] = zero_ai_source_evolution_status(cwd)
     return status
+
+
+def zero_ai_runtime_status(cwd: str) -> dict:
+    base = Path(cwd).resolve()
+    runtime_dir = _runtime(cwd)
+    payload, cache_meta = cached_compute(
+        "phase_runtime_status",
+        str(base),
+        {
+            "phase_runtime": _path_revision(runtime_dir / "phase_runtime_status.json"),
+            "zero_engine": _path_revision(runtime_dir / "zero_engine_status.json"),
+            "self_derivation_memory": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "memory.json"),
+            "self_derivation_latest": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "latest.json"),
+        },
+        lambda: _build_runtime_status(cwd),
+        ttl_seconds=1.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
+    return payload
 
 
 def zero_ai_runtime_loop_status(cwd: str) -> dict:
@@ -848,16 +877,7 @@ def zero_ai_runtime_loop_run(cwd: str) -> dict:
 
 
 def zero_ai_runtime_run(cwd: str) -> dict:
-    from zero_os.calendar_time import calendar_reminder_tick
-    from zero_os.communications import communications_tick
-    from zero_os.contradiction_engine import contradiction_engine_status
-    from zero_os.self_derivation_engine import self_derivation_revalidate, self_derivation_status
-    from zero_os.zero_engine import zero_engine_tick, zero_engine_status
-    from zero_os.zero_ai_pressure_harness import pressure_harness_status
-    from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
-    from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
-    from zero_os.zero_ai_evolution import zero_ai_evolution_status
-    from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
+    from zero_os.runtime_subsystem_registry import run_runtime_subsystems
 
     boot_state_registry(cwd)
     phase8 = consciousness_architecture_phase8_status()
@@ -981,80 +1001,13 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         2,
     )
     status["runtime_ready"] = status["runtime_score"] == 100.0
-    _save(_runtime(cwd) / "phase_runtime_status.json", status)
-
-    autonomy = zero_ai_autonomy_sync(cwd)
-    autonomy_loop = zero_ai_autonomy_loop_status(cwd)
-    if bool(autonomy_loop.get("enabled", False)):
-        autonomy_background = zero_ai_autonomy_loop_tick(cwd)
-    else:
-        autonomy_background = {"ok": True, "ran": False, "reason": "autonomy loop is off", "autonomy_loop": autonomy_loop}
-    communications_background = communications_tick(cwd)
-    calendar_background = calendar_reminder_tick(cwd)
-    contradiction = contradiction_engine_status(cwd)
-    pressure = pressure_harness_status(cwd)
-    derivation_before = self_derivation_status(cwd)
-    revalidation_ready_count = int(derivation_before.get("revalidation_ready_count", 0) or 0)
-    continuity = dict(contradiction.get("continuity") or {})
-    pressure_score = float(pressure.get("overall_score", 0.0) or 0.0)
-    pressure_ready = not bool(pressure.get("missing", False)) and pressure_score >= 100.0
-    continuity_ready = bool(continuity.get("same_system", False)) and not bool(continuity.get("has_contradiction", False))
-    if revalidation_ready_count > 0 and pressure_ready and continuity_ready:
-        self_derivation_background = dict(self_derivation_revalidate(cwd, limit=min(3, revalidation_ready_count)))
-        self_derivation_background.setdefault("ran", True)
-    else:
-        reasons: list[str] = []
-        if revalidation_ready_count <= 0:
-            reasons.append("no strategies ready for revalidation")
-        if not pressure_ready:
-            reasons.append("pressure baseline not ready")
-        if not continuity_ready:
-            reasons.append("continuity not ready")
-        self_derivation_background = {
-            "ok": True,
-            "ran": False,
-            "reason": "; ".join(reasons) or "self derivation revalidation skipped",
-            "revalidation_ready_count": revalidation_ready_count,
-            "pressure_missing": bool(pressure.get("missing", False)),
-            "pressure_score": pressure_score,
-            "continuity": continuity,
-        }
-    derivation_after = self_derivation_status(cwd)
-    zero_engine_background = zero_engine_tick(
-        cwd,
-        runtime_context={
-            "pressure_ready": pressure_ready,
-            "pressure_score": pressure_score,
-            "continuity_ready": continuity_ready,
-            "continuity": continuity,
-        },
-    )
-
-    status["autonomy"] = autonomy.get("status", {})
-    status["autonomy_background"] = autonomy_background
-    status["communications_background"] = communications_background
-    status["calendar_time_background"] = calendar_background
-    status["control_workflows"] = zero_ai_control_workflows_status(cwd)
-    status["capability_control_map"] = zero_ai_capability_map_status(cwd)
-    status["evolution"] = zero_ai_evolution_status(cwd)
-    status["self_derivation"] = derivation_after
-    status["self_derivation_background"] = self_derivation_background
-    status["zero_engine"] = zero_engine_status(cwd)
-    status["zero_engine_background"] = zero_engine_background
-    status["source_evolution"] = zero_ai_source_evolution_status(cwd)
-    status["runtime_checks"]["autonomy_goal_manager"] = bool(autonomy.get("ok", False))
-    status["runtime_checks"]["autonomy_loop_state"] = bool(autonomy_loop.get("ok", False))
-    status["runtime_checks"]["autonomy_background"] = bool(autonomy_background.get("ok", False))
-    status["runtime_checks"]["communications_background"] = bool(communications_background.get("ok", False))
-    status["runtime_checks"]["calendar_time_background"] = bool(calendar_background.get("ok", False))
-    status["runtime_checks"]["control_workflows"] = bool(status["control_workflows"].get("ok", False))
-    status["runtime_checks"]["capability_control_map"] = bool(status["capability_control_map"].get("ok", False))
-    status["runtime_checks"]["evolution_engine"] = bool(status["evolution"].get("ok", False))
-    status["runtime_checks"]["self_derivation_engine"] = bool(derivation_after.get("ok", False))
-    status["runtime_checks"]["self_derivation_background"] = bool(self_derivation_background.get("ok", False))
-    status["runtime_checks"]["zero_engine"] = bool(status["zero_engine"].get("ok", False))
-    status["runtime_checks"]["zero_engine_background"] = bool(zero_engine_background.get("ok", False))
-    status["runtime_checks"]["source_evolution_engine"] = bool(status["source_evolution"].get("ok", False))
+    runtime_subsystems = run_runtime_subsystems(cwd)
+    status.update(dict(runtime_subsystems.get("updates") or {}))
+    status["runtime_subsystems"] = {
+        "adapter_count": int(runtime_subsystems.get("adapter_count", 0) or 0),
+        "adapter_names": list(runtime_subsystems.get("adapter_names") or []),
+    }
+    status["runtime_checks"].update(dict(runtime_subsystems.get("runtime_checks") or {}))
 
     status["runtime_score"] = round(
         (
@@ -1075,8 +1028,7 @@ def zero_ai_runtime_run(cwd: str) -> dict:
             "law_compliance": benchmark["law_compliance"],
         },
     )
-    put_state_store(cwd, "phase_runtime_status", status)
-    _save(_runtime(cwd) / "phase_runtime_status.json", status)
+    update_state_store(cwd, "phase_runtime_status", lambda current: dict(status))
     _flush_runtime_state()
     flush_state_registry(cwd, names=["phase_runtime_status", "zero_engine_status"])
     status["state_cache"] = state_cache_status()

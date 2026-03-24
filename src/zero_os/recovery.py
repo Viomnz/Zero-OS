@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import py_compile
 import shutil
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
 from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
+from zero_os.fast_path_cache import cached_compute
 from zero_os.production_core import snapshot_restore, sync_path_smart
 from zero_os.runtime_smart_logic import recovery_decision
 
@@ -49,25 +51,39 @@ def _find_any(root: Path, patterns: list[str]) -> str:
 
 
 def _verify_python_tree(root: Path) -> dict:
-    if not root.exists():
-        return {"ok": True, "root": str(root), "checked_files": 0, "errors": []}
-    errors: list[dict] = []
-    checked = 0
-    for path in sorted(root.rglob("*.py")):
-        checked += 1
-        try:
-            py_compile.compile(str(path), doraise=True)
-        except py_compile.PyCompileError as exc:
-            errors.append({"path": str(path), "error": str(exc)})
-        except Exception as exc:  # pragma: no cover
-            errors.append({"path": str(path), "error": str(exc)})
-    return {
-        "ok": not errors,
-        "root": str(root),
-        "checked_files": checked,
-        "error_count": len(errors),
-        "errors": errors[:25],
-    }
+    signature = {"root": str(root), "stamp": _python_tree_stamp(root)}
+
+    def _compute() -> dict:
+        if not root.exists():
+            return {"ok": True, "root": str(root), "checked_files": 0, "errors": []}
+        errors: list[dict] = []
+        checked = 0
+        for path in sorted(root.rglob("*.py")):
+            checked += 1
+            try:
+                py_compile.compile(str(path), doraise=True)
+            except py_compile.PyCompileError as exc:
+                errors.append({"path": str(path), "error": str(exc)})
+            except Exception as exc:  # pragma: no cover
+                errors.append({"path": str(path), "error": str(exc)})
+        return {
+            "ok": not errors,
+            "root": str(root),
+            "checked_files": checked,
+            "error_count": len(errors),
+            "errors": errors[:25],
+        }
+
+    verification, cache_meta = cached_compute(
+        "recovery_python_tree_verification",
+        str(root),
+        signature,
+        _compute,
+        ttl_seconds=None,
+    )
+    verification = deepcopy(verification)
+    verification["verification_cache_hit"] = bool(cache_meta.get("hit", False))
+    return verification
 
 
 def _required_recovery_files(base: Path) -> dict[str, list[str]]:
@@ -112,23 +128,64 @@ def _snapshot_module_compatibility(base: Path, snapshot_root: Path) -> dict:
     }
 
 
-def _snapshot_candidate(base: Path, snapshot_root: Path) -> dict:
-    verification = {
-        "snapshot_src": _verify_python_tree(snapshot_root / "src"),
-        "snapshot_ai_from_scratch": _verify_python_tree(snapshot_root / "ai_from_scratch"),
-    }
-    compatibility = _snapshot_module_compatibility(base, snapshot_root)
-    python_ok = verification["snapshot_src"]["ok"] and verification["snapshot_ai_from_scratch"]["ok"]
-    compatible = python_ok and compatibility["ok"]
+def _python_tree_stamp(root: Path) -> dict:
+    if not root.exists():
+        return {"exists": False, "file_count": 0, "total_size": 0, "newest_mtime_ns": 0}
+    file_count = 0
+    total_size = 0
+    newest_mtime_ns = 0
+    for path in sorted(root.rglob("*.py")):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        file_count += 1
+        total_size += int(stat.st_size)
+        newest_mtime_ns = max(newest_mtime_ns, int(stat.st_mtime_ns))
     return {
-        "snapshot_id": snapshot_root.name,
-        "path": str(snapshot_root),
-        "has_snapshot_meta": (snapshot_root / "snapshot.json").exists(),
-        "verification": verification,
-        "module_compatibility": compatibility,
-        "python_ok": python_ok,
-        "compatible": compatible,
+        "exists": True,
+        "file_count": file_count,
+        "total_size": total_size,
+        "newest_mtime_ns": newest_mtime_ns,
     }
+
+
+def _snapshot_candidate(base: Path, snapshot_root: Path) -> dict:
+    signature = {
+        "snapshot_root": str(snapshot_root),
+        "src_stamp": _python_tree_stamp(snapshot_root / "src"),
+        "ai_stamp": _python_tree_stamp(snapshot_root / "ai_from_scratch"),
+        "required": _required_recovery_files(base),
+    }
+
+    def _compute() -> dict:
+        verification = {
+            "snapshot_src": _verify_python_tree(snapshot_root / "src"),
+            "snapshot_ai_from_scratch": _verify_python_tree(snapshot_root / "ai_from_scratch"),
+        }
+        compatibility = _snapshot_module_compatibility(base, snapshot_root)
+        python_ok = verification["snapshot_src"]["ok"] and verification["snapshot_ai_from_scratch"]["ok"]
+        compatible = python_ok and compatibility["ok"]
+        return {
+            "snapshot_id": snapshot_root.name,
+            "path": str(snapshot_root),
+            "has_snapshot_meta": (snapshot_root / "snapshot.json").exists(),
+            "verification": verification,
+            "module_compatibility": compatibility,
+            "python_ok": python_ok,
+            "compatible": compatible,
+        }
+
+    candidate, cache_meta = cached_compute(
+        "recovery_snapshot_candidate",
+        str(snapshot_root),
+        signature,
+        _compute,
+        ttl_seconds=None,
+    )
+    candidate = deepcopy(candidate)
+    candidate["verification_cache_hit"] = bool(cache_meta.get("hit", False))
+    return candidate
 
 
 def _load_snapshot_index(cwd: str) -> dict:
@@ -144,36 +201,89 @@ def _load_snapshot_index(cwd: str) -> dict:
     )
 
 
+def _snapshot_index_signature(cwd: str) -> dict:
+    index = _load_snapshot_index(cwd)
+    return {
+        "pinned_snapshot_ids": list(index.get("pinned_snapshot_ids", [])),
+        "known_good_snapshot_ids": list(index.get("known_good_snapshot_ids", [])),
+    }
+
+
 def _save_snapshot_index(cwd: str, payload: dict) -> dict:
     payload["updated_utc"] = _utc_now()
     _snapshot_index_path(cwd).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload
 
 
+def _update_snapshot_index_if_needed(cwd: str, index: dict, latest_compatible_snapshot_id: str) -> dict:
+    next_payload = deepcopy(index)
+    next_payload["latest_compatible_snapshot_id"] = str(latest_compatible_snapshot_id or "")
+    current_signature = {
+        "pinned_snapshot_ids": list(index.get("pinned_snapshot_ids", [])),
+        "known_good_snapshot_ids": list(index.get("known_good_snapshot_ids", [])),
+        "latest_compatible_snapshot_id": str(index.get("latest_compatible_snapshot_id", "") or ""),
+    }
+    next_signature = {
+        "pinned_snapshot_ids": list(next_payload.get("pinned_snapshot_ids", [])),
+        "known_good_snapshot_ids": list(next_payload.get("known_good_snapshot_ids", [])),
+        "latest_compatible_snapshot_id": str(next_payload.get("latest_compatible_snapshot_id", "") or ""),
+    }
+    if current_signature == next_signature and _snapshot_index_path(cwd).exists():
+        return index
+    return _save_snapshot_index(cwd, next_payload)
+
+
 def zero_ai_recovery_inventory(cwd: str) -> dict:
     base = Path(cwd).resolve()
     root = _snapshots_root(cwd)
-    snapshots = sorted([path for path in root.iterdir() if path.is_dir()], key=lambda item: item.name, reverse=True) if root.exists() else []
-    candidates = [_snapshot_candidate(base, snapshot_root) for snapshot_root in snapshots]
-    compatible = [candidate for candidate in candidates if candidate.get("compatible", False)]
-    incompatible = [candidate for candidate in candidates if not candidate.get("compatible", False)]
-    index = _load_snapshot_index(cwd)
-    latest = snapshots[0].name if snapshots else ""
-    latest_compatible = compatible[0]["snapshot_id"] if compatible else ""
-    index["latest_compatible_snapshot_id"] = latest_compatible
-    _save_snapshot_index(cwd, index)
-    return {
-        "ok": True,
-        "snapshot_count": len(candidates),
-        "latest_snapshot_id": latest,
-        "latest_compatible_snapshot_id": latest_compatible,
-        "compatible_count": len(compatible),
-        "incompatible_count": len(incompatible),
-        "pinned_snapshot_ids": list(index.get("pinned_snapshot_ids", [])),
-        "known_good_snapshot_ids": list(index.get("known_good_snapshot_ids", [])),
-        "compatible_snapshots": compatible,
-        "incompatible_snapshots": incompatible,
-    }
+    snapshot_dirs = sorted([path for path in root.iterdir() if path.is_dir()], key=lambda item: item.name, reverse=True) if root.exists() else []
+
+    def _inventory_signature() -> dict:
+        return {
+            "snapshots": [
+                {
+                    "snapshot_id": snapshot_root.name,
+                    "has_snapshot_meta": (snapshot_root / "snapshot.json").exists(),
+                    "src_stamp": _python_tree_stamp(snapshot_root / "src"),
+                    "ai_stamp": _python_tree_stamp(snapshot_root / "ai_from_scratch"),
+                }
+                for snapshot_root in snapshot_dirs
+            ],
+            "required": _required_recovery_files(base),
+            "index": _snapshot_index_signature(cwd),
+        }
+
+    def _compute_inventory() -> dict:
+        candidates = [_snapshot_candidate(base, snapshot_root) for snapshot_root in snapshot_dirs]
+        compatible = [candidate for candidate in candidates if candidate.get("compatible", False)]
+        incompatible = [candidate for candidate in candidates if not candidate.get("compatible", False)]
+        index = _load_snapshot_index(cwd)
+        latest = snapshot_dirs[0].name if snapshot_dirs else ""
+        latest_compatible = compatible[0]["snapshot_id"] if compatible else ""
+        saved_index = _update_snapshot_index_if_needed(cwd, index, latest_compatible)
+        return {
+            "ok": True,
+            "snapshot_count": len(candidates),
+            "latest_snapshot_id": latest,
+            "latest_compatible_snapshot_id": latest_compatible,
+            "compatible_count": len(compatible),
+            "incompatible_count": len(incompatible),
+            "pinned_snapshot_ids": list(saved_index.get("pinned_snapshot_ids", [])),
+            "known_good_snapshot_ids": list(saved_index.get("known_good_snapshot_ids", [])),
+            "compatible_snapshots": compatible,
+            "incompatible_snapshots": incompatible,
+        }
+
+    inventory, cache_meta = cached_compute(
+        "recovery_inventory",
+        str(root),
+        _inventory_signature,
+        _compute_inventory,
+        ttl_seconds=None,
+    )
+    inventory = deepcopy(inventory)
+    inventory["inventory_cache_hit"] = bool(cache_meta.get("hit", False))
+    return inventory
 
 
 def zero_ai_backup_pin(cwd: str, snapshot_id: str, known_good: bool = False) -> dict:
@@ -235,17 +345,19 @@ def zero_ai_backup_prune(cwd: str, keep_latest: int = 2) -> dict:
 
 def _select_snapshot(base: Path, snapshot_id: str) -> dict:
     cwd = str(base)
-    inventory = zero_ai_recovery_inventory(cwd)
-    if int(inventory.get("snapshot_count", 0) or 0) == 0:
-        return {"ok": False, "reason": "no_snapshots"}
     root = _snapshots_root(cwd)
     if snapshot_id != "latest":
+        if not any(path.is_dir() for path in root.iterdir()) if root.exists() else True:
+            return {"ok": False, "reason": "no_snapshots"}
         candidate = root / snapshot_id
         if not candidate.exists():
             return {"ok": False, "reason": "snapshot_not_found", "snapshot_id": snapshot_id}
         selected = _snapshot_candidate(base, candidate)
         return {"ok": True, "selected": selected, "candidates": [selected]}
 
+    inventory = zero_ai_recovery_inventory(cwd)
+    if int(inventory.get("snapshot_count", 0) or 0) == 0:
+        return {"ok": False, "reason": "no_snapshots"}
     candidates = inventory.get("compatible_snapshots", []) + inventory.get("incompatible_snapshots", [])
     latest_compatible = str(inventory.get("latest_compatible_snapshot_id", "") or "")
     selected = next((candidate for candidate in candidates if candidate.get("snapshot_id") == latest_compatible), None)
@@ -404,11 +516,51 @@ def zero_ai_backup_create(cwd: str) -> dict:
     return {"ok": True, **meta}
 
 
-def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
+def _recovery_decision_failed(cwd: str, health_before: dict, reason: str, **extra) -> dict:
+    logic = recovery_decision(cwd, False, False, "system")
+    autonomy_record(
+        cwd,
+        "zero ai recover",
+        "failed",
+        float(logic.get("confidence", 0.0)),
+        blast_radius="system",
+        verification_passed=False,
+        health_before=health_before,
+        health_after=capture_health_snapshot(cwd),
+    )
+    payload = {"ok": False, "reason": reason, "smart_logic": logic}
+    payload.update(extra)
+    return payload
+
+
+def _recovery_decision_blocked(cwd: str, health_before: dict, logic: dict, reason: str, **extra) -> dict:
+    autonomy_record(
+        cwd,
+        "zero ai recover",
+        "blocked",
+        float(logic.get("confidence", 0.0)),
+        blast_radius="system",
+        verification_passed=False,
+        health_before=health_before,
+        health_after=capture_health_snapshot(cwd),
+    )
+    payload = {"ok": False, "reason": reason, "smart_logic": logic}
+    payload.update(extra)
+    return payload
+
+
+def _write_recovery_report(cwd: str, report: dict) -> dict:
+    (_runtime(cwd) / "zero_ai_recovery_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
+def zero_ai_recovery_preflight(cwd: str, snapshot_id: str = "latest") -> dict:
     base = Path(cwd).resolve()
-    rt = _runtime(cwd)
     health_before = capture_health_snapshot(cwd)
     status_before = zero_ai_backup_status(cwd)
+    selected_snapshot: dict
+    chosen = ""
+
     if status_before["snapshot_count"] == 0:
         created = zero_ai_backup_create(cwd)
         chosen = created["id"]
@@ -416,36 +568,64 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
     else:
         selection = _select_snapshot(base, snapshot_id)
         if not selection.get("ok", False):
-            logic = recovery_decision(cwd, False, False, "system")
-            autonomy_record(cwd, "zero ai recover", "failed", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
-            return {"ok": False, "reason": str(selection.get("reason", "snapshot_not_found")), "selection": selection, "smart_logic": logic}
+            return _recovery_decision_failed(cwd, health_before, str(selection.get("reason", "snapshot_not_found")), selection=selection)
         selected_snapshot = dict(selection["selected"])
         chosen = str(selected_snapshot.get("snapshot_id", ""))
+
     src = _snapshots_root(cwd) / chosen
     if not src.exists():
-        logic = recovery_decision(cwd, False, False, "system")
-        autonomy_record(cwd, "zero ai recover", "failed", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
-        return {"ok": False, "reason": f"snapshot not found: {chosen}", "smart_logic": logic}
+        return _recovery_decision_failed(cwd, health_before, f"snapshot not found: {chosen}")
+
     logic = recovery_decision(cwd, True, True, "system")
     if str(logic.get("decision_action", "")).lower() in {"reject_or_hold", "block"}:
-        autonomy_record(cwd, "zero ai recover", "blocked", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
-        return {"ok": False, "reason": "smart logic gate", "smart_logic": logic}
+        return _recovery_decision_blocked(cwd, health_before, logic, "smart logic gate")
 
     verification_before = dict(selected_snapshot.get("verification") or {})
     module_compatibility = dict(selected_snapshot.get("module_compatibility") or {})
     if not verification_before["snapshot_src"]["ok"] or not verification_before["snapshot_ai_from_scratch"]["ok"]:
-        autonomy_record(cwd, "zero ai recover", "blocked", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
-        return {"ok": False, "reason": "snapshot_verification_failed", "snapshot_used": chosen, "verification": verification_before, "smart_logic": logic}
+        return _recovery_decision_blocked(
+            cwd,
+            health_before,
+            logic,
+            "snapshot_verification_failed",
+            snapshot_used=chosen,
+            verification=verification_before,
+        )
     if not module_compatibility["ok"]:
-        autonomy_record(cwd, "zero ai recover", "blocked", float(logic.get("confidence", 0.0)), blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
-        return {
-            "ok": False,
-            "reason": "snapshot_module_set_incompatible",
-            "snapshot_used": chosen,
-            "verification": verification_before,
-            "module_compatibility": module_compatibility,
-            "smart_logic": logic,
-        }
+        return _recovery_decision_blocked(
+            cwd,
+            health_before,
+            logic,
+            "snapshot_module_set_incompatible",
+            snapshot_used=chosen,
+            verification=verification_before,
+            module_compatibility=module_compatibility,
+        )
+
+    return {
+        "ok": True,
+        "stage": "preflight",
+        "time_utc": _utc_now(),
+        "snapshot_used": chosen,
+        "snapshot_root": str(src),
+        "snapshot_selection": {"selected": selected_snapshot},
+        "verification": {"before": verification_before},
+        "module_compatibility": module_compatibility,
+        "smart_logic": logic,
+        "health_before": health_before,
+        "verification_cached": True,
+    }
+
+
+def _restore_selected_snapshot(cwd: str, preflight: dict) -> dict:
+    base = Path(cwd).resolve()
+    rt = _runtime(cwd)
+    chosen = str(preflight.get("snapshot_used", ""))
+    src = Path(str(preflight.get("snapshot_root", "")))
+    logic = dict(preflight.get("smart_logic") or {})
+    health_before = dict(preflight.get("health_before") or {})
+    verification_before = dict((preflight.get("verification") or {}).get("before") or {})
+    module_compatibility = dict(preflight.get("module_compatibility") or {})
 
     rollback_snapshot = zero_ai_backup_create(cwd)
 
@@ -482,6 +662,7 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
             "ok": False,
             "time_utc": _utc_now(),
             "recovery_mode": "controlled",
+            "stage": "commit",
             "snapshot_used": chosen,
             "restored": restored,
             "sync_results": sync_results,
@@ -489,30 +670,61 @@ def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
             "rollback_snapshot": rollback_snapshot["id"],
             "rollback": rollback,
             "verification": {"before": verification_before, "after": verification_after},
+            "module_compatibility": module_compatibility,
             "reason": "post_recovery_verification_failed",
         }
-        (rt / "zero_ai_recovery_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        autonomy_record(cwd, "zero ai recover", "failed", float(logic.get("confidence", 0.0)), rollback_used=True, blast_radius="system", verification_passed=False, health_before=health_before, health_after=capture_health_snapshot(cwd))
+        _write_recovery_report(cwd, report)
+        autonomy_record(
+            cwd,
+            "zero ai recover",
+            "failed",
+            float(logic.get("confidence", 0.0)),
+            rollback_used=True,
+            blast_radius="system",
+            verification_passed=False,
+            health_before=health_before,
+            health_after=capture_health_snapshot(cwd),
+        )
         return report
 
     report = {
         "ok": True,
         "time_utc": _utc_now(),
         "recovery_mode": "controlled",
+        "stage": "commit",
         "snapshot_used": chosen,
-        "snapshot_selection": {"selected": selected_snapshot},
+        "snapshot_selection": dict(preflight.get("snapshot_selection") or {}),
         "restored": restored,
         "sync_results": sync_results,
         "smart_logic": logic,
         "rollback_snapshot": rollback_snapshot["id"],
         "verification": {"before": verification_before, "after": verification_after},
         "module_compatibility": module_compatibility,
+        "verification_cached": bool(preflight.get("verification_cached", False)),
         "next_steps": [
             "run: python ai_from_scratch/daemon_ctl.py health",
             "run: python ai_from_scratch/daemon_ctl.py refresh-monitor",
             "if healthy, resume normal operations",
         ],
     }
-    (rt / "zero_ai_recovery_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    autonomy_record(cwd, "zero ai recover", "success", float(logic.get("confidence", 0.0)), rollback_used=True, recovery_seconds=12.0, blast_radius="system", verification_passed=True, health_before=health_before, health_after=capture_health_snapshot(cwd))
+    _write_recovery_report(cwd, report)
+    autonomy_record(
+        cwd,
+        "zero ai recover",
+        "success",
+        float(logic.get("confidence", 0.0)),
+        rollback_used=True,
+        recovery_seconds=12.0,
+        blast_radius="system",
+        verification_passed=True,
+        health_before=health_before,
+        health_after=capture_health_snapshot(cwd),
+    )
     return report
+
+
+def zero_ai_recover(cwd: str, snapshot_id: str = "latest") -> dict:
+    preflight = zero_ai_recovery_preflight(cwd, snapshot_id)
+    if not preflight.get("ok", False):
+        return preflight
+    return _restore_selected_snapshot(cwd, preflight)

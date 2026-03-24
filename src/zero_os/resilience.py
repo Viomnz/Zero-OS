@@ -10,6 +10,7 @@ from pathlib import Path
 from zero_os.enterprise_security import edr_probe, integration_probe, integration_status
 from zero_os.runtime_smart_logic import recovery_decision, rollout_decision
 from zero_os.security_hardening import harden_apply
+from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state
 
 
 def _utc_now() -> str:
@@ -23,17 +24,16 @@ def _root(cwd: str) -> Path:
 
 
 def _load(path: Path, default):
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception:
-        return default
+    return load_json_state(path, default)
 
 
-def _save(path: Path, payload) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+def _queue_save(path: Path, payload) -> None:
+    queue_json_state(path, payload)
+
+
+def _save_durable(path: Path, payload) -> None:
+    queue_json_state(path, payload)
+    flush_state_writes(paths=[path])
 
 
 def _trust_files(cwd: str) -> list[Path]:
@@ -78,7 +78,7 @@ def kernel_driver_compromise_status(cwd: str) -> dict:
         "checks": checks,
         "failed_checks": failed,
     }
-    _save(_root(cwd) / "kernel_driver_status.json", out)
+    _queue_save(_root(cwd) / "kernel_driver_status.json", out)
     return out
 
 
@@ -90,7 +90,7 @@ def kernel_driver_emergency_lockdown(cwd: str) -> dict:
         "mode": "kernel_driver_emergency_lockdown",
         "hardening": hard,
     }
-    _save(_root(cwd) / "kernel_driver_lockdown.json", out)
+    _queue_save(_root(cwd) / "kernel_driver_lockdown.json", out)
     return out
 
 
@@ -111,7 +111,7 @@ def firmware_rootkit_scan(cwd: str) -> dict:
         "edr_probe": edr,
         "notes": "Host-level firmware/rootkit assurance requires external EDR/TPM attestation.",
     }
-    _save(_root(cwd) / "firmware_rootkit_scan.json", out)
+    _queue_save(_root(cwd) / "firmware_rootkit_scan.json", out)
     return out
 
 
@@ -138,7 +138,7 @@ def external_outage_status(cwd: str) -> dict:
         "outages": outages,
         "checks": checks,
     }
-    _save(_root(cwd) / "external_outage_status.json", out)
+    _queue_save(_root(cwd) / "external_outage_status.json", out)
     return out
 
 
@@ -155,7 +155,7 @@ def external_outage_failover_apply(cwd: str) -> dict:
             "local_audit_only": True,
         },
     }
-    _save(_root(cwd) / "external_failover_mode.json", mode)
+    _save_durable(_root(cwd) / "external_failover_mode.json", mode)
     return {"ok": True, "status": status, "failover": mode, "smart_logic": logic}
 
 
@@ -187,8 +187,8 @@ def immutable_trust_backup_create(cwd: str) -> dict:
     offsite_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(dst, offsite_dst, dirs_exist_ok=True)
     payload["offsite_replica"] = str(offsite_dst)
-    _save(dst / "manifest.json", payload)
-    _save(_root(cwd) / "immutable_trust_latest.json", payload)
+    _save_durable(dst / "manifest.json", payload)
+    _save_durable(_root(cwd) / "immutable_trust_latest.json", payload)
     return payload
 
 
@@ -226,5 +226,5 @@ def immutable_trust_recover(cwd: str, backup_id: str = "latest") -> dict:
         shutil.copy2(from_p, to_p)
         restored.append(rel)
     out = {"ok": True, "backup_id": chosen, "restored_count": len(restored), "restored": restored, "smart_logic": logic}
-    _save(_root(cwd) / "immutable_trust_recovery.json", out)
+    _queue_save(_root(cwd) / "immutable_trust_recovery.json", out)
     return out

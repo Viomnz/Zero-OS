@@ -6,10 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from zero_os.fast_path_cache import cached_compute
 from zero_os.semantic_reasoner import semantic_abstraction_profile
 from zero_os.smart_planner import simulate_plan, simulate_plan_conflicts
-from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state
-from zero_os.state_registry import put_state_store
+from zero_os.state_cache import flush_state_writes, json_state_revision, load_json_state, queue_json_state
+from zero_os.state_registry import refresh_state_store
 from zero_os.task_planner_composer import step_allows_mutation
 
 _VERIFICATION_KINDS = {
@@ -1458,8 +1459,8 @@ def _update_memory(cwd: str, survivors: list[dict[str, Any]]) -> dict[str, Any]:
     memory["strategy_outcomes"] = strategy_outcomes
     memory["meta_rules"] = _derive_meta_rules(patterns, strategy_outcomes)
     memory["updated_utc"] = _utc_now()
-    put_state_store(cwd, "self_derivation_memory", memory)
     _save_json(_memory_path(cwd), memory)
+    refresh_state_store(cwd, "self_derivation_memory")
     return memory
 
 
@@ -1754,13 +1755,13 @@ def derive_interpretations(
         "strategy_outcome_count": len(dict(memory.get("strategy_outcomes") or {})),
         "memory_path": str(_memory_path(cwd)),
     }
-    put_state_store(cwd, "self_derivation_latest", report)
     _save_json(_latest_path(cwd), report)
+    refresh_state_store(cwd, "self_derivation_latest")
     flush_state_writes(paths=[_memory_path(cwd), _latest_path(cwd)])
     return report
 
 
-def self_derivation_status(cwd: str) -> dict[str, Any]:
+def _build_self_derivation_status(cwd: str) -> dict[str, Any]:
     latest = _load_json(_latest_path(cwd), {})
     memory = _load_memory(cwd)
     patterns = dict(memory.get("patterns") or {})
@@ -1928,6 +1929,23 @@ def self_derivation_status(cwd: str) -> dict[str, Any]:
     return status
 
 
+def self_derivation_status(cwd: str) -> dict[str, Any]:
+    base = Path(cwd).resolve()
+    payload, cache_meta = cached_compute(
+        "self_derivation_status",
+        str(base),
+        {
+            "memory": json_state_revision(_memory_path(cwd)),
+            "latest": json_state_revision(_latest_path(cwd)),
+        },
+        lambda: _build_self_derivation_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
+    return payload
+
+
 def self_derivation_revalidate(cwd: str, *, strategy: str = "", limit: int = 3) -> dict[str, Any]:
     memory = _load_memory(cwd)
     strategy_outcomes = dict(memory.get("strategy_outcomes") or {})
@@ -2048,8 +2066,8 @@ def self_derivation_revalidate(cwd: str, *, strategy: str = "", limit: int = 3) 
     memory["quarantined_strategy_outcomes"] = quarantined
     memory["meta_rules"] = _derive_meta_rules(dict(memory.get("patterns") or {}), strategy_outcomes)
     memory["updated_utc"] = _utc_now()
-    put_state_store(cwd, "self_derivation_memory", memory)
     _save_json(_memory_path(cwd), memory)
+    refresh_state_store(cwd, "self_derivation_memory")
     recommended_action = "Observe strategy memory." if not attempted else (
         "Use restored strategy memory on real work and keep pressure evidence current." if restored_count > 0 else "Keep quarantined strategies out of active guidance until fresh evidence re-earns them."
     )
@@ -2603,8 +2621,8 @@ def record_strategy_outcome(cwd: str, plan: dict[str, Any], run: dict[str, Any])
     memory["strategy_outcomes"] = strategy_outcomes
     memory["meta_rules"] = _derive_meta_rules(dict(memory.get("patterns") or {}), strategy_outcomes)
     memory["updated_utc"] = _utc_now()
-    put_state_store(cwd, "self_derivation_memory", memory)
     _save_json(_memory_path(cwd), memory)
+    refresh_state_store(cwd, "self_derivation_memory")
     flush_state_writes(paths=[_memory_path(cwd)])
     return {"ok": True, "strategy": strategy, "record": updated_record, "path": str(_memory_path(cwd))}
 

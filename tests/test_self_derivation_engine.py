@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -103,6 +104,19 @@ class SelfDerivationEngineTests(unittest.TestCase):
         self.assertGreaterEqual(int(surface_profiles["github_pr_read_surface"]["count"]), 1)
         self.assertGreater(float(surface_profiles["github_issue_read_surface"]["freshness_score"]), 0.0)
         self.assertGreater(float(surface_profiles["github_pr_read_surface"]["freshness_score"]), 0.0)
+
+    def test_self_derivation_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        plan = build_plan("open https://example.com and click", str(self.base))
+        bundle = build_candidate_plans("open https://example.com and click", str(self.base), base_plan=plan)
+        derive_interpretations(str(self.base), plan["request"], plan, list(bundle["candidates"]))
+
+        first = self_derivation_status(str(self.base))
+        with patch("zero_os.self_derivation_engine._build_self_derivation_status", side_effect=AssertionError("should use cache")):
+            second = self_derivation_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
+        self.assertEqual(first["pattern_count"], second["pattern_count"])
 
     def test_self_derivation_builds_cross_context_validation_for_reusable_patterns(self) -> None:
         first_request = "browser status"

@@ -44,6 +44,14 @@ class ScanCoordinatorTests(unittest.TestCase):
         self.assertGreaterEqual(report["hash_cache_hit_count"], 1)
         self.assertGreaterEqual(report["finding_count"], 1)
 
+    def test_workspace_scan_snapshot_reuses_hashes_across_target_changes(self) -> None:
+        first = build_workspace_scan_snapshot(str(self.base), target=".", force=True)
+        second = build_workspace_scan_snapshot(str(self.base), target="src", force=True)
+
+        self.assertGreaterEqual(first["hash_cache_entry_count"], 1)
+        self.assertGreaterEqual(second["hash_cache_hit_count"], 1)
+        self.assertIn("src/main.py", second["hash_cache"])
+
     def test_workspace_scan_snapshot_skips_temp_roots_for_firewall_targets(self) -> None:
         temp_root = self.base / ".tmp_ci_repro" / "Lib" / "site-packages"
         temp_root.mkdir(parents=True, exist_ok=True)

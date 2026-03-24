@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re
+import sys
 
 from zero_os.api_connector_profiles import profile_set as zero_ai_api_profile_set, profile_status as zero_ai_api_profile_status
 from zero_os.approval_workflow import decide as zero_ai_approval_decide, status as zero_ai_approval_status
@@ -9,7 +11,12 @@ from zero_os.assistant_job_runner import schedule as zero_ai_job_schedule, statu
 from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record
 from zero_os.auto_completion import auto_max_fix_upgrade_everything
 from zero_os.browser_session_connector import browser_session_status as zero_ai_browser_session_status
+from zero_os.calendar_time import calendar_time_refresh, calendar_time_status
+from zero_os.capability_expansion_protocol import capability_expansion_protocol_refresh, capability_expansion_protocol_status
+from zero_os.communications import communications_refresh, communications_status
+from zero_os.domain_pack_factory import domain_pack_factory_status
 from zero_os.gap_coverage import zero_ai_gap_fix, zero_ai_gap_status, zero_ai_upgrade_system
+from zero_os.general_agent_orchestrator import general_agent_orchestrator_refresh, general_agent_orchestrator_status
 from zero_os.github_integration_pack import (
     connect_repo as github_connect,
     issue_act as github_issue_act,
@@ -45,6 +52,25 @@ from zero_os.types import Result, Task
 from zero_os.universal_ui_launcher import launch as universal_ui_launch
 
 
+def _benchmark_history_status_api():
+    root = str(Path(__file__).resolve().parents[2])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from ai_from_scratch.benchmark_history import (
+        benchmark_alert_routes_status,
+        benchmark_dashboard_status,
+        benchmark_gate_status,
+        benchmark_remediation_status,
+    )
+
+    return {
+        "alert_routes": benchmark_alert_routes_status,
+        "dashboard": benchmark_dashboard_status,
+        "gate": benchmark_gate_status,
+        "remediation": benchmark_remediation_status,
+    }
+
+
 def handle_zero_ai_general_command(task: Task, raw: str, text: str) -> Result | None:
     normalized = text.strip()
 
@@ -56,6 +82,60 @@ def handle_zero_ai_general_command(task: Task, raw: str, text: str) -> Result | 
         return Result("system", json.dumps(zero_ai_browser_session_status(task.cwd), indent=2))
     if normalized == "zero ai tasks status":
         return Result("system", json.dumps(zero_ai_task_memory_status(task.cwd), indent=2))
+    if normalized == "zero ai general agent status":
+        return Result("system", json.dumps(general_agent_orchestrator_status(task.cwd), indent=2))
+    if normalized == "zero ai general agent refresh":
+        return Result("system", json.dumps(general_agent_orchestrator_refresh(task.cwd), indent=2))
+    if normalized == "zero ai capability expansion protocol status":
+        return Result("system", json.dumps(capability_expansion_protocol_status(task.cwd), indent=2))
+    if normalized == "zero ai capability expansion protocol refresh":
+        return Result("system", json.dumps(capability_expansion_protocol_refresh(task.cwd), indent=2))
+    if normalized == "zero ai domain pack factory status":
+        return Result("system", json.dumps(domain_pack_factory_status(task.cwd), indent=2))
+    if normalized == "zero ai communications status":
+        return Result("system", json.dumps(communications_status(task.cwd), indent=2))
+    if normalized == "zero ai communications refresh":
+        return Result("system", json.dumps(communications_refresh(task.cwd), indent=2))
+    if normalized in {"zero ai calendar status", "zero ai time status"}:
+        return Result("system", json.dumps(calendar_time_status(task.cwd), indent=2))
+    if normalized == "zero ai calendar refresh":
+        return Result("system", json.dumps(calendar_time_refresh(task.cwd), indent=2))
+    if normalized == "zero ai benchmark dashboard status":
+        benchmark_api = _benchmark_history_status_api()
+        return Result(
+            "system",
+            json.dumps(
+                benchmark_api["dashboard"](history_dir=Path(task.cwd).resolve() / ".zero_os" / "benchmarks" / "model"),
+                indent=2,
+            ),
+        )
+    if normalized == "zero ai benchmark gate status":
+        benchmark_api = _benchmark_history_status_api()
+        return Result(
+            "system",
+            json.dumps(
+                benchmark_api["gate"](history_dir=Path(task.cwd).resolve() / ".zero_os" / "benchmarks" / "model"),
+                indent=2,
+            ),
+        )
+    if normalized == "zero ai benchmark alert routes status":
+        benchmark_api = _benchmark_history_status_api()
+        return Result(
+            "system",
+            json.dumps(
+                benchmark_api["alert_routes"](history_dir=Path(task.cwd).resolve() / ".zero_os" / "benchmarks" / "model"),
+                indent=2,
+            ),
+        )
+    if normalized == "zero ai benchmark remediation status":
+        benchmark_api = _benchmark_history_status_api()
+        return Result(
+            "system",
+            json.dumps(
+                benchmark_api["remediation"](history_dir=Path(task.cwd).resolve() / ".zero_os" / "benchmarks" / "model"),
+                indent=2,
+            ),
+        )
     if normalized == "zero ai approvals status":
         return Result("system", json.dumps(zero_ai_approval_status(task.cwd), indent=2))
     if normalized == "zero ai playbooks status":
@@ -107,6 +187,10 @@ def handle_zero_ai_general_command(task: Task, raw: str, text: str) -> Result | 
     zero_ai_job_add = re.match(r"^zero ai job add\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
     if zero_ai_job_add:
         return Result("system", json.dumps(zero_ai_job_schedule(task.cwd, zero_ai_job_add.group(1).strip()), indent=2))
+
+    general_agent_assess = re.match(r"^zero ai general agent assess\s+(.+)$", raw.strip(), flags=re.IGNORECASE)
+    if general_agent_assess:
+        return Result("system", json.dumps(general_agent_orchestrator_status(task.cwd, request=general_agent_assess.group(1).strip()), indent=2))
 
     if normalized == "zero ai ask resume":
         return Result("system", json.dumps(zero_ai_run_task_resume(task.cwd), indent=2))

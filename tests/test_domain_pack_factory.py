@@ -16,14 +16,19 @@ from zero_os.domain_pack_factory import (
     domain_pack_scaffold,
     domain_pack_verify,
 )
+from zero_os.fast_path_cache import clear_fast_path_cache
 
 
 class DomainPackFactoryTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="domain_pack_factory_status")
+        clear_fast_path_cache(namespace="capability_expansion_protocol_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_ai_domain_pack_factory_")
         self.base = Path(self.tempdir)
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="domain_pack_factory_status")
+        clear_fast_path_cache(namespace="capability_expansion_protocol_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_scaffold_creates_domain_pack_and_factory_status(self) -> None:
@@ -75,6 +80,16 @@ class DomainPackFactoryTests(unittest.TestCase):
         self.assertEqual("calendar_time", manifest["subsystem"])
         self.assertEqual("calendar reminders for billing follow-up", controller["generated_from_request"])
         self.assertTrue(out["verify"]["admission_ready"])
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        domain_pack_scaffold(str(self.base), "Research")
+        clear_fast_path_cache(namespace="domain_pack_factory_status")
+
+        first = domain_pack_factory_status(str(self.base))
+        second = domain_pack_factory_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

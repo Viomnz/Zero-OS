@@ -13,16 +13,19 @@ from zero_os.general_agent_orchestrator import (
     general_agent_orchestrator_refresh,
     general_agent_orchestrator_status,
 )
+from zero_os.fast_path_cache import clear_fast_path_cache
 
 
 class GeneralAgentOrchestratorTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_fast_path_cache(namespace="general_agent_orchestrator_status")
         self.tempdir = tempfile.mkdtemp(prefix="zero_ai_general_agent_")
         self.base = Path(self.tempdir)
         (self.base / ".zero_os" / "state.json").parent.mkdir(parents=True, exist_ok=True)
         (self.base / ".zero_os" / "state.json").write_text("{}", encoding="utf-8")
 
     def tearDown(self) -> None:
+        clear_fast_path_cache(namespace="general_agent_orchestrator_status")
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def test_status_reports_general_readiness_surface(self) -> None:
@@ -42,6 +45,13 @@ class GeneralAgentOrchestratorTests(unittest.TestCase):
         self.assertIn("communications", keys)
         self.assertIn("calendar_time", keys)
         self.assertEqual("assess", status["mode"])
+
+    def test_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
+        first = general_agent_orchestrator_status(str(self.base), request="open https://example.com")
+        second = general_agent_orchestrator_status(str(self.base), request="open https://example.com")
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertTrue(second["fast_path_cache"]["hit"])
 
 
 if __name__ == "__main__":

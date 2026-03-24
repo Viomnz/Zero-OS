@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from zero_os.state_registry import boot_state_registry, get_state_store, put_state_store
+from zero_os.state_registry import boot_state_registry, get_state_store, update_state_store
 
 
 _SKIP_ROOT_NAMES = {
@@ -267,7 +267,7 @@ def build_workspace_scan_snapshot(
     files = _iter_files(base, target_path, max_files=max(1, int(max_files)))
     inventory = _inventory_for_files(base, files)
     previous_inventory = dict(previous.get("inventory") or {}) if str(previous.get("target", ".")) == normalized_target else {}
-    previous_hash_cache = dict(previous.get("hash_cache") or {}) if str(previous.get("target", ".")) == normalized_target else {}
+    previous_hash_cache = dict(previous.get("hash_cache") or {})
 
     current_paths = set(inventory)
     previous_paths = set(previous_inventory)
@@ -290,17 +290,23 @@ def build_workspace_scan_snapshot(
     hash_cache: dict[str, dict[str, Any]] = {}
     hash_cache_hit_count = 0
     hash_cache_miss_count = 0
-    for rel in sorted(hash_targets):
+    for rel, raw_cached in previous_hash_cache.items():
         entry = dict(inventory.get(rel) or {})
+        cached = dict(raw_cached or {})
         if not entry:
             continue
-        cached = dict(previous_hash_cache.get(rel) or {})
         if (
             str(cached.get("sha256", "")).strip()
             and int(cached.get("size", -1)) == int(entry.get("size", -1))
             and int(cached.get("mtime_ns", -1)) == int(entry.get("mtime_ns", -1))
         ):
             hash_cache[rel] = cached
+    for rel in sorted(hash_targets):
+        entry = dict(inventory.get(rel) or {})
+        if not entry:
+            continue
+        cached = dict(hash_cache.get(rel) or {})
+        if str(cached.get("sha256", "")).strip():
             hash_cache_hit_count += 1
             continue
         digest = _sha256(base / rel)
@@ -330,5 +336,5 @@ def build_workspace_scan_snapshot(
         "preferred_antivirus_target": _preferred_antivirus_target(normalized_target, inventory),
         "preferred_firewall_targets": firewall_targets,
     }
-    put_state_store(cwd, "workspace_scan_snapshot", snapshot)
+    update_state_store(cwd, "workspace_scan_snapshot", lambda current, payload=deepcopy(snapshot): deepcopy(payload))
     return snapshot

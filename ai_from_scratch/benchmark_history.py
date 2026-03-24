@@ -20,6 +20,13 @@ except ModuleNotFoundError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 BENCHMARK_HISTORY_DIR = ROOT / ".zero_os" / "benchmarks" / "model"
 DEFAULT_GATE_CONFIG = ROOT / "laws" / "model_benchmark_thresholds.json"
 DEFAULT_ALERT_ROUTE_CONFIG = ROOT / "laws" / "model_benchmark_alert_routes.json"
@@ -61,6 +68,28 @@ def _history_paths(history_dir: Path) -> dict[str, Path]:
         "alert_routes": base / "alert_routes.json",
         "remediation": base / "remediation_latest.md",
         "remediation_json": base / "remediation_latest.json",
+    }
+
+
+def _benchmark_status_signature(
+    *,
+    history_dir: str | Path,
+    gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
+    alert_route_config_path: str | Path = DEFAULT_ALERT_ROUTE_CONFIG,
+    cohort: str = "",
+    architecture: str = "",
+    tokenizer_mode: str = "",
+    limit: int = 0,
+) -> dict:
+    paths = _history_paths(Path(history_dir))
+    return {
+        "history": json_state_revision(paths["history"]),
+        "gate_config": json_state_revision(gate_config_path),
+        "alert_route_config": json_state_revision(alert_route_config_path),
+        "cohort": str(cohort or ""),
+        "architecture": str(architecture or ""),
+        "tokenizer_mode": str(tokenizer_mode or ""),
+        "limit": int(limit or 0),
     }
 
 
@@ -1283,7 +1312,7 @@ def _write_benchmark_status_artifacts(
         paths["compare"].write_text(_comparison_markdown(comparison), encoding="utf-8")
 
 
-def benchmark_gate_status(
+def _build_benchmark_gate_status(
     *,
     history_dir: str | Path = BENCHMARK_HISTORY_DIR,
     gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
@@ -1323,6 +1352,58 @@ def benchmark_gate_status(
     if write:
         paths["gate"].write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
         paths["alerts"].write_text(_gate_markdown(gate), encoding="utf-8")
+    return payload
+
+
+def benchmark_gate_status(
+    *,
+    history_dir: str | Path = BENCHMARK_HISTORY_DIR,
+    gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
+    cohort: str = "",
+    architecture: str = "",
+    tokenizer_mode: str = "",
+    write: bool = False,
+) -> dict:
+    if write:
+        payload = _build_benchmark_gate_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=True,
+        )
+        payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+        return payload
+    payload, cache_meta = cached_compute(
+        "benchmark_gate_status",
+        json.dumps(
+            {
+                "history_dir": str(Path(history_dir).resolve()),
+                "cohort": str(cohort or ""),
+                "architecture": str(architecture or ""),
+                "tokenizer_mode": str(tokenizer_mode or ""),
+            },
+            sort_keys=True,
+        ),
+        lambda: _benchmark_status_signature(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+        ),
+        lambda: _build_benchmark_gate_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=False,
+        ),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
     return payload
 
 
@@ -1474,7 +1555,7 @@ def benchmark_adaptive_curriculum_status(
     }
 
 
-def benchmark_remediation_status(
+def _build_benchmark_remediation_status(
     *,
     history_dir: str | Path = BENCHMARK_HISTORY_DIR,
     gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
@@ -1544,7 +1625,63 @@ def benchmark_remediation_status(
     return payload
 
 
-def benchmark_alert_routes_status(
+def benchmark_remediation_status(
+    *,
+    history_dir: str | Path = BENCHMARK_HISTORY_DIR,
+    gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
+    alert_route_config_path: str | Path = DEFAULT_ALERT_ROUTE_CONFIG,
+    cohort: str = "",
+    architecture: str = "",
+    tokenizer_mode: str = "",
+    write: bool = False,
+) -> dict:
+    if write:
+        payload = _build_benchmark_remediation_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=True,
+        )
+        payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+        return payload
+    payload, cache_meta = cached_compute(
+        "benchmark_remediation_status",
+        json.dumps(
+            {
+                "history_dir": str(Path(history_dir).resolve()),
+                "cohort": str(cohort or ""),
+                "architecture": str(architecture or ""),
+                "tokenizer_mode": str(tokenizer_mode or ""),
+            },
+            sort_keys=True,
+        ),
+        lambda: _benchmark_status_signature(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+        ),
+        lambda: _build_benchmark_remediation_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=False,
+        ),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    return payload
+
+
+def _build_benchmark_alert_routes_status(
     *,
     history_dir: str | Path = BENCHMARK_HISTORY_DIR,
     gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
@@ -1597,7 +1734,63 @@ def benchmark_alert_routes_status(
     return payload
 
 
-def benchmark_dashboard_status(
+def benchmark_alert_routes_status(
+    *,
+    history_dir: str | Path = BENCHMARK_HISTORY_DIR,
+    gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
+    alert_route_config_path: str | Path = DEFAULT_ALERT_ROUTE_CONFIG,
+    cohort: str = "",
+    architecture: str = "",
+    tokenizer_mode: str = "",
+    write: bool = False,
+) -> dict:
+    if write:
+        payload = _build_benchmark_alert_routes_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=True,
+        )
+        payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+        return payload
+    payload, cache_meta = cached_compute(
+        "benchmark_alert_routes_status",
+        json.dumps(
+            {
+                "history_dir": str(Path(history_dir).resolve()),
+                "cohort": str(cohort or ""),
+                "architecture": str(architecture or ""),
+                "tokenizer_mode": str(tokenizer_mode or ""),
+            },
+            sort_keys=True,
+        ),
+        lambda: _benchmark_status_signature(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+        ),
+        lambda: _build_benchmark_alert_routes_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            write=False,
+        ),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    return payload
+
+
+def _build_benchmark_dashboard_status(
     *,
     history_dir: str | Path = BENCHMARK_HISTORY_DIR,
     gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
@@ -1681,6 +1874,77 @@ def benchmark_dashboard_status(
     }
     if write:
         _write_benchmark_status_artifacts(paths, rows, gate, routed, dashboard, remediation, limit=max(12, int(limit)))
+    return payload
+
+
+def benchmark_dashboard_status(
+    *,
+    history_dir: str | Path = BENCHMARK_HISTORY_DIR,
+    gate_config_path: str | Path = DEFAULT_GATE_CONFIG,
+    alert_route_config_path: str | Path = DEFAULT_ALERT_ROUTE_CONFIG,
+    cohort: str = "",
+    architecture: str = "",
+    tokenizer_mode: str = "",
+    limit: int = 8,
+    write: bool = False,
+) -> dict:
+    if write:
+        payload = _build_benchmark_dashboard_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            limit=limit,
+            write=True,
+        )
+        payload["fast_path_cache"] = {"hit": False, "age_seconds": 0.0, "ttl_seconds": None}
+        payload["cache_surfaces"] = {
+            "gate": {"hit": False},
+            "alert_routes": {"hit": False},
+            "remediation": {"hit": False},
+        }
+        return payload
+    payload, cache_meta = cached_compute(
+        "benchmark_dashboard_status",
+        json.dumps(
+            {
+                "history_dir": str(Path(history_dir).resolve()),
+                "cohort": str(cohort or ""),
+                "architecture": str(architecture or ""),
+                "tokenizer_mode": str(tokenizer_mode or ""),
+                "limit": int(limit),
+            },
+            sort_keys=True,
+        ),
+        lambda: _benchmark_status_signature(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            limit=limit,
+        ),
+        lambda: _build_benchmark_dashboard_status(
+            history_dir=history_dir,
+            gate_config_path=gate_config_path,
+            alert_route_config_path=alert_route_config_path,
+            cohort=cohort,
+            architecture=architecture,
+            tokenizer_mode=tokenizer_mode,
+            limit=limit,
+            write=False,
+        ),
+        ttl_seconds=2.0,
+    )
+    payload["fast_path_cache"] = cache_meta
+    payload["cache_surfaces"] = {
+        "gate": dict((payload.get("gate") or {}).get("fast_path_cache") or {}),
+        "alert_routes": dict((payload.get("alert_routes") or {}).get("fast_path_cache") or {}),
+        "remediation": dict((payload.get("remediation") or {}).get("fast_path_cache") or {}),
+    }
     return payload
 
 

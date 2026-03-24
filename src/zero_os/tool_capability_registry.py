@@ -4,6 +4,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.fast_path_cache import cached_compute
+from zero_os.state_cache import json_state_revision
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -16,7 +19,21 @@ def _runtime_dir(cwd: str) -> Path:
 
 
 def _status_path(cwd: str) -> Path:
-    return _runtime_dir(cwd) / "tool_capability_registry.json"
+    return _runtime_dir(cwd) / "tool_registry_status.json"
+
+
+def _dir_signature(path: Path) -> dict:
+    if not path.exists():
+        return {"exists": False, "entry_count": 0, "newest_mtime_ns": 0}
+    newest_mtime_ns = 0
+    entry_count = 0
+    for item in path.rglob("*"):
+        entry_count += 1
+        try:
+            newest_mtime_ns = max(newest_mtime_ns, int(item.stat().st_mtime_ns))
+        except OSError:
+            continue
+    return {"exists": True, "entry_count": entry_count, "newest_mtime_ns": newest_mtime_ns}
 
 
 def capability_registry() -> dict:
@@ -146,7 +163,7 @@ def _highest_value_steps(missing_tools: list[dict]) -> list[str]:
     return steps
 
 
-def registry_status(cwd: str = "") -> dict:
+def _build_registry_status(cwd: str = "") -> dict:
     base = Path(cwd or ".").resolve()
     registry = capability_registry()
     tools: dict[str, dict] = {}
@@ -174,6 +191,7 @@ def registry_status(cwd: str = "") -> dict:
     summary = {
         "tool_count": len(tools),
         "active_tool_count": sum(1 for item in tools.values() if item.get("active")),
+        "active_count": sum(1 for item in tools.values() if item.get("active")),
         "missing_tool_count": len(missing_tools),
     }
     payload = {
@@ -186,4 +204,33 @@ def registry_status(cwd: str = "") -> dict:
         "highest_value_steps": _highest_value_steps(missing_tools),
     }
     _status_path(str(base)).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
+def registry_status(cwd: str = "") -> dict:
+    base = Path(cwd or ".").resolve()
+
+    def _signature() -> dict:
+        return {
+            "workspace_main": {"exists": (base / "src" / "main.py").exists()},
+            "readme": {"exists": (base / "README.md").exists()},
+            "runtime_status": json_state_revision(base / ".zero_os" / "runtime" / "phase_runtime_status.json"),
+            "api_profiles": json_state_revision(base / ".zero_os" / "connectors" / "api_profiles.json"),
+            "native_store_state": json_state_revision(base / ".zero_os" / "native_store" / "state.json"),
+            "browser_session": json_state_revision(base / ".zero_os" / "connectors" / "browser_session.json"),
+            "snapshots": _dir_signature(base / ".zero_os" / "production" / "snapshots"),
+            "apps": _dir_signature(base / "apps"),
+            "workflows": _dir_signature(base / ".github" / "workflows"),
+            "backend_deploy": _dir_signature(base / "build" / "native_store_prod" / "backend_deploy"),
+        }
+
+    payload, cache_meta = cached_compute(
+        "tool_capability_registry_status",
+        str(base),
+        _signature,
+        lambda: _build_registry_status(str(base)),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
     return payload

@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from zero_os.approval_workflow import decide as approval_decide, status as approval_status
+from zero_os.fast_path_cache import cached_compute
 from zero_os.self_derivation_engine import (
     _branch_shape_profile,
     _current_planner_version,
@@ -18,8 +19,8 @@ from zero_os.self_derivation_engine import (
     self_derivation_revalidate,
     self_derivation_status,
 )
-from zero_os.state_cache import flush_state_writes, load_json_state, queue_json_state
-from zero_os.state_registry import put_state_store
+from zero_os.state_cache import flush_state_writes, json_state_revision, load_json_state, queue_json_state
+from zero_os.state_registry import refresh_state_store
 from zero_os.task_planner import planner_feedback_status
 from zero_os.task_executor import run_task, run_task_resume
 from zero_os.unified_action_engine import execute_step
@@ -58,6 +59,14 @@ def _load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     merged = dict(default)
     merged.update(raw)
     return merged
+
+
+def _path_revision(path: Path) -> dict[str, Any]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"exists": False, "mtime_ns": 0, "size": 0}
+    return {"exists": True, "mtime_ns": int(stat.st_mtime_ns), "size": int(stat.st_size)}
 
 
 def _save_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1130,7 +1139,7 @@ def _category_scores(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     return scores
 
 
-def pressure_harness_status(cwd: str) -> dict[str, Any]:
+def _build_pressure_harness_status(cwd: str) -> dict[str, Any]:
     planner_feedback = _planner_feedback_block(cwd)
     strategy_drift = _strategy_drift_block(cwd)
     latest = _latest_path(cwd)
@@ -1179,6 +1188,28 @@ def pressure_harness_status(cwd: str) -> dict[str, Any]:
         payload["highest_value_steps"] = list(payload.get("highest_value_steps", [])) + list(planner_feedback.get("highest_value_steps", []))
     if list(strategy_drift.get("highest_value_steps", [])):
         payload["highest_value_steps"] = list(payload.get("highest_value_steps", [])) + list(strategy_drift.get("highest_value_steps", []))
+    return payload
+
+
+def pressure_harness_status(cwd: str) -> dict[str, Any]:
+    base = Path(cwd).resolve()
+    signature = {
+        "latest": json_state_revision(_latest_path(cwd)),
+        "history": _path_revision(_history_path(cwd)),
+        "strategy_drift_history": json_state_revision(_strategy_drift_history_path(cwd)),
+        "planner_feedback": _path_revision(base / ".zero_os" / "assistant" / "planner_feedback.json"),
+        "self_derivation_memory": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "memory.json"),
+        "self_derivation_latest": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "latest.json"),
+    }
+    payload, cache_meta = cached_compute(
+        "pressure_harness_status",
+        str(base),
+        signature,
+        lambda: _build_pressure_harness_status(cwd),
+        ttl_seconds=2.0,
+    )
+    payload = dict(payload or {})
+    payload["fast_path_cache"] = dict(cache_meta)
     return payload
 
 
@@ -1269,8 +1300,8 @@ def pressure_harness_run(cwd: str) -> dict[str, Any]:
     payload["highest_value_steps"] = [recommended_action] + list(planner_feedback.get("highest_value_steps", [])) + list(strategy_drift.get("highest_value_steps", []))
     payload["summary"]["strategy_freshness_score"] = strategy_drift.get("freshness_score", 0.0)
     payload["summary"]["strategy_version_mismatch_count"] = strategy_drift.get("version_mismatch_count", 0)
-    put_state_store(cwd, "pressure_latest", payload)
     _save_json(_latest_path(cwd), payload)
+    refresh_state_store(cwd, "pressure_latest")
     _write_strategy_drift_history(
         _strategy_drift_history_path(cwd),
         {
