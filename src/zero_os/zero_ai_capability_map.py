@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
 from zero_os.fast_path_cache import cached_compute
 from zero_os.state_cache import json_state_revision
@@ -56,6 +57,18 @@ def _autonomy_loop_path(cwd: str) -> Path:
 
 def _self_mod_guard_path(cwd: str) -> Path:
     return _runtime_dir(cwd) / "self_modification_guard.json"
+
+
+def _benchmark_dashboard_status_api(cwd: str):
+    project_root = Path(__file__).resolve().parents[2]
+    workspace_root = Path(cwd).resolve()
+    for candidate in (project_root, workspace_root):
+        candidate_str = str(candidate)
+        if candidate_str not in sys.path:
+            sys.path.insert(0, candidate_str)
+    from ai_from_scratch.benchmark_history import benchmark_dashboard_status
+
+    return benchmark_dashboard_status
 
 
 def _policy_decision(policy: dict, action_kind: str) -> str:
@@ -117,7 +130,6 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
-    from ai_from_scratch.benchmark_history import benchmark_dashboard_status
 
     runtime_status = _load(_runtime_status_path(cwd), {})
     runtime_self_derivation_background = dict(runtime_status.get("self_derivation_background") or {})
@@ -145,6 +157,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     domain_pack_factory = domain_pack_factory_status(cwd)
     internet_capability = internet_capability_status(cwd)
     benchmark_remediation = benchmark_remediation_status(cwd)
+    benchmark_dashboard_status = _benchmark_dashboard_status_api(cwd)
     benchmark_dashboard = benchmark_dashboard_status(history_dir=Path(cwd).resolve() / ".zero_os" / "benchmarks" / "model")
     guard = _load(
         _self_mod_guard_path(cwd),

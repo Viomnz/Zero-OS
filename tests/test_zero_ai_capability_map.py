@@ -1,4 +1,5 @@
 import json
+import subprocess
 import shutil
 import sys
 import tempfile
@@ -200,6 +201,34 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertFalse(first["fast_path_cache"]["hit"])
         self.assertTrue(second["fast_path_cache"]["hit"])
         self.assertEqual(first["summary"]["autonomous_count"], second["summary"]["autonomous_count"])
+
+    def test_capability_map_bootstraps_benchmark_history_without_repo_root_on_sys_path(self) -> None:
+        self._prime_runtime()
+        script = (
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            "repo = Path(sys.argv[1]).resolve()\n"
+            "cwd = Path(sys.argv[2]).resolve()\n"
+            "src = repo / 'src'\n"
+            "repo_str = str(repo)\n"
+            "src_str = str(src)\n"
+            "sys.path = [p for p in sys.path if p not in {repo_str, src_str}]\n"
+            "sys.path.insert(0, src_str)\n"
+            "from zero_os.zero_ai_capability_map import zero_ai_capability_map_status\n"
+            "status = zero_ai_capability_map_status(str(cwd))\n"
+            "print(json.dumps({'ok': status.get('ok', False)}))\n"
+            "raise SystemExit(0 if status.get('ok', False) else 1)\n"
+        )
+
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(ROOT), str(self.base)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, completed.returncode, msg=completed.stderr or completed.stdout)
+        self.assertEqual(True, json.loads(completed.stdout)["ok"])
 
 
 if __name__ == "__main__":
