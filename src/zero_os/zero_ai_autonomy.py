@@ -245,12 +245,15 @@ def _select_current_goal(state: dict) -> dict | None:
 def _collect_signals(cwd: str) -> dict:
     from zero_os.approval_workflow import status as approval_status
     from zero_os.assistant_job_runner import status as job_status
+    from zero_os.decision_governor import governor_decide
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.phase_runtime import zero_ai_runtime_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
+    from zero_os.zero_ai_pressure_harness import pressure_harness_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
     from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.world_model import build_world_model
 
     runtime = zero_ai_runtime_status(cwd)
     control_workflows = zero_ai_control_workflows_status(cwd)
@@ -258,12 +261,32 @@ def _collect_signals(cwd: str) -> dict:
     evolution = zero_ai_evolution_status(cwd)
     source_evolution = zero_ai_source_evolution_status(cwd)
     continuity = zero_ai_self_continuity_status(cwd)
+    pressure = pressure_harness_status(cwd)
     approvals = approval_status(cwd)
     jobs = job_status(cwd)
     runtime_loop = dict(runtime.get("runtime_loop") or {})
     runtime_agent = dict(runtime.get("runtime_agent") or {})
     continuity_block = dict(continuity.get("continuity") or {})
     contradiction_block = dict(continuity.get("contradiction_detection") or {})
+    world_model = build_world_model(
+        cwd,
+        sources={
+            "runtime": runtime,
+            "runtime_loop": runtime_loop,
+            "runtime_agent": runtime_agent,
+            "continuity": continuity,
+            "pressure": pressure,
+            "control_workflows": control_workflows,
+            "capability_control_map": capability_map,
+            "zero_engine": dict(runtime.get("zero_engine") or {}),
+            "self_derivation": dict(runtime.get("self_derivation") or {}),
+            "evolution": evolution,
+            "source_evolution": source_evolution,
+            "approvals": approvals,
+            "jobs": jobs,
+        },
+    )
+    decision_governor = governor_decide(cwd, world_model=world_model)
     return {
         "runtime": runtime,
         "runtime_loop": runtime_loop,
@@ -273,10 +296,13 @@ def _collect_signals(cwd: str) -> dict:
         "continuity_score": float(continuity_block.get("continuity_score", 0.0) or 0.0),
         "control_workflows": control_workflows,
         "capability_control_map": capability_map,
+        "pressure": pressure,
         "evolution": evolution,
         "source_evolution": source_evolution,
         "approvals": approvals,
         "jobs": jobs,
+        "world_model": world_model,
+        "decision_governor": decision_governor,
     }
 
 
@@ -512,8 +538,12 @@ def _build_status(cwd: str, state: dict, signals: dict) -> dict:
         "continuity_healthy": bool(signals["continuity_healthy"]),
         "control_workflows": signals["control_workflows"],
         "capability_control_map": signals["capability_control_map"],
+        "pressure": signals["pressure"],
         "evolution": signals["evolution"],
         "source_evolution": signals["source_evolution"],
+        "world_model": signals["world_model"],
+        "decision_governor": signals["decision_governor"],
+        "top_level_call": str((signals["decision_governor"] or {}).get("call", "observe") or "observe"),
         "evolution_ready": bool((signals["evolution"] or {}).get("self_evolution_ready", False)),
         "evolution_due_now": bool((signals["evolution"] or {}).get("due_now", False)),
         "source_evolution_ready": bool((signals["source_evolution"] or {}).get("source_evolution_ready", False)),
@@ -558,6 +588,8 @@ def zero_ai_autonomy_sync(cwd: str) -> dict:
             "fully_autonomous_control": bool((signals["capability_control_map"] or {}).get("fully_autonomous_control", False)),
             "self_evolution_ready": bool((signals["evolution"] or {}).get("self_evolution_ready", False)),
             "self_evolution_due_now": bool((signals["evolution"] or {}).get("due_now", False)),
+            "governor_call": str((signals["decision_governor"] or {}).get("call", "observe") or "observe"),
+            "governor_mode": str((signals["decision_governor"] or {}).get("mode", "normal") or "normal"),
         },
     }
 
@@ -600,7 +632,7 @@ def _execute_goal_action(cwd: str, goal: dict) -> dict:
     if action_kind == "run_runtime":
         from zero_os.phase_runtime import zero_ai_runtime_run
 
-        result = zero_ai_runtime_run(cwd)
+        result = zero_ai_runtime_run(cwd, skip_autonomy_background=True)
         return {"ok": bool(result.get("ok", False)), "action_kind": action_kind, "result": result}
 
     if action_kind == "ensure_background_agent":

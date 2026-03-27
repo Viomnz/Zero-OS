@@ -1957,6 +1957,11 @@
         const localControlCacheTotalCount = capabilitySummary.local_control_cache_total_count !== undefined ? capabilitySummary.local_control_cache_total_count : 0;
         const workflowCacheHitCount = capabilitySummary.workflow_status_cache_hit_count !== undefined ? capabilitySummary.workflow_status_cache_hit_count : 0;
         const workflowCacheTotalCount = capabilitySummary.workflow_status_cache_total_count !== undefined ? capabilitySummary.workflow_status_cache_total_count : 0;
+        const governorCall = capabilitySummary.governor_call || "observe";
+        const governorMode = capabilitySummary.governor_mode || "normal";
+        const governorReason = capabilitySummary.governor_reason || "";
+        const governorSummary = capabilitySummary.governor_summary || `governor gate: ${governorCall}`;
+        const governorBlockingFactors = arrayItems(capabilitySummary.governor_blocking_factors);
         const capabilityMapCacheHit = !!((capabilityMap && capabilityMap.fast_path_cache && capabilityMap.fast_path_cache.hit));
         const controllerRegistryCacheHit = !!((controllerRegistry && controllerRegistry.fast_path_cache && controllerRegistry.fast_path_cache.hit));
         const toolRegistryCacheHit = !!((toolRegistry && toolRegistry.fast_path_cache && toolRegistry.fast_path_cache.hit));
@@ -1995,10 +2000,28 @@
             { label: "Cache Surfaces", value: `${cacheHitCount}/${cacheTotalCount || 0}` },
             { label: "Local Cache", value: `${localControlCacheHitCount}/${localControlCacheTotalCount || 0}` },
             { label: "Workflow Cache", value: `${workflowCacheHitCount}/${workflowCacheTotalCount || 0}` },
+            { label: "Governor", value: escapeHtml(String(governorCall)) },
             { label: "Strategy Freshness", value: String(strategyFreshness) },
             { label: "Strategy Trend", value: escapeHtml(String(strategyTrend)) }
           ])}
           <div class="action-list">
+            <div class="action-chip">
+              <div class="chip-title">Decision Governor</div>
+              <div class="chip-copy">
+                ${escapeHtml(governorSummary)}
+                ${governorReason ? `<br/>Reason: ${escapeHtml(governorReason)}` : ""}
+                ${governorBlockingFactors.length ? `<br/>Blocking factors: ${escapeHtml(governorBlockingFactors.join(" · "))}` : ""}
+              </div>
+              <div class="state-badges">
+                <span class="mini-badge">${escapeHtml(String(governorCall))}</span>
+                <span class="mini-badge">${escapeHtml(String(governorMode))}</span>
+                <span class="mini-badge">${escapeHtml(String(governorBlockingFactors.length))} blockers</span>
+              </div>
+              <div class="task-actions">
+                <button class="btn" data-home-command="zero ai runtime status" data-home-label="Runtime Status">Runtime</button>
+                <button class="btn" data-home-command="zero ai capability map status" data-home-label="Capability Map Status">Capabilities</button>
+              </div>
+            </div>
             <div class="action-chip">
               <div class="chip-title">Refresh Registry</div>
               <div class="chip-copy">Generate the latest next-step map, tool status, and capability surface without leaving the UI.</div>
@@ -2137,12 +2160,47 @@
         `;
       }
 
+    function renderGovernorNotice(capabilityMap) {
+      const summary = capabilityMap && capabilityMap.summary ? capabilityMap.summary : {};
+      const call = String(summary.governor_call || "").trim();
+      if (!call || call === "observe" || call === "act") return null;
+      const blockers = Array.isArray(summary.governor_blocking_factors)
+        ? summary.governor_blocking_factors.filter(Boolean).map((item) => String(item))
+        : [];
+      const reason = String(summary.governor_reason || summary.governor_summary || "").trim();
+      const blockerCopy = blockers.length ? ` Blocking factors: ${blockers.join(", ")}.` : "";
+      if (call === "wait_for_user") {
+        return {
+          title: "Approval blocks autonomous action",
+          copy: `${reason || "Zero AI needs user approval before mutating right now."}${blockerCopy}`
+        };
+      }
+      if (call === "repair_continuity") {
+        return {
+          title: "Continuity repair required",
+          copy: `${reason || "Zero AI is holding mutation until continuity is repaired."}${blockerCopy}`
+        };
+      }
+      if (call === "run_runtime") {
+        return {
+          title: "Runtime health pass required",
+          copy: `${reason || "Zero AI wants a fresh runtime pass before mutating."}${blockerCopy}`
+        };
+      }
+      if (call === "stabilize_recovery") {
+        return {
+          title: "Trusted recovery baseline required",
+          copy: `${reason || "Zero AI needs a compatible rollback snapshot before mutating."}${blockerCopy}`
+        };
+      }
+      return {
+        title: `Governor hold: ${call}`,
+        copy: `${reason || `Current governor call: ${call}.`}${blockerCopy}`
+      };
+    }
+
     function renderHomePanel(onboarding, sec, backup, triad, desktop, storeState, storeRegistry, controllerRegistry, toolRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, capabilityMap) {
-      const notices = [];
-      if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
-      if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
-      if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
-      if (!notices.length) notices.push({ title: "No urgent alerts", copy: "System alerts are currently quiet." });
+      const notices = renderNotifications(sec, backup, triad, desktop, capabilityMap);
 
       const recents = readRecentActions();
       const recentApps = appCatalog.filter((app) => recents.some((item) => String(item.label || "").includes(app.label))).slice(0, 4);
@@ -2216,7 +2274,7 @@
     }
 
     function renderLayeredStartPanel(activePage, onboarding, sec, backup, triad, desktop, storeState, storeRegistry, kernel, runtime, github, toolRegistry, controllerRegistry, capabilityMap, pluginRegistry, benchmarkDashboard, benchmarkAlerts, benchmarkRemediation, communicationsState, calendarState, approvalsState) {
-      const notices = renderNotifications(sec, backup, triad, desktop);
+      const notices = renderNotifications(sec, backup, triad, desktop, capabilityMap);
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const triadValue = triad && triad.balanced ? "Balanced" : "Degraded";
       return [
@@ -2341,8 +2399,10 @@
       `;
     }
 
-    function renderNotifications(sec, backup, triad, desktop) {
+    function renderNotifications(sec, backup, triad, desktop, capabilityMap) {
       const notices = [];
+      const governorNotice = renderGovernorNotice(capabilityMap);
+      if (governorNotice) notices.push(governorNotice);
       if (!backup || !backup.ok) notices.push({ title: "Recovery needs review", copy: "Confirm recovery before relying on self-repair." });
       if (!sec || (!sec.hardened && !sec.mark_strict)) notices.push({ title: "Security review pending", copy: "The current security posture is not marked hardened." });
       if (triad && !triad.balanced) notices.push({ title: "Triad degraded", copy: "Runtime balance reports a degraded state." });
@@ -2405,7 +2465,7 @@
       const secValue = sec && sec.hardened ? "Hardened" : "Baseline";
       const recValue = backup && backup.ok ? "Recoverable" : "No report";
       const onboarding = onboardingDecision(platform, sec, backup, triad);
-      const notices = renderNotifications(sec, backup, triad, desktop);
+      const notices = renderNotifications(sec, backup, triad, desktop, capabilityMap);
       window.__zeroDesktopState = desktop || {};
 
       $("v-core").textContent = coreValue;

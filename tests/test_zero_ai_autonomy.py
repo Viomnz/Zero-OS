@@ -148,11 +148,14 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         self.assertTrue(synced["ok"])
         self.assertIn("control_workflows", synced["status"])
         self.assertIn("capability_control_map", synced["status"])
+        self.assertIn("world_model", synced["status"])
+        self.assertIn("decision_governor", synced["status"])
         self.assertFalse(synced["status"]["capability_control_map"]["fully_autonomous_control"])
         current = synced["status"]["current_goal"]
         self.assertIsNotNone(current)
         self.assertEqual("stabilize_runtime", current["key"])
         self.assertEqual("run_runtime", current["action_kind"])
+        self.assertEqual("run_runtime", synced["signals"]["governor_call"])
 
     def test_autonomy_run_executes_runtime_goal(self) -> None:
         self._prime_identity()
@@ -175,8 +178,11 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         self.assertGreaterEqual(status["blocked_count"], 1)
         self.assertIn("control_workflows", status)
         self.assertIn("capability_control_map", status)
+        self.assertIn("world_model", status)
+        self.assertIn("decision_governor", status)
         blocked = next(goal for goal in status["goals"] if goal["key"] == "pending_approvals")
         self.assertEqual("blocked", blocked["state"])
+        self.assertEqual("wait_for_user", status["decision_governor"]["call"])
 
     def test_expired_approvals_stop_blocking_autonomy(self) -> None:
         self._prime_stable_runtime()

@@ -23,6 +23,16 @@ def extract_intent(request: str) -> dict:
     if install_match:
         intent = "store_install"
         entities["app"] = install_match.group(1)
+    code_tokens = ("replace", "edit", "update", "modify", "refactor", "write", "change", "patch")
+    file_reference = bool(
+        re.search(
+            r"([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+(?::\d+(?:(?::|-)\d+)?)?)",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+    if any(token in lowered for token in code_tokens) and file_reference:
+        intent = "code"
     if any(token in lowered for token in ("recover", "recovery")):
         intent = "recover"
     elif any(token in lowered for token in ("repair", "self repair")):

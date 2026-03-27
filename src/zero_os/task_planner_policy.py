@@ -14,6 +14,7 @@ _MUTATING_STEP_KINDS = {
     "browser_action",
     "browser_open",
     "cloud_deploy",
+    "code_change",
     "github_issue_act",
     "github_issue_reply_post",
     "github_pr_act",
@@ -53,11 +54,12 @@ _READ_ONLY_STEP_KINDS = {
     "world_class_readiness",
 }
 _VERIFICATION_PRIORITY_KINDS = _READ_ONLY_STEP_KINDS | {"autonomy_gate"}
-_APPROVAL_POSSIBLE_KINDS = {"browser_action", "recover", "self_repair", "store_install"}
+_APPROVAL_POSSIBLE_KINDS = {"browser_action", "code_change", "recover", "self_repair", "store_install"}
 _INTENT_PRIORITY = {
     "feature_generation": 16,
     "capability_expansion_protocol": 15,
     "general_agent": 14,
+    "code": 13.2,
     "reasoning": 13,
     "pressure": 12,
     "planning": 11,
@@ -81,6 +83,7 @@ _INTENT_PRIORITY = {
     "observe": 0,
 }
 _INTENT_STEP_HINTS = {
+    "code": {"code_change"},
     "planning": {"controller_registry"},
     "reasoning": {"contradiction_engine"},
     "pressure": {"pressure_harness"},
@@ -135,6 +138,7 @@ _EXCLUSIVE_PATTERNS = (
 
 def _target_signal_strength(intent_name: str, targets: dict[str, Any]) -> float:
     coverage = {
+        "code": float(any(targets.get(key) for key in ("files", "file_ranges"))),
         "web": float(len(list(targets.get("urls", []))) > 0),
         "browser": float(len(list(targets.get("urls", []))) > 0),
         "github": float(
@@ -193,7 +197,17 @@ def _step_covers_target(step: dict[str, Any], item: dict[str, Any]) -> bool:
         if action in {"type", "input"}:
             return kind == "browser_action" and str(dict(target or {}).get("action", "")).strip().lower() == "input"
         if action in {"read", "show"}:
-            return kind in {"highway_dispatch", "web_fetch", "browser_status", "system_status", "store_status"}
+            return kind in {
+                "highway_dispatch",
+                "web_fetch",
+                "browser_status",
+                "system_status",
+                "store_status",
+                "github_issue_read",
+                "github_issue_comments",
+                "github_pr_read",
+                "github_pr_comments",
+            }
         if action == "inspect":
             return kind in {"browser_dom_inspect", "web_verify", "flow_monitor"}
         if action == "fetch":
@@ -204,6 +218,8 @@ def _step_covers_target(step: dict[str, Any], item: dict[str, Any]) -> bool:
             return kind == "store_install"
         if action == "deploy":
             return kind == "cloud_deploy"
+        if action in {"replace", "edit", "update", "modify", "refactor", "write", "change", "patch", "fix"}:
+            return kind == "code_change"
         if action == "recover":
             return kind == "recover"
         if action == "repair":
@@ -221,7 +237,8 @@ def _step_covers_target(step: dict[str, Any], item: dict[str, Any]) -> bool:
         if not file_value:
             return False
         target_text = str(target or "")
-        return kind == "highway_dispatch" and file_value in target_text
+        target_map = dict(target or {}) if isinstance(target, dict) else {}
+        return (kind == "highway_dispatch" and file_value in target_text) or (kind == "code_change" and file_value in list(target_map.get("files", [])))
 
     if target_type == "file_ranges":
         target_map = dict(target_value or {})
@@ -229,7 +246,15 @@ def _step_covers_target(step: dict[str, Any], item: dict[str, Any]) -> bool:
         if not file_path:
             return False
         target_text = str(target or "")
-        return kind == "highway_dispatch" and file_path in target_text and str(target_map.get("start_line", "")) in target_text
+        step_target = dict(target or {}) if isinstance(target, dict) else {}
+        return (
+            kind == "highway_dispatch"
+            and file_path in target_text
+            and str(target_map.get("start_line", "")) in target_text
+        ) or (
+            kind == "code_change"
+            and any(str(item.get("path", "")).strip() == file_path for item in list(step_target.get("file_ranges", [])))
+        )
 
     if target_type == "branches":
         branch_value = str(target_value or "").strip()
@@ -330,6 +355,22 @@ def _annotate_step_contracts(steps: list[dict[str, Any]]) -> tuple[list[dict[str
                 confidence -= 0.25
         elif kind in {"recover", "self_repair"}:
             preconditions.extend(["runtime_scope_required", "rollback_path_preferred"])
+        elif kind == "code_change":
+            target_map = dict(target or {})
+            preconditions.extend(["code_targets_required", "code_instruction_required", "verification_plan_required"])
+            if not list(target_map.get("files", [])) and not list(target_map.get("file_ranges", [])):
+                issues.append("code_change_missing_targets")
+                confidence -= 0.35
+            instruction = dict(target_map.get("instruction") or {})
+            if not str(instruction.get("operation", "")).strip():
+                issues.append("code_change_missing_instruction")
+                confidence -= 0.3
+            if int(dict(target_map.get("code_workbench") or {}).get("out_of_scope_count", 0) or 0) > 0:
+                issues.append("code_change_out_of_scope_target")
+                confidence -= 0.4
+            if not bool(dict(target_map.get("code_workbench") or {}).get("verification_ready", False)):
+                issues.append("code_change_missing_verification")
+                confidence -= 0.2
 
         updated["preconditions"] = preconditions
         updated["precondition_issues"] = issues
@@ -479,6 +520,11 @@ def _resolve_intents(
         bump("web", 0.45, "web_phrase_without_target")
     if any(token in lowered for token in ("tools", "capabilities", "what can you do")):
         bump("tools", 1.0, "tools_phrase")
+    code_tokens = {"replace", "edit", "update", "modify", "refactor", "write", "change", "patch"}
+    if (targets.get("files") or targets.get("file_ranges")) and any(token in lowered for token in code_tokens):
+        bump("code", 1.35, "code_mutation_with_file_target")
+    elif any(token in lowered for token in code_tokens) and (" file " in f" {lowered} "):
+        bump("code", 0.85, "code_mutation_phrase")
     status_reserved_phrases = {
         "reasoning",
         "capability_expansion_protocol",

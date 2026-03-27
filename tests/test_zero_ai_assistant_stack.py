@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -308,6 +309,24 @@ class ZeroAiAssistantStackTests(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertTrue(any(step["kind"] == "controller_registry" for step in out["plan"]["steps"]))
         self.assertIn("controller registry", out["response"]["summary"])
+
+    def test_run_task_surfaces_governor_block_reason_in_response(self) -> None:
+        with patch(
+            "zero_os.task_executor.governor_decide",
+            return_value={
+                "call": "wait_for_user",
+                "mode": "blocked",
+                "reason": "approval pending",
+                "blocking_factors": ["1 approval item(s) pending"],
+            },
+        ):
+            out = run_task(str(self.base), "open https://example.com")
+
+        self.assertFalse(out["ok"])
+        self.assertIn("governor gate: wait_for_user", out["response"]["summary"])
+        self.assertIn("approval pending", out["response"]["summary"])
+        self.assertIn("1 approval item(s) pending", out["response"]["summary"])
+        self.assertEqual("wait_for_user", out["response"]["governor_gate"]["call"])
 
     def test_run_task_regenerates_conflicting_recovery_request_into_single_branch(self) -> None:
         zero_ai_backup_create(str(self.base))

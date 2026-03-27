@@ -53,6 +53,14 @@ def _store_registry_path(cwd: str) -> Path:
     return Path(cwd).resolve() / ".zero_os" / "store" / "registry.json"
 
 
+def _recovery_snapshots_root(cwd: str) -> Path:
+    return Path(cwd).resolve() / ".zero_os" / "production" / "snapshots"
+
+
+def _recovery_snapshot_index_path(cwd: str) -> Path:
+    return _recovery_snapshots_root(cwd) / "index.json"
+
+
 def _self_repair_path(cwd: str) -> Path:
     return _runtime_dir(cwd) / "self_repair_state.json"
 
@@ -100,7 +108,8 @@ def _control_workflows_signature(cwd: str) -> dict[str, Any]:
         "browser_session": json_state_revision(_browser_session_path(cwd)),
         "browser_dom": json_state_revision(_browser_dom_path(cwd)),
         "store_registry": json_state_revision(_store_registry_path(cwd)),
-        "snapshots_root": _directory_signature(base / ".zero_os" / "backups" / "snapshots"),
+        "recovery_snapshots_root": _directory_signature(_recovery_snapshots_root(cwd)),
+        "recovery_snapshot_index": json_state_revision(_recovery_snapshot_index_path(cwd)),
         "cure_firewall_backup": _directory_signature(base / ".zero_os" / "backups" / "cure_firewall"),
         "self_repair_state": json_state_revision(_self_repair_path(cwd)),
         "self_continuity": json_state_revision(_continuity_path(cwd)),
@@ -355,12 +364,20 @@ def _recovery_lane_status(cwd: str, lane: dict[str, Any]) -> dict[str, Any]:
     return {
         "enabled": bool(lane.get("enabled", False)),
         "mode": str(lane.get("mode", "canary_backed")),
-        "ready": bool(lane.get("enabled", False)),
+        "ready": bool(lane.get("enabled", False)) and int(backup.get("compatible_count", 0) or 0) > 0,
         "active": bool(lane.get("enabled", False)),
         "control_level": "autonomous" if bool(lane.get("enabled", False)) else "approval_gated",
         "raw_action_policy": classify_action(cwd, "recover"),
         "snapshot_count": int(backup.get("snapshot_count", 0) or 0),
         "latest_snapshot": str(backup.get("latest_snapshot", "")),
+        "compatible_count": int(backup.get("compatible_count", 0) or 0),
+        "latest_compatible_snapshot_id": str(backup.get("latest_compatible_snapshot_id", "")),
+        "preferred_snapshot_id": str(backup.get("preferred_snapshot_id", "")),
+        "trusted_snapshot_count": int(backup.get("trusted_snapshot_count", 0) or 0),
+        "quarantined_snapshot_count": int(backup.get("quarantined_snapshot_count", 0) or 0),
+        "active_incompatible_snapshot_count": int(backup.get("active_incompatible_snapshot_count", 0) or 0),
+        "quarantined_snapshot_ids": list(backup.get("quarantined_snapshot_ids", [])),
+        "recovery_surface_state": str(backup.get("recovery_surface_state", "degraded") or "degraded"),
         "last_run": dict(lane.get("last_run") or {}),
         "recent_runs": list(lane.get("recent_runs") or []),
     }
@@ -381,12 +398,20 @@ def _self_repair_lane_status(cwd: str, lane: dict[str, Any]) -> dict[str, Any]:
     return {
         "enabled": bool(lane.get("enabled", False)),
         "mode": str(lane.get("mode", "canary_backed")),
-        "ready": bool(lane.get("enabled", False)),
+        "ready": bool(lane.get("enabled", False)) and int(backup.get("compatible_count", 0) or 0) > 0,
         "active": bool(lane.get("enabled", False)),
         "control_level": "autonomous" if bool(lane.get("enabled", False)) else "approval_gated",
         "raw_action_policy": classify_action(cwd, "self_repair"),
         "snapshot_count": int(backup.get("snapshot_count", 0) or 0),
         "latest_snapshot": str(backup.get("latest_snapshot", "")),
+        "compatible_count": int(backup.get("compatible_count", 0) or 0),
+        "latest_compatible_snapshot_id": str(backup.get("latest_compatible_snapshot_id", "")),
+        "preferred_snapshot_id": str(backup.get("preferred_snapshot_id", "")),
+        "trusted_snapshot_count": int(backup.get("trusted_snapshot_count", 0) or 0),
+        "quarantined_snapshot_count": int(backup.get("quarantined_snapshot_count", 0) or 0),
+        "active_incompatible_snapshot_count": int(backup.get("active_incompatible_snapshot_count", 0) or 0),
+        "quarantined_snapshot_ids": list(backup.get("quarantined_snapshot_ids", [])),
+        "recovery_surface_state": str(backup.get("recovery_surface_state", "degraded") or "degraded"),
         "readiness_score": int((os_readiness(cwd) or {}).get("score", 0) or 0),
         "same_system": bool(continuity_block.get("same_system", False)),
         "has_contradiction": bool(contradiction_block.get("has_contradiction", False)),
@@ -662,16 +687,24 @@ def zero_ai_control_workflow_recover(cwd: str, snapshot_id: str = "latest") -> d
         "checks": {
             "lane_enabled": bool(lane.get("enabled", False)),
             "snapshot_available": False,
+            "compatible_snapshot_available": False,
         },
         "backup_status": backup_status,
         "created_snapshot": created,
     }
     if chosen == "latest":
-        chosen = str(backup_status.get("latest_snapshot", ""))
+        chosen = str(backup_status.get("latest_compatible_snapshot_id", "") or "")
     canary["checks"]["snapshot_available"] = bool(chosen)
-    canary["ok"] = bool(canary["ok"]) and bool(chosen)
+    canary["checks"]["compatible_snapshot_available"] = bool(
+        str(backup_status.get("latest_compatible_snapshot_id", "") or "")
+    ) if snapshot_id.strip() in {"", "latest"} else True
+    canary["ok"] = bool(canary["ok"]) and bool(chosen) and bool(canary["checks"]["compatible_snapshot_available"])
     if not canary["ok"]:
-        result = {"ok": False, "reason": "recovery workflow canary could not find a usable snapshot", "snapshot_id": snapshot_id}
+        result = {
+            "ok": False,
+            "reason": "recovery workflow canary could not find a trusted compatible snapshot",
+            "snapshot_id": snapshot_id,
+        }
         _record_lane_run(
             cwd,
             "recovery",
@@ -714,16 +747,21 @@ def zero_ai_control_workflow_self_repair(cwd: str) -> dict[str, Any]:
     if int(backup_status.get("snapshot_count", 0) or 0) == 0:
         created = zero_ai_backup_create(cwd)
         backup_status = zero_ai_backup_status(cwd)
-    chosen_snapshot = str(created.get("id") or backup_status.get("latest_snapshot") or "")
+    chosen_snapshot = str(backup_status.get("latest_compatible_snapshot_id") or "")
     continuity = zero_ai_self_continuity_status(cwd)
     continuity_block = dict(continuity.get("continuity") or {})
     contradiction_block = dict(continuity.get("contradiction_detection") or {})
     readiness_before = int((os_readiness(cwd) or {}).get("score", 0) or 0)
     canary = {
-        "ok": bool(lane.get("enabled", False)) and bool(chosen_snapshot) and bool(continuity_block.get("same_system", False)) and not bool(contradiction_block.get("has_contradiction", False)),
+        "ok": bool(lane.get("enabled", False))
+        and bool(chosen_snapshot)
+        and bool(backup_status.get("latest_compatible_snapshot_id"))
+        and bool(continuity_block.get("same_system", False))
+        and not bool(contradiction_block.get("has_contradiction", False)),
         "checks": {
             "lane_enabled": bool(lane.get("enabled", False)),
             "snapshot_available": bool(chosen_snapshot),
+            "compatible_snapshot_available": bool(backup_status.get("latest_compatible_snapshot_id")),
             "same_system": bool(continuity_block.get("same_system", False)),
             "no_contradiction": not bool(contradiction_block.get("has_contradiction", False)),
         },

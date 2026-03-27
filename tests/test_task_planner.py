@@ -21,6 +21,7 @@ from zero_os.task_planner import (
     smart_planner_assess,
     smart_planner_status,
 )
+from zero_os.world_model import build_world_model, persist_world_model
 
 
 class TaskPlannerUpgradeTests(unittest.TestCase):
@@ -61,6 +62,24 @@ class TaskPlannerUpgradeTests(unittest.TestCase):
         self.assertEqual("web", plan["intent"]["primary_intent"])
         self.assertIn("browser", plan["intent"]["secondary_intents"])
         self.assertEqual("low", plan["risk_level"])
+
+    def test_build_plan_uses_specific_route_variants_for_browser_and_github_status(self) -> None:
+        browser_plan = build_plan("browser status", str(self.base))
+        github_plan = build_plan("github status", str(self.base))
+        verify_plan = build_plan("check https://example.com", str(self.base))
+
+        self.assertEqual("browser_status", browser_plan["route_variant"])
+        self.assertEqual("github_status", github_plan["route_variant"])
+        self.assertEqual("web_verify", verify_plan["route_variant"])
+
+    def test_build_plan_github_reads_cover_action_and_object_targets(self) -> None:
+        issue_plan = build_plan("github issue read octo/test 12", str(self.base))
+        pr_plan = build_plan("github pr read octo/test 34", str(self.base))
+
+        self.assertEqual(1.0, float(issue_plan["target_coverage"]["coverage_ratio"]))
+        self.assertEqual([], issue_plan["target_coverage"]["unbound_targets"])
+        self.assertEqual(1.0, float(pr_plan["target_coverage"]["coverage_ratio"]))
+        self.assertEqual([], pr_plan["target_coverage"]["unbound_targets"])
 
     def test_build_candidate_plans_adds_target_specific_and_memory_variants(self) -> None:
         bundle = build_candidate_plans(
@@ -144,6 +163,18 @@ class TaskPlannerUpgradeTests(unittest.TestCase):
         self.assertTrue(any(step["kind"] == "highway_dispatch" for step in plan["steps"]))
         self.assertEqual(1.0, float(plan["target_coverage"]["coverage_ratio"]))
 
+    def test_build_plan_routes_explicit_code_mutation_into_code_change(self) -> None:
+        target = self.base / "src"
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "sample.py").write_text('VALUE = "alpha"\n', encoding="utf-8")
+
+        plan = build_plan('replace "alpha" with "beta" in src/sample.py', str(self.base))
+
+        self.assertEqual("code", plan["intent"]["primary_intent"])
+        self.assertTrue(any(step["kind"] == "code_change" for step in plan["steps"]))
+        self.assertTrue(plan["code_workbench_context"]["scope_ready"])
+        self.assertEqual("run_code_fix_loop", plan["decision_governor"]["call"])
+
     def test_build_plan_adds_low_target_signal_for_targetless_web_request(self) -> None:
         plan = build_plan("open browser and click", str(self.base))
 
@@ -156,6 +187,30 @@ class TaskPlannerUpgradeTests(unittest.TestCase):
         self.assertEqual([], browser_actions)
         self.assertIn("browser_action_missing_value", plan["ambiguity_flags"])
 
+    def test_build_plan_surfaces_world_model_blockers_for_mutation(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "approvals": {"pending_count": 2, "expired_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+        persist_world_model(str(self.base), model, flush=True)
+
+        plan = build_plan("open https://example.com and click", str(self.base))
+
+        self.assertTrue(plan["world_model_context"]["available"])
+        self.assertIn("approvals", plan["world_model_context"]["blocked_domains"])
+        self.assertIn("world_model_blocked_mutation_context", plan["ambiguity_flags"])
+
     def test_planner_feedback_status_aggregates_multiple_routes(self) -> None:
         run_task(str(self.base), "browser status")
         run_task(str(self.base), "world class readiness")
@@ -165,6 +220,44 @@ class TaskPlannerUpgradeTests(unittest.TestCase):
         self.assertGreaterEqual(status["summary"]["history_count"], 2)
         self.assertIn("web", status["summary"]["routes"])
         self.assertIn("world_class_readiness", status["summary"]["routes"])
+        self.assertIn("browser_status", status["summary"]["route_variants"])
+
+    def test_planner_feedback_status_excludes_legacy_entries_from_active_route_quality(self) -> None:
+        feedback_path = self.base / ".zero_os" / "assistant" / "planner_feedback.json"
+        feedback_path.parent.mkdir(parents=True, exist_ok=True)
+        feedback_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "history": [
+                        {
+                            "time_utc": "2026-03-22T22:31:31.802442+00:00",
+                            "request": "check https://example.com and open https://example.com and click",
+                            "planner_version": "2026.03.22",
+                            "route": "web",
+                            "branch_id": "single_target_actions_0",
+                            "branch_reason": "legacy",
+                            "planner_confidence": 0.955,
+                            "ok": True,
+                            "contradiction_hold": False,
+                            "target_drop_count": 1,
+                            "approval_required_count": 0,
+                            "approval_required_surprise": False,
+                            "rerouted_after_failure": True,
+                        }
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status = planner_feedback_status(str(self.base))
+
+        self.assertEqual(0, status["summary"]["history_count"])
+        self.assertEqual(1, status["summary"]["legacy_history_count"])
+        self.assertEqual({}, status["summary"]["routes"])
 
     def test_build_plan_keeps_file_and_deploy_targets_attached(self) -> None:
         plan = build_plan(

@@ -60,12 +60,54 @@ def _parse_utc(value: str) -> datetime | None:
         return None
 
 
+def _governor_summary(governor: dict | None) -> str:
+    details = dict(governor or {})
+    if not details:
+        return ""
+    call = str(details.get("call", "observe") or "observe")
+    reason = str(details.get("reason", "") or "").strip()
+    blockers = [str(item).strip() for item in list(details.get("blocking_factors", [])) if str(item).strip()]
+    line = f"governor gate: {call}"
+    if reason:
+        line += f" ({reason})"
+    if blockers:
+        line += f" blockers={', '.join(blockers)}"
+    return line
+
+
 def _path_revision(path: Path) -> dict:
     try:
         stat = path.stat()
     except OSError:
         return {"exists": False, "mtime_ns": 0, "size": 0}
     return {"exists": True, "mtime_ns": int(stat.st_mtime_ns), "size": int(stat.st_size)}
+
+
+def _runtime_agent_cache_token(cwd: str) -> dict:
+    state = _load(_runtime_agent_path(cwd), _runtime_agent_default(cwd))
+    pid = int(state.get("worker_pid") or 0)
+    return {
+        "pid_alive": bool(_pid_alive(pid)) if pid else False,
+        "worker_pid": pid,
+        "running": bool(state.get("running", False)),
+        "auto_start_on_login": bool(state.get("auto_start_on_login", False)),
+        "last_heartbeat_utc": str(state.get("last_heartbeat_utc", "")),
+        "last_start_utc": str(state.get("last_start_utc", "")),
+        "installed": bool(state.get("installed", False)),
+        "poll_interval_seconds": int(state.get("poll_interval_seconds", 30) or 30),
+    }
+
+
+def _runtime_loop_cache_token(cwd: str) -> dict:
+    state = _load(_runtime_loop_path(cwd), _runtime_loop_default())
+    return {
+        "enabled": bool(state.get("enabled", False)),
+        "interval_seconds": int(state.get("interval_seconds", 180) or 180),
+        "next_run_utc": str(state.get("next_run_utc", "")),
+        "last_run_utc": str(state.get("last_run_utc", "")),
+        "last_result_ok": state.get("last_result_ok"),
+        "consecutive_failures": int(state.get("consecutive_failures", 0) or 0),
+    }
 
 
 def _runtime_loop_path(cwd: str) -> Path:
@@ -708,16 +750,20 @@ def zero_ai_runtime_agent_worker_run(cwd: str, poll_seconds: int = 30) -> dict:
 
 
 def _build_runtime_status(cwd: str) -> dict:
+    from zero_os.decision_governor import governor_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.self_derivation_engine import self_derivation_status
+    from zero_os.world_model import world_model_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
     boot_state_registry(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
     from zero_os.zero_engine import zero_engine_status
+    world_model = world_model_status(cwd)
+    governor = governor_status(cwd, world_model=world_model)
     p = _runtime(cwd) / "phase_runtime_status.json"
     if not p.exists():
         return {
@@ -734,6 +780,10 @@ def _build_runtime_status(cwd: str) -> dict:
             "evolution": zero_ai_evolution_status(cwd),
             "self_derivation": self_derivation_status(cwd),
             "source_evolution": zero_ai_source_evolution_status(cwd),
+            "world_model": world_model,
+            "decision_governor": governor,
+            "decision_governor_summary": _governor_summary(governor),
+            "top_level_call": str(governor.get("call", "observe") or "observe"),
         }
     status = _load(p, {"ok": False, "missing": True, "hint": "run: zero ai runtime run"})
     status["state_cache"] = state_cache_status()
@@ -746,6 +796,10 @@ def _build_runtime_status(cwd: str) -> dict:
     status["evolution"] = zero_ai_evolution_status(cwd)
     status["self_derivation"] = self_derivation_status(cwd)
     status["source_evolution"] = zero_ai_source_evolution_status(cwd)
+    status["world_model"] = world_model
+    status["decision_governor"] = governor
+    status["decision_governor_summary"] = _governor_summary(governor)
+    status["top_level_call"] = str(governor.get("call", "observe") or "observe")
     return status
 
 
@@ -758,6 +812,9 @@ def zero_ai_runtime_status(cwd: str) -> dict:
         {
             "phase_runtime": _path_revision(runtime_dir / "phase_runtime_status.json"),
             "zero_engine": _path_revision(runtime_dir / "zero_engine_status.json"),
+            "world_model": _path_revision(runtime_dir / "world_model_latest.json"),
+            "runtime_agent": _runtime_agent_cache_token(cwd),
+            "runtime_loop": _runtime_loop_cache_token(cwd),
             "self_derivation_memory": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "memory.json"),
             "self_derivation_latest": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "latest.json"),
         },
@@ -876,8 +933,15 @@ def zero_ai_runtime_loop_run(cwd: str) -> dict:
     return zero_ai_runtime_loop_tick(cwd, force=True)
 
 
-def zero_ai_runtime_run(cwd: str) -> dict:
+def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> dict:
+    from zero_os.approval_workflow import status as approval_status
+    from zero_os.assistant_job_runner import status as job_status
+    from zero_os.code_workbench import code_workbench_status
+    from zero_os.decision_governor import governor_decide
+    from zero_os.recovery import zero_ai_backup_status
     from zero_os.runtime_subsystem_registry import run_runtime_subsystems
+    from zero_os.self_continuity import zero_ai_self_continuity_status
+    from zero_os.world_model import build_world_model, persist_world_model
 
     boot_state_registry(cwd)
     phase8 = consciousness_architecture_phase8_status()
@@ -1001,13 +1065,20 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         2,
     )
     status["runtime_ready"] = status["runtime_score"] == 100.0
-    runtime_subsystems = run_runtime_subsystems(cwd)
+    runtime_subsystems = run_runtime_subsystems(cwd, context={"skip_autonomy_background": bool(skip_autonomy_background)})
     status.update(dict(runtime_subsystems.get("updates") or {}))
     status["runtime_subsystems"] = {
         "adapter_count": int(runtime_subsystems.get("adapter_count", 0) or 0),
         "adapter_names": list(runtime_subsystems.get("adapter_names") or []),
     }
     status["runtime_checks"].update(dict(runtime_subsystems.get("runtime_checks") or {}))
+    status["runtime_loop"] = zero_ai_runtime_loop_status(cwd)
+    status["runtime_agent"] = zero_ai_runtime_agent_status(cwd)
+    status["continuity"] = zero_ai_self_continuity_status(cwd)
+    status["recovery"] = zero_ai_backup_status(cwd)
+    status["code_workbench"] = code_workbench_status(cwd)
+    status["approvals"] = approval_status(cwd)
+    status["jobs"] = job_status(cwd)
 
     status["runtime_score"] = round(
         (
@@ -1018,6 +1089,31 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         2,
     )
     status["runtime_ready"] = status["runtime_score"] == 100.0
+    world_model = build_world_model(
+        cwd,
+        sources={
+            "runtime": status,
+            "runtime_loop": status["runtime_loop"],
+            "runtime_agent": status["runtime_agent"],
+            "continuity": status["continuity"],
+            "recovery": status["recovery"],
+            "pressure": dict(runtime_subsystems.get("context", {}).get("pressure") or {}),
+            "control_workflows": status.get("control_workflows", {}),
+            "capability_control_map": status.get("capability_control_map", {}),
+            "zero_engine": status.get("zero_engine", {}),
+            "self_derivation": status.get("self_derivation", {}),
+            "evolution": status.get("evolution", {}),
+            "source_evolution": status.get("source_evolution", {}),
+            "code_workbench": status["code_workbench"],
+            "approvals": status["approvals"],
+            "jobs": status["jobs"],
+        },
+    )
+    governor = governor_decide(cwd, world_model=world_model)
+    status["world_model"] = world_model
+    status["decision_governor"] = governor
+    status["decision_governor_summary"] = _governor_summary(governor)
+    status["top_level_call"] = str(governor.get("call", "observe") or "observe")
     # refresh benchmark with final runtime score
     _benchmark_regression(
         cwd,
@@ -1029,8 +1125,9 @@ def zero_ai_runtime_run(cwd: str) -> dict:
         },
     )
     update_state_store(cwd, "phase_runtime_status", lambda current: dict(status))
+    persist_world_model(cwd, world_model)
     _flush_runtime_state()
-    flush_state_registry(cwd, names=["phase_runtime_status", "zero_engine_status"])
+    flush_state_registry(cwd, names=["phase_runtime_status", "zero_engine_status", "world_model_latest"])
     status["state_cache"] = state_cache_status()
     status["state_registry"] = state_registry_status(cwd)
     return status

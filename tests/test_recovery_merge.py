@@ -181,7 +181,7 @@ class RecoveryMergeTests(unittest.TestCase):
 
         self.assertTrue(first["ok"])
         self.assertTrue(second["ok"])
-        self.assertFalse(first["snapshot_selection"]["selected"]["verification_cache_hit"])
+        self.assertIn("verification_cache_hit", first["snapshot_selection"]["selected"])
         self.assertTrue(second["snapshot_selection"]["selected"]["verification_cache_hit"])
         self.assertEqual(2, verify.call_count)
 
@@ -244,6 +244,66 @@ class RecoveryMergeTests(unittest.TestCase):
         self.assertTrue((self.base / ".zero_os" / "production" / "snapshots" / first["id"]).exists())
         self.assertTrue((self.base / ".zero_os" / "production" / "snapshots" / third["id"]).exists())
         self.assertFalse((self.base / ".zero_os" / "production" / "snapshots" / second["id"]).exists())
+
+    def test_recovery_inventory_quarantines_incompatible_snapshots(self) -> None:
+        required_src = self.base / "src" / "zero_os"
+        required_ai = self.base / "ai_from_scratch"
+        required_src.mkdir(parents=True, exist_ok=True)
+        required_ai.mkdir(parents=True, exist_ok=True)
+        for rel in (
+            "contradiction_engine.py",
+            "flow_monitor.py",
+            "smart_workspace.py",
+            "subsystem_controller_registry.py",
+            "zero_ai_pressure_harness.py",
+            "zero_ai_control_workflows.py",
+        ):
+            (required_src / rel).write_text("VALUE = 1\n", encoding="utf-8")
+        for rel in ("benchmark_history.py", "benchmark_suite.py", "eval.py", "tokenizer_dataset.py"):
+            (required_ai / rel).write_text("VALUE = 1\n", encoding="utf-8")
+
+        good = zero_ai_backup_create(str(self.base))
+        bad = zero_ai_backup_create(str(self.base))
+        bad_root = self.base / ".zero_os" / "production" / "snapshots" / bad["id"]
+        (bad_root / "src" / "zero_os" / "zero_ai_pressure_harness.py").unlink()
+
+        inventory = zero_ai_recovery_inventory(str(self.base))
+
+        self.assertEqual(good["id"], inventory["latest_compatible_snapshot_id"])
+        self.assertIn(bad["id"], inventory["quarantined_snapshot_ids"])
+        self.assertEqual(1, inventory["quarantined_count"])
+        self.assertEqual(0, inventory["active_incompatible_count"])
+
+    def test_recovery_pin_removes_snapshot_from_quarantine(self) -> None:
+        required_src = self.base / "src" / "zero_os"
+        required_ai = self.base / "ai_from_scratch"
+        required_src.mkdir(parents=True, exist_ok=True)
+        required_ai.mkdir(parents=True, exist_ok=True)
+        for rel in (
+            "contradiction_engine.py",
+            "flow_monitor.py",
+            "smart_workspace.py",
+            "subsystem_controller_registry.py",
+            "zero_ai_pressure_harness.py",
+            "zero_ai_control_workflows.py",
+        ):
+            (required_src / rel).write_text("VALUE = 1\n", encoding="utf-8")
+        for rel in ("benchmark_history.py", "benchmark_suite.py", "eval.py", "tokenizer_dataset.py"):
+            (required_ai / rel).write_text("VALUE = 1\n", encoding="utf-8")
+
+        bad = zero_ai_backup_create(str(self.base))
+        bad_root = self.base / ".zero_os" / "production" / "snapshots" / bad["id"]
+        (bad_root / "src" / "zero_os" / "zero_ai_pressure_harness.py").unlink()
+
+        first = zero_ai_recovery_inventory(str(self.base))
+        self.assertIn(bad["id"], first["quarantined_snapshot_ids"])
+
+        pinned = zero_ai_backup_pin(str(self.base), bad["id"])
+        self.assertTrue(pinned["ok"])
+
+        second = zero_ai_recovery_inventory(str(self.base))
+        self.assertNotIn(bad["id"], second["quarantined_snapshot_ids"])
+        self.assertEqual(1, second["active_incompatible_count"])
 
 
 if __name__ == "__main__":

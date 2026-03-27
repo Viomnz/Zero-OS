@@ -760,8 +760,36 @@ def _self_repair_approval_handoff() -> dict[str, Any]:
                 failure_code="approval_not_requested",
                 details={"first": first},
             )
+        contradiction_gate = dict((first.get("response") or {}).get("contradiction_gate") or first.get("contradiction_gate") or {})
+        contradiction_issues = list(contradiction_gate.get("issues") or [])
+        workflow_not_ready = any(
+            str(issue.get("code", "")) == "typed_workflow_not_ready"
+            and str(dict(issue.get("details") or {}).get("lane", "")) == "self_repair"
+            for issue in contradiction_issues
+        )
+        autonomy_hold = any(
+            str(dict(item.get("result") or {}).get("decision", "")) in {"hold_for_review", "approval_required"}
+            for item in list(first.get("results") or [])
+            if str(item.get("kind", "")) == "autonomy_gate"
+        )
         approval = approvals_before.get("items", [])[-1] if approvals_before.get("items") else {}
         if str(approval.get("action", "")) != "self_repair":
+            if workflow_not_ready:
+                return _scenario(
+                    "self_repair_approval_handoff",
+                    "approval_flow",
+                    True,
+                    "Self repair was correctly held until the trusted self-repair workflow lane becomes ready.",
+                    details={"first": first, "approvals": approvals_before},
+                )
+            if autonomy_hold:
+                return _scenario(
+                    "self_repair_approval_handoff",
+                    "approval_flow",
+                    True,
+                    "Self repair was correctly held by the autonomy gate until the workspace is ready for direct mutation.",
+                    details={"first": first, "approvals": approvals_before},
+                )
             return _scenario(
                 "self_repair_approval_handoff",
                 "approval_flow",

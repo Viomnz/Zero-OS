@@ -21,6 +21,7 @@ _DEFAULT_ACTION_TIERS = {
     "store_status": "safe_auto",
     "api_request": "safe_auto",
     "api_workflow": "safe_auto",
+    "code_change": "guarded_auto",
     "browser_action": "approval_required",
     "store_install": "approval_required",
     "recover": "approval_required",

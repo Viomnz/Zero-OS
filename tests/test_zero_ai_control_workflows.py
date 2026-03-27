@@ -84,6 +84,29 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         self.assertFalse(first["fast_path_cache"]["hit"])
         self.assertTrue(second["fast_path_cache"]["hit"])
 
+    def test_status_recomputes_when_recovery_snapshot_index_changes(self) -> None:
+        first = zero_ai_control_workflows_status(str(self.base))
+
+        snapshots_root = self.base / ".zero_os" / "production" / "snapshots"
+        snapshots_root.mkdir(parents=True, exist_ok=True)
+        (snapshots_root / "index.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "latest_compatible_snapshot_id": "snap-good",
+                    "quarantined_snapshot_ids": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        second = zero_ai_control_workflows_status(str(self.base))
+
+        self.assertFalse(first["fast_path_cache"]["hit"])
+        self.assertFalse(second["fast_path_cache"]["hit"])
+
     def test_browser_workflow_runs_canary_backed_open_and_action(self) -> None:
         with patch("zero_os.browser_session_connector.webbrowser.open", return_value=True):
             opened = zero_ai_control_workflow_browser_open(str(self.base), "https://github.com/Viomnz/Zero-OS")
@@ -123,6 +146,27 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         self.assertEqual("recovery", result["workflow"])
         self.assertTrue(result["result"]["recovery"]["ok"])
 
+    def test_recovery_workflow_prefers_latest_compatible_snapshot(self) -> None:
+        with (
+            patch(
+                "zero_os.recovery.zero_ai_backup_status",
+                return_value={
+                    "ok": True,
+                    "snapshot_count": 2,
+                    "latest_snapshot": "snap_bad",
+                    "compatible_count": 1,
+                    "latest_compatible_snapshot_id": "snap_good",
+                    "preferred_snapshot_id": "snap_good",
+                },
+            ),
+            patch("zero_os.recovery.zero_ai_recover", return_value={"ok": True, "snapshot_used": "snap_good"}),
+        ):
+            result = zero_ai_control_workflow_recover(str(self.base), "latest")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("snap_good", result["result"]["snapshot_used"])
+        self.assertTrue(result["canary"]["checks"]["compatible_snapshot_available"])
+
     def test_self_repair_workflow_runs_canary_backed_repair(self) -> None:
         result = zero_ai_control_workflow_self_repair(str(self.base))
 
@@ -130,6 +174,29 @@ class ZeroAiControlWorkflowTests(unittest.TestCase):
         self.assertTrue(result["canary"]["ok"])
         self.assertEqual("self_repair", result["workflow"])
         self.assertIn("repair", result["result"])
+
+    def test_self_repair_workflow_requires_compatible_snapshot(self) -> None:
+        with (
+            patch(
+                "zero_os.recovery.zero_ai_backup_status",
+                return_value={
+                    "ok": True,
+                    "snapshot_count": 2,
+                    "latest_snapshot": "snap_bad",
+                    "compatible_count": 1,
+                    "latest_compatible_snapshot_id": "snap_good",
+                    "preferred_snapshot_id": "snap_good",
+                },
+            ),
+            patch("zero_os.self_continuity.zero_ai_self_continuity_status", return_value={"continuity": {"same_system": True}, "contradiction_detection": {"has_contradiction": False}}),
+            patch("zero_os.readiness.os_readiness", return_value={"score": 100}),
+            patch("zero_os.self_repair.self_repair_run", return_value={"ok": True, "triad_ok": True, "readiness_after": 100}),
+        ):
+            result = zero_ai_control_workflow_self_repair(str(self.base))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("snap_good", result["canary"]["snapshot_id"])
+        self.assertTrue(result["canary"]["checks"]["compatible_snapshot_available"])
 
 
 if __name__ == "__main__":

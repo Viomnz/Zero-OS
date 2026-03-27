@@ -49,6 +49,11 @@ def _store_specs(cwd: str) -> dict[str, dict[str, Any]]:
             "default": {},
             "hot": True,
         },
+        "world_model_latest": {
+            "path": runtime / "world_model_latest.json",
+            "default": {},
+            "hot": True,
+        },
         "workspace_scan_snapshot": {
             "path": runtime / "workspace_scan_snapshot.json",
             "default": {},

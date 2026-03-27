@@ -59,6 +59,10 @@ def _self_mod_guard_path(cwd: str) -> Path:
     return _runtime_dir(cwd) / "self_modification_guard.json"
 
 
+def _control_workflows_path(cwd: str) -> Path:
+    return _assistant_dir(cwd) / "control_workflows.json"
+
+
 def _benchmark_dashboard_status_api(cwd: str):
     project_root = Path(__file__).resolve().parents[2]
     workspace_root = Path(cwd).resolve()
@@ -81,6 +85,21 @@ def _policy_decision(policy: dict, action_kind: str) -> str:
     if tier == "observe_only":
         return "observe_only"
     return "autonomous"
+
+
+def _governor_summary(governor: dict | None) -> str:
+    details = dict(governor or {})
+    if not details:
+        return ""
+    call = str(details.get("call", "observe") or "observe")
+    reason = str(details.get("reason", "") or "").strip()
+    blockers = [str(item).strip() for item in list(details.get("blocking_factors", [])) if str(item).strip()]
+    line = f"governor gate: {call}"
+    if reason:
+        line += f" ({reason})"
+    if blockers:
+        line += f" blockers={', '.join(blockers)}"
+    return line
 
 
 def _capability(
@@ -114,6 +133,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.assistant_job_runner import status as jobs_status
     from zero_os.benchmark_remediation_workflow import status as benchmark_remediation_status
     from zero_os.contradiction_engine import contradiction_engine_status
+    from zero_os.decision_governor import governor_status
     from zero_os.flow_monitor import flow_status
     from zero_os.general_agent_orchestrator import general_agent_orchestrator_status
     from zero_os.internet_capability import internet_capability_status
@@ -127,11 +147,15 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     from zero_os.task_planner import planner_feedback_status
     from zero_os.self_derivation_engine import self_derivation_status
     from zero_os.zero_ai_pressure_harness import pressure_harness_status
-    from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
+    from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_refresh
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
     runtime_status = _load(_runtime_status_path(cwd), {})
+    runtime_governor = dict(runtime_status.get("decision_governor") or {})
+    if not runtime_governor:
+        runtime_governor = dict(governor_status(cwd, world_model=dict(runtime_status.get("world_model") or {})) or {})
+    runtime_governor_summary = str(runtime_status.get("decision_governor_summary", "") or _governor_summary(runtime_governor))
     runtime_self_derivation_background = dict(runtime_status.get("self_derivation_background") or {})
     goals_state = _load(_goals_path(cwd), {"goals": []})
     autonomy_loop = _load(_autonomy_loop_path(cwd), {"enabled": False, "interval_seconds": 360})
@@ -148,7 +172,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
     continuity = zero_ai_self_continuity_status(cwd)
-    workflows = zero_ai_control_workflows_status(cwd)
+    workflows = zero_ai_control_workflows_refresh(cwd)
     evolution = zero_ai_evolution_status(cwd)
     source_evolution = zero_ai_source_evolution_status(cwd)
     expansion_protocol = capability_expansion_protocol_status(cwd)
@@ -186,6 +210,9 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     store_install_workflow = dict((workflows.get("lanes") or {}).get("store_install") or {})
     recovery_workflow = dict((workflows.get("lanes") or {}).get("recovery") or {})
     self_repair_workflow = dict((workflows.get("lanes") or {}).get("self_repair") or {})
+    recovery_quarantined_snapshot_count = int(recovery_workflow.get("quarantined_snapshot_count", 0) or 0)
+    recovery_active_incompatible_snapshot_count = int(recovery_workflow.get("active_incompatible_snapshot_count", 0) or 0)
+    recovery_trusted_snapshot_count = int(recovery_workflow.get("trusted_snapshot_count", 0) or 0)
 
     browser_control = str(browser_workflow.get("control_level") or _policy_decision(policy, "browser_action"))
     store_install_control = str(store_install_workflow.get("control_level") or _policy_decision(policy, "store_install"))
@@ -193,6 +220,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     self_repair_control = str(self_repair_workflow.get("control_level") or _policy_decision(policy, "self_repair"))
     planner_feedback_summary = dict(planner_feedback.get("summary") or {})
     planner_feedback_routes = dict(planner_feedback_summary.get("routes") or {})
+    planner_feedback_route_variants = dict(planner_feedback_summary.get("route_variants") or {})
     planner_history_count = int(planner_feedback_summary.get("history_count", 0) or 0)
     derivation_strategy_freshness_score = float(self_derivation.get("strategy_freshness_score", 0.0) or 0.0)
     derivation_stale_strategy_count = int(self_derivation.get("stale_strategy_count", 0) or 0)
@@ -265,6 +293,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
     )
     benchmark_status_cache_total_count = 3
     worst_planner_route = ""
+    worst_planner_route_variant = ""
     worst_target_drop = -1.0
     worst_hold = -1.0
     for route_name, metrics in planner_feedback_routes.items():
@@ -274,6 +303,19 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
             worst_planner_route = str(route_name)
             worst_target_drop = target_drop_rate
             worst_hold = contradiction_hold_rate
+    worst_variant_target_drop = -1.0
+    worst_variant_hold = -1.0
+    for route_variant_name, metrics in planner_feedback_route_variants.items():
+        target_drop_rate = float(metrics.get("target_drop_rate", 0.0) or 0.0)
+        contradiction_hold_rate = float(metrics.get("contradiction_hold_rate", 0.0) or 0.0)
+        if (target_drop_rate + contradiction_hold_rate) > (worst_variant_target_drop + worst_variant_hold):
+            worst_planner_route_variant = str(route_variant_name)
+            worst_variant_target_drop = target_drop_rate
+            worst_variant_hold = contradiction_hold_rate
+    if max(0.0, worst_target_drop) + max(0.0, worst_hold) <= 0.0:
+        worst_planner_route = ""
+    if max(0.0, worst_variant_target_drop) + max(0.0, worst_variant_hold) <= 0.0:
+        worst_planner_route_variant = ""
     planner_route_quality_score = 100.0
     if planner_history_count > 0:
         planner_route_quality_score = round(max(0.0, 100.0 - ((max(0.0, worst_target_drop) + max(0.0, worst_hold)) * 50.0)), 2)
@@ -289,6 +331,23 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
             action_kind="run_runtime",
             notes="Zero AI can run the main runtime health and orchestration pass without approval.",
             evidence={"runtime_ready": runtime_ready, "runtime_score": runtime_score},
+        ),
+        _capability(
+            "decision_governor",
+            "Decision governor",
+            "runtime",
+            "autonomous",
+            active=bool(runtime_governor),
+            ready=bool(runtime_governor),
+            action_kind=str(runtime_governor.get("call", "observe") or "observe"),
+            notes="Summarizes the current top-level call Zero AI would make before mutation based on runtime, continuity, approvals, and pressure.",
+            evidence={
+                "call": str(runtime_governor.get("call", "observe") or "observe"),
+                "mode": str(runtime_governor.get("mode", "normal") or "normal"),
+                "reason": str(runtime_governor.get("reason", "") or ""),
+                "blocking_factors": list(runtime_governor.get("blocking_factors", [])),
+                "summary": runtime_governor_summary,
+            },
         ),
         _capability(
             "background_agent",
@@ -581,7 +640,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
             "Approval gate state",
             "approval",
             "autonomous",
-            active=bool(approvals.get("pending_count", 0)),
+            active=bool(approvals.get("ok", False)),
             ready=bool(approvals.get("ok", False)),
             action_kind="approval_status",
             notes="Tracks approval queue state and whether recent approval status polls hit cache or recomputed.",
@@ -752,6 +811,10 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
         highest_value_steps.append("Maintain the pressure harness and keep feeding real incidents back into the survivability suite.")
     if planner_history_count == 0:
         highest_value_steps.append("Run more planner-driven tasks so Zero AI has route-quality evidence, not just capability claims.")
+    elif worst_planner_route_variant and (worst_variant_target_drop > 0.0 or worst_variant_hold > 0.0):
+        highest_value_steps.append(
+            f"Lower contradiction holds and dropped targets on planner route variant `{worst_planner_route_variant}` before broadening that lane further."
+        )
     elif worst_planner_route and (worst_target_drop > 0.0 or worst_hold > 0.0):
         highest_value_steps.append(
             f"Lower contradiction holds and dropped targets on planner route `{worst_planner_route}` before broadening that lane further."
@@ -764,6 +827,10 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
         highest_value_steps.append("Run fresh planner/execution work so self-derivation strategy memory reflects current behavior instead of stale history.")
     if derivation_quarantined_strategy_count > 0:
         highest_value_steps.append("Run `zero ai self derivation revalidate` so quarantined strategy memory can re-earn trust through explicit canary checks under the current planner generation.")
+    if recovery_quarantined_snapshot_count > 0:
+        highest_value_steps.append("Prune or review quarantined incompatible recovery snapshots so the recovery lane stays focused on trusted rollback points.")
+    if bool(recovery_workflow) and not bool(recovery_workflow.get("ready", False)):
+        highest_value_steps.append("Restore a compatible recovery baseline before trusting broader self-repair or autonomous recovery mutation.")
     if strategy_trend_direction == "degrading":
         highest_value_steps.append("Stabilize degrading strategy drift before widening autonomy; freshness is falling or quarantines are rising.")
     if not bool(source_evolution.get("expanded_sandbox_patch_lane", False)):
@@ -792,6 +859,7 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
             "active_autonomous_surface_score": active_autonomous_surface_score,
             "planner_feedback_history_count": planner_history_count,
             "planner_feedback_worst_route": worst_planner_route,
+            "planner_feedback_worst_route_variant": worst_planner_route_variant,
             "planner_feedback_target_drop_rate": round(max(0.0, worst_target_drop), 3),
             "planner_feedback_contradiction_hold_rate": round(max(0.0, worst_hold), 3),
             "planner_route_quality_score": planner_route_quality_score,
@@ -834,6 +902,15 @@ def _build_zero_ai_capability_map_status(cwd: str) -> dict:
             "domain_pack_factory_status_cache_hit": domain_pack_factory_status_cache_hit,
             "workflow_status_cache_hit_count": workflow_status_cache_hit_count,
             "workflow_status_cache_total_count": workflow_status_cache_total_count,
+            "governor_call": str(runtime_governor.get("call", "observe") or "observe"),
+            "governor_mode": str(runtime_governor.get("mode", "normal") or "normal"),
+            "governor_reason": str(runtime_governor.get("reason", "") or ""),
+            "governor_blocking_factor_count": len(list(runtime_governor.get("blocking_factors", []))),
+            "governor_blocking_factors": list(runtime_governor.get("blocking_factors", [])),
+            "governor_summary": runtime_governor_summary,
+            "recovery_trusted_snapshot_count": recovery_trusted_snapshot_count,
+            "recovery_quarantined_snapshot_count": recovery_quarantined_snapshot_count,
+            "recovery_active_incompatible_snapshot_count": recovery_active_incompatible_snapshot_count,
         },
         "control_workflows": workflows,
         "capability_expansion_protocol": expansion_protocol,
@@ -862,6 +939,7 @@ def zero_ai_capability_map_status(cwd: str) -> dict:
             "approvals": json_state_revision(_assistant_dir(cwd) / "approvals.json"),
             "communications": json_state_revision(_assistant_dir(cwd) / "communications.json"),
             "calendar_time": json_state_revision(_assistant_dir(cwd) / "calendar_time.json"),
+            "control_workflows": json_state_revision(_control_workflows_path(cwd)),
             "benchmark_remediation_workflow": json_state_revision(_assistant_dir(cwd) / "benchmark_remediation_workflow.json"),
             "benchmark_history": json_state_revision(base / ".zero_os" / "benchmarks" / "model" / "history.jsonl"),
             "benchmark_gate_config": json_state_revision(base / "laws" / "model_benchmark_thresholds.json"),

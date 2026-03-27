@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from zero_os.code_task_lane import parse_code_instruction
 from zero_os.task_planner_parsing import _build_browser_action_target
 from zero_os.task_planner_policy import (
     MUTATION_TOKENS,
@@ -15,7 +16,7 @@ from zero_os.task_planner_policy import (
 
 
 def risk_level_for_kind(kind: str) -> str:
-    if kind in {"recover", "self_repair", "cloud_deploy", "store_install"}:
+    if kind in {"recover", "self_repair", "cloud_deploy", "store_install", "code_change"}:
         return "high"
     if kind in {"browser_action", "browser_open", "github_issue_act", "github_issue_reply_post", "github_pr_act", "github_pr_reply_post"}:
         return "medium"
@@ -25,7 +26,7 @@ def risk_level_for_kind(kind: str) -> str:
 def verification_mode_for_kind(kind: str) -> str:
     if kind in _VERIFICATION_PRIORITY_KINDS:
         return "observe"
-    if kind in {"browser_action", "browser_open", "cloud_deploy", "recover", "self_repair", "store_install"}:
+    if kind in {"browser_action", "browser_open", "cloud_deploy", "recover", "self_repair", "store_install", "code_change"}:
         return "post_action_verification"
     if kind == "autonomy_gate":
         return "gate_only"
@@ -84,6 +85,9 @@ def compose_primary_steps(
     steps: list[dict[str, Any]] = []
     ambiguity_flags = list(initial_ambiguity_flags or [])
     primary_confidence = max(float(resolved.get("primary_confidence", 0.0) or 0.0), 0.0)
+    code_tokens = {"replace", "edit", "update", "modify", "refactor", "write", "change", "patch"}
+    code_mutation_requested = any(token in lowered for token in code_tokens)
+    code_instruction = parse_code_instruction(text) if code_mutation_requested else {"ok": False}
 
     remembered = dict(remembered_plan or {})
     if remembered.get("ok", False):
@@ -210,27 +214,52 @@ def compose_primary_steps(
                 mutation_justification="Explicit store install request with concrete app target.",
             )
         )
-    for item in targets.get("files", []):
-        file_path = str(item["value"])
-        file_command = f"read file {file_path}"
-        if "show file" in lowered:
-            file_command = f"show file {file_path}"
-        elif "inspect file" in lowered:
-            file_command = f"inspect file {file_path}"
-        steps.append(make_step("highway_dispatch", file_command, subgoal_id=item["id"], route_confidence=max(primary_confidence, 0.74), source_of_route="file_target", attached_targets=[item["id"]]))
-    for item in targets.get("file_ranges", []):
-        file_range = dict(item["value"] or {})
-        range_command = f"show file {file_range.get('path', '')} lines {file_range.get('start_line', 0)}-{file_range.get('end_line', 0)}"
+    file_items = list(targets.get("files", []))
+    file_range_items = list(targets.get("file_ranges", []))
+    if code_mutation_requested and (file_items or file_range_items):
+        attached_targets = [str(item["id"]) for item in file_items] + [str(item["id"]) for item in file_range_items]
         steps.append(
             make_step(
-                "highway_dispatch",
-                range_command,
-                subgoal_id=item["id"],
-                route_confidence=max(primary_confidence, 0.76),
-                source_of_route="file_range_target",
-                attached_targets=[item["id"]],
+                "code_change",
+                {
+                    "request": text,
+                    "files": [str(item["value"]) for item in file_items],
+                    "file_ranges": [dict(item["value"] or {}) for item in file_range_items],
+                    "instruction": dict(code_instruction or {}),
+                },
+                subgoal_id="code_change",
+                route_confidence=max(primary_confidence, 0.86 if bool(code_instruction.get("ok", False)) else 0.65),
+                source_of_route="code_mutation_target",
+                attached_targets=attached_targets,
+                justification="Code mutation requested explicitly against scoped file targets.",
+                mutation_requested_explicitly=True,
+                mutation_justification="Explicit code-change request against file targets.",
             )
         )
+        if not bool(code_instruction.get("ok", False)):
+            ambiguity_flags.append("code_instruction_missing")
+    else:
+        for item in file_items:
+            file_path = str(item["value"])
+            file_command = f"read file {file_path}"
+            if "show file" in lowered:
+                file_command = f"show file {file_path}"
+            elif "inspect file" in lowered:
+                file_command = f"inspect file {file_path}"
+            steps.append(make_step("highway_dispatch", file_command, subgoal_id=item["id"], route_confidence=max(primary_confidence, 0.74), source_of_route="file_target", attached_targets=[item["id"]]))
+        for item in file_range_items:
+            file_range = dict(item["value"] or {})
+            range_command = f"show file {file_range.get('path', '')} lines {file_range.get('start_line', 0)}-{file_range.get('end_line', 0)}"
+            steps.append(
+                make_step(
+                    "highway_dispatch",
+                    range_command,
+                    subgoal_id=item["id"],
+                    route_confidence=max(primary_confidence, 0.76),
+                    source_of_route="file_range_target",
+                    attached_targets=[item["id"]],
+                )
+            )
     for item in targets.get("branches", []):
         branch_name = str(item["value"])
         steps.append(

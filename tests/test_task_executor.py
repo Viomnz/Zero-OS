@@ -168,6 +168,101 @@ class TaskExecutorReplanTests(unittest.TestCase):
         self.assertTrue(out["replan"]["applied"])
         self.assertEqual("alt_high_history", out["replan"]["candidate_branch_id"])
 
+    def test_execute_plan_stops_before_mutation_when_governor_blocks(self) -> None:
+        plan = {
+            "intent": {"intent": "web"},
+            "branch": {"id": "primary"},
+            "steps": [{"kind": "browser_open", "target": "https://example.com"}],
+        }
+
+        with patch(
+            "zero_os.task_executor.governor_decide",
+            return_value={"call": "wait_for_user", "mode": "blocked", "reason": "approval pending"},
+        ), patch(
+            "zero_os.task_executor.execute_step",
+            side_effect=AssertionError("execute_step should not run when governor blocks"),
+        ), patch(
+            "zero_os.task_executor.review_run",
+            return_value={"decision": "allow", "contradiction_count": 0},
+        ):
+            out = _execute_plan(str(self.base), "open https://example.com", plan, run_id="run-1")
+
+        self.assertFalse(out["ok"])
+        self.assertEqual("governor_gate", out["results"][0]["kind"])
+        self.assertEqual("governor_blocked", out["results"][0]["reason"])
+        self.assertEqual("wait_for_user", out["governor_gate"]["call"])
+        self.assertIn("governor gate: wait_for_user", out["response"]["summary"])
+        self.assertIn("approval pending", out["response"]["summary"])
+        self.assertEqual("wait_for_user", out["response"]["governor_gate"]["call"])
+
+    def test_execute_with_replan_does_not_reroute_after_governor_block(self) -> None:
+        plan = {"branch": {"id": "primary"}, "steps": [{"kind": "browser_open", "target": "https://example.com"}]}
+        selection = {
+            "discarded_branches": [
+                {
+                    "decision": "allow",
+                    "plan": {"branch": {"id": "minimal_safe"}, "steps": [{"kind": "observe", "target": "status"}]},
+                }
+            ]
+        }
+        initial_out = {
+            "ok": False,
+            "results": [{"ok": False, "kind": "governor_gate", "reason": "governor_blocked"}],
+            "contradiction_gate": {"decision": "allow", "contradiction_count": 0},
+        }
+
+        with patch("zero_os.task_executor._execute_plan", return_value=initial_out) as mock_execute:
+            out = _execute_with_replan(str(self.base), "open https://example.com", plan, selection)
+
+        self.assertEqual(1, mock_execute.call_count)
+        self.assertFalse(out["ok"])
+        self.assertFalse(out["replan"]["attempted"])
+        self.assertEqual("", out["replan"]["trigger"])
+
+    def test_execute_plan_blocks_mutation_when_governor_requires_recovery_stabilization(self) -> None:
+        plan = {
+            "intent": {"intent": "web"},
+            "branch": {"id": "primary"},
+            "steps": [{"kind": "browser_open", "target": "https://example.com"}],
+        }
+
+        with patch(
+            "zero_os.task_executor.governor_decide",
+            return_value={"call": "stabilize_recovery", "mode": "safe", "reason": "trusted recovery baseline missing"},
+        ), patch(
+            "zero_os.task_executor.execute_step",
+            side_effect=AssertionError("execute_step should not run when governor blocks"),
+        ), patch(
+            "zero_os.task_executor.review_run",
+            return_value={"decision": "allow", "contradiction_count": 0},
+        ):
+            out = _execute_plan(str(self.base), "open https://example.com", plan, run_id="run-2")
+
+        self.assertFalse(out["ok"])
+        self.assertEqual("stabilize_recovery", out["governor_gate"]["call"])
+        self.assertEqual("governor_blocked", out["results"][0]["reason"])
+
+    def test_execute_plan_blocks_code_mutation_when_governor_requires_clean_scope(self) -> None:
+        plan = {
+            "intent": {"intent": "code"},
+            "branch": {"id": "primary"},
+            "decision_governor": {"call": "wait_for_clean_scope", "mode": "safe", "reason": "code scope not ready"},
+            "steps": [{"kind": "code_change", "target": {"files": ["README.md"], "request": 'replace "a" with "b" in README.md'}}],
+        }
+
+        with patch(
+            "zero_os.task_executor.execute_step",
+            side_effect=AssertionError("execute_step should not run when code scope is blocked"),
+        ), patch(
+            "zero_os.task_executor.review_run",
+            return_value={"decision": "allow", "contradiction_count": 0},
+        ):
+            out = _execute_plan(str(self.base), 'replace "a" with "b" in README.md', plan, run_id="run-3")
+
+        self.assertFalse(out["ok"])
+        self.assertEqual("wait_for_clean_scope", out["governor_gate"]["call"])
+        self.assertEqual("governor_blocked", out["results"][0]["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -192,9 +192,10 @@ def _load_snapshot_index(cwd: str) -> dict:
     return _load(
         _snapshot_index_path(cwd),
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "pinned_snapshot_ids": [],
             "known_good_snapshot_ids": [],
+            "quarantined_snapshot_ids": [],
             "latest_compatible_snapshot_id": "",
             "updated_utc": "",
         },
@@ -206,6 +207,7 @@ def _snapshot_index_signature(cwd: str) -> dict:
     return {
         "pinned_snapshot_ids": list(index.get("pinned_snapshot_ids", [])),
         "known_good_snapshot_ids": list(index.get("known_good_snapshot_ids", [])),
+        "quarantined_snapshot_ids": list(index.get("quarantined_snapshot_ids", [])),
     }
 
 
@@ -215,17 +217,41 @@ def _save_snapshot_index(cwd: str, payload: dict) -> dict:
     return payload
 
 
-def _update_snapshot_index_if_needed(cwd: str, index: dict, latest_compatible_snapshot_id: str) -> dict:
+def _compute_quarantined_snapshot_ids(index: dict, candidates: list[dict]) -> list[str]:
+    pinned = {str(item) for item in index.get("pinned_snapshot_ids", []) if str(item)}
+    known_good = {str(item) for item in index.get("known_good_snapshot_ids", []) if str(item)}
+    compatible = {str(candidate.get("snapshot_id", "")) for candidate in candidates if bool(candidate.get("compatible", False))}
+    incompatible = {str(candidate.get("snapshot_id", "")) for candidate in candidates if not bool(candidate.get("compatible", False))}
+    existing = {
+        str(item)
+        for item in index.get("quarantined_snapshot_ids", [])
+        if str(item)
+    }
+    known_ids = compatible | incompatible
+    next_ids = ((existing | incompatible) & known_ids) - compatible - pinned - known_good
+    return sorted(next_ids)
+
+
+def _update_snapshot_index_if_needed(
+    cwd: str,
+    index: dict,
+    latest_compatible_snapshot_id: str,
+    quarantined_snapshot_ids: list[str] | None = None,
+) -> dict:
     next_payload = deepcopy(index)
     next_payload["latest_compatible_snapshot_id"] = str(latest_compatible_snapshot_id or "")
+    if quarantined_snapshot_ids is not None:
+        next_payload["quarantined_snapshot_ids"] = list(quarantined_snapshot_ids)
     current_signature = {
         "pinned_snapshot_ids": list(index.get("pinned_snapshot_ids", [])),
         "known_good_snapshot_ids": list(index.get("known_good_snapshot_ids", [])),
+        "quarantined_snapshot_ids": list(index.get("quarantined_snapshot_ids", [])),
         "latest_compatible_snapshot_id": str(index.get("latest_compatible_snapshot_id", "") or ""),
     }
     next_signature = {
         "pinned_snapshot_ids": list(next_payload.get("pinned_snapshot_ids", [])),
         "known_good_snapshot_ids": list(next_payload.get("known_good_snapshot_ids", [])),
+        "quarantined_snapshot_ids": list(next_payload.get("quarantined_snapshot_ids", [])),
         "latest_compatible_snapshot_id": str(next_payload.get("latest_compatible_snapshot_id", "") or ""),
     }
     if current_signature == next_signature and _snapshot_index_path(cwd).exists():
@@ -260,7 +286,11 @@ def zero_ai_recovery_inventory(cwd: str) -> dict:
         index = _load_snapshot_index(cwd)
         latest = snapshot_dirs[0].name if snapshot_dirs else ""
         latest_compatible = compatible[0]["snapshot_id"] if compatible else ""
-        saved_index = _update_snapshot_index_if_needed(cwd, index, latest_compatible)
+        quarantined_snapshot_ids = _compute_quarantined_snapshot_ids(index, candidates)
+        saved_index = _update_snapshot_index_if_needed(cwd, index, latest_compatible, quarantined_snapshot_ids)
+        quarantined_ids = {str(item) for item in saved_index.get("quarantined_snapshot_ids", []) if str(item)}
+        quarantined = [candidate for candidate in incompatible if str(candidate.get("snapshot_id", "")) in quarantined_ids]
+        active_incompatible = [candidate for candidate in incompatible if str(candidate.get("snapshot_id", "")) not in quarantined_ids]
         return {
             "ok": True,
             "snapshot_count": len(candidates),
@@ -270,7 +300,12 @@ def zero_ai_recovery_inventory(cwd: str) -> dict:
             "incompatible_count": len(incompatible),
             "pinned_snapshot_ids": list(saved_index.get("pinned_snapshot_ids", [])),
             "known_good_snapshot_ids": list(saved_index.get("known_good_snapshot_ids", [])),
+            "quarantined_snapshot_ids": list(saved_index.get("quarantined_snapshot_ids", [])),
+            "quarantined_count": len(quarantined),
+            "active_incompatible_count": len(active_incompatible),
             "compatible_snapshots": compatible,
+            "active_incompatible_snapshots": active_incompatible,
+            "quarantined_snapshots": quarantined,
             "incompatible_snapshots": incompatible,
         }
 
@@ -296,6 +331,7 @@ def zero_ai_backup_pin(cwd: str, snapshot_id: str, known_good: bool = False) -> 
     if snapshot_id not in pinned:
         pinned.append(snapshot_id)
     index["pinned_snapshot_ids"] = pinned
+    index["quarantined_snapshot_ids"] = [item for item in list(index.get("quarantined_snapshot_ids", [])) if str(item) != snapshot_id]
     if known_good:
         known_good_ids = list(index.get("known_good_snapshot_ids", []))
         if snapshot_id not in known_good_ids:
@@ -469,6 +505,11 @@ def zero_ai_backup_status(cwd: str) -> dict:
     root = _snapshots_root(cwd)
     snaps = [p for p in root.iterdir() if p.is_dir()] if root.exists() else []
     latest = sorted(snaps, key=lambda x: x.name)[-1].name if snaps else ""
+    inventory = zero_ai_recovery_inventory(cwd)
+    latest_compatible = str(inventory.get("latest_compatible_snapshot_id", "") or "")
+    compatible_count = int(inventory.get("compatible_count", 0) or 0)
+    quarantined_count = int(inventory.get("quarantined_count", 0) or 0)
+    active_incompatible_count = int(inventory.get("active_incompatible_count", 0) or 0)
     cure_backup = Path(cwd).resolve() / ".zero_os" / "backups" / "cure_firewall"
     detected_paths = {
         "snapshot_meta": _find_any(root, ["*/snapshot.json"]),
@@ -477,10 +518,23 @@ def zero_ai_backup_status(cwd: str) -> dict:
     next_priority = []
     if not snaps and not cure_backup.exists() and not detected_paths["snapshot_meta"]:
         next_priority.append("run: zero ai backup create")
+    if snaps and compatible_count <= 0:
+        next_priority.append("restore snapshot trust: create or pin one compatible recovery snapshot")
+    if quarantined_count > 0:
+        next_priority.append("review quarantined incompatible snapshots and prune older recovery noise")
     return {
         "ok": True,
         "snapshot_count": len(snaps),
         "latest_snapshot": latest,
+        "compatible_count": compatible_count,
+        "trusted_snapshot_count": compatible_count,
+        "latest_compatible_snapshot_id": latest_compatible,
+        "preferred_snapshot_id": latest_compatible or latest,
+        "quarantined_snapshot_count": quarantined_count,
+        "active_incompatible_snapshot_count": active_incompatible_count,
+        "quarantined_snapshot_ids": list(inventory.get("quarantined_snapshot_ids", [])),
+        "active_incompatible_snapshot_ids": [item.get("snapshot_id", "") for item in list(inventory.get("active_incompatible_snapshots", []))],
+        "recovery_surface_state": "trusted" if compatible_count > 0 and active_incompatible_count == 0 else "degraded",
         "cure_firewall_backup_exists": cure_backup.exists() or bool(detected_paths["cure_backup"]),
         "cure_firewall_backup_path": str(cure_backup),
         "detected_paths": detected_paths,

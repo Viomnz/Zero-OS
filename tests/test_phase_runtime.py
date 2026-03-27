@@ -99,6 +99,9 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("capability_control_map", runtime)
         self.assertIn("evolution", runtime)
         self.assertIn("source_evolution", runtime)
+        self.assertIn("code_workbench", runtime)
+        self.assertIn("world_model", runtime)
+        self.assertIn("decision_governor", runtime)
         self.assertIn("runtime_subsystems", runtime)
         self.assertTrue(runtime["autonomy"]["ok"])
         self.assertTrue(runtime["autonomy_background"]["ok"])
@@ -119,6 +122,18 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("evolution", saved)
         self.assertIn("self_derivation", saved)
         self.assertIn("source_evolution", saved)
+        self.assertIn("code_workbench", saved)
+        self.assertIn("world_model", saved)
+        self.assertIn("decision_governor", saved)
+        self.assertIn("decision_governor_summary", saved)
+        self.assertEqual(
+            runtime["decision_governor"]["call"],
+            saved["decision_governor"]["call"],
+        )
+        self.assertIn(runtime["decision_governor"]["call"], saved["decision_governor_summary"])
+        world_model_store = get_state_store(str(self.base), "world_model_latest", {})
+        self.assertTrue(world_model_store.get("ok"))
+        self.assertEqual(saved["world_model"]["fact_count"], world_model_store["fact_count"])
 
     def test_runtime_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
         zero_ai_identity(str(self.base))

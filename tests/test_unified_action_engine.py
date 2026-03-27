@@ -121,6 +121,64 @@ class UnifiedActionEngineApprovalTests(unittest.TestCase):
         self.assertEqual("safe_mode_requires_specific_selector", result["reason"])
         self.assertEqual(0, mock_act.call_count)
 
+    @patch(
+        "zero_os.unified_action_engine.governor_decide",
+        return_value={"call": "wait_for_user", "mode": "blocked", "reason": "approval pending"},
+    )
+    @patch("zero_os.unified_action_engine.browser_dom_act", return_value={"ok": True, "action": {"url": "https://example.com"}})
+    def test_browser_action_honors_governor_block_before_execution(self, mock_act, _mock_governor) -> None:
+        result = execute_step(
+            str(self.base),
+            {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "#go"}},
+            run_id="run-1",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual("governor_blocked", result["reason"])
+        self.assertEqual("wait_for_user", result["governor"]["call"])
+        self.assertEqual(0, mock_act.call_count)
+
+    @patch(
+        "zero_os.unified_action_engine.governor_decide",
+        return_value={"call": "stabilize_recovery", "mode": "safe", "reason": "trusted recovery baseline missing"},
+    )
+    @patch("zero_os.unified_action_engine.browser_dom_act", return_value={"ok": True, "action": {"url": "https://example.com"}})
+    def test_browser_action_honors_recovery_stabilization_governor_block(self, mock_act, _mock_governor) -> None:
+        result = execute_step(
+            str(self.base),
+            {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "#go"}},
+            run_id="run-2",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual("governor_blocked", result["reason"])
+        self.assertEqual("stabilize_recovery", result["governor"]["call"])
+        self.assertEqual(0, mock_act.call_count)
+
+    @patch("zero_os.unified_action_engine.autonomy_evaluate", return_value={"decision": "allow"})
+    def test_code_change_executes_bounded_replace_flow(self, _mock_gate) -> None:
+        source_dir = self.base / "src"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        source_path = source_dir / "sample.py"
+        source_path.write_text('VALUE = "alpha"\n', encoding="utf-8")
+
+        result = execute_step(
+            str(self.base),
+            {
+                "kind": "code_change",
+                "target": {
+                    "request": 'replace "alpha" with "beta" in src/sample.py',
+                    "files": ["src/sample.py"],
+                    "instruction": {"ok": True, "operation": "replace", "old": "alpha", "new": "beta"},
+                },
+            },
+            run_id="run-3",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual('VALUE = "beta"\n', source_path.read_text(encoding="utf-8"))
+        self.assertEqual("replace_first", result["result"]["candidate"])
+
 
 if __name__ == "__main__":
     unittest.main()

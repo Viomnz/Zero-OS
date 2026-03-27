@@ -1169,6 +1169,7 @@ public partial class MainWindow : Window
         var runtimeStatus = _backend.RunTask("zero ai runtime status");
         var runtimeAgentInstalled = false;
         var runtimeAgentRunning = false;
+        var governorAlert = "";
         if (runtimeStatus.Payload.HasValue && runtimeStatus.Payload.Value.ValueKind == JsonValueKind.Object)
         {
             var payload = runtimeStatus.Payload.Value;
@@ -1177,12 +1178,24 @@ public partial class MainWindow : Window
                 runtimeAgentInstalled = ReadBool(runtimeAgent, "installed");
                 runtimeAgentRunning = ReadBool(runtimeAgent, "running");
             }
+
+            governorAlert = BuildGovernorTopAlert(payload);
         }
 
         var lines = new List<string>
         {
             "Quick Start Wizard",
             "",
+        };
+
+        if (!string.IsNullOrWhiteSpace(governorAlert))
+        {
+            lines.Add(governorAlert);
+            lines.Add("");
+        }
+
+        lines.AddRange(new[]
+        {
             "Fastest path: Download Native App -> Run First-Run -> Open Shell UI",
             "",
             $"1. Repository available: {(Directory.Exists(_repoRoot) ? "yes" : "no")}",
@@ -1206,7 +1219,7 @@ public partial class MainWindow : Window
             "Step 4. Install + Start Background Agent",
             "Step 5. Know Everything",
             "Step 6. Complete All"
-        };
+        });
 
         QuickStartStatusBox.Text = string.Join(Environment.NewLine, lines);
     }
@@ -1386,6 +1399,48 @@ public partial class MainWindow : Window
         return command.Trim().StartsWith("plugin ", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string BuildGovernorTopAlert(JsonElement payload)
+    {
+        payload.TryGetProperty("decision_governor", out var governor);
+        var call = ReadString(governor, "call");
+        var summary = ReadString(governor, "summary");
+        var reason = ReadString(governor, "reason");
+        var blockers = ReadStringArray(governor, "blocking_factors");
+
+        if (string.IsNullOrWhiteSpace(summary)
+            && payload.TryGetProperty("decision_governor_summary", out var summaryElement)
+            && summaryElement.ValueKind == JsonValueKind.String)
+        {
+            summary = summaryElement.GetString() ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(call)
+            || call.Equals("observe", StringComparison.OrdinalIgnoreCase)
+            || call.Equals("act", StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        var title = call switch
+        {
+            "wait_for_user" => "Top alert: Approval blocks autonomous action",
+            "repair_continuity" => "Top alert: Continuity repair required",
+            "run_runtime" => "Top alert: Runtime health pass required",
+            "stabilize_recovery" => "Top alert: Trusted recovery baseline required",
+            _ => $"Top alert: Governor hold ({call})",
+        };
+
+        var detail = !string.IsNullOrWhiteSpace(summary)
+            ? summary
+            : (!string.IsNullOrWhiteSpace(reason) ? reason : $"Governor call: {call}");
+        if (!string.IsNullOrWhiteSpace(blockers))
+        {
+            detail += Environment.NewLine + $"Blocking factors: {blockers}";
+        }
+
+        return title + Environment.NewLine + detail;
+    }
+
     private static string BuildRuntimeContinuitySummary(NativeCommandResult result)
     {
         if (!result.Payload.HasValue || result.Payload.Value.ValueKind != JsonValueKind.Object)
@@ -1424,11 +1479,22 @@ public partial class MainWindow : Window
         background.TryGetProperty("continuity_governance", out var governance);
         background.TryGetProperty("jobs", out var jobs);
         background.TryGetProperty("tick", out var tick);
+        var governorAlert = BuildGovernorTopAlert(payload);
 
         var lines = new List<string>
         {
             "Runtime Continuity Background",
-            "",
+            ""
+        };
+
+        if (!string.IsNullOrWhiteSpace(governorAlert))
+        {
+            lines.Add(governorAlert);
+            lines.Add("");
+        }
+
+        lines.AddRange(new[]
+        {
             $"Runtime ready: {ReadBool(payload, "runtime_ready")}",
             $"Runtime score: {ReadNumber(payload, "runtime_score")}",
             $"Last runtime status: {ReadString(payload, "time_utc")}",
@@ -1476,7 +1542,7 @@ public partial class MainWindow : Window
             $"Source evolution action: {ReadString(sourceEvolution, "recommended_action")}",
             $"Source evolution review: {ReadNestedString(sourceEvolution, "proposal", "patch_review_summary")}",
             $"Source evolution changes: {ReadNestedStringArray(sourceEvolution, "proposal", "patch_review_headlines")}"
-        };
+        });
 
         if (capabilityMap.ValueKind == JsonValueKind.Object)
         {
@@ -1717,6 +1783,11 @@ public partial class MainWindow : Window
             lines.Add($"- General agent: {(ReadNestedBool(capability, "summary", "general_agent_status_cache_hit") ? "cache" : "recompute")}");
             lines.Add($"- Expansion protocol: {(ReadNestedBool(capability, "summary", "capability_expansion_protocol_status_cache_hit") ? "cache" : "recompute")}");
             lines.Add($"- Domain-pack factory: {(ReadNestedBool(capability, "summary", "domain_pack_factory_status_cache_hit") ? "cache" : "recompute")}");
+            lines.Add("Decision governor:");
+            lines.Add($"- Call: {ReadNestedString(capability, "summary", "governor_call")}");
+            lines.Add($"- Mode: {ReadNestedString(capability, "summary", "governor_mode")}");
+            lines.Add($"- Summary: {ReadNestedString(capability, "summary", "governor_summary")}");
+            lines.Add($"- Blocking factors: {ReadNestedStringArray(capability, "summary", "governor_blocking_factors")}");
             if (capability.TryGetProperty("capabilities", out var capabilityItems) && capabilityItems.ValueKind == JsonValueKind.Array)
             {
                 JsonElement derivationCapability = default;

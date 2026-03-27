@@ -1,6 +1,21 @@
 from __future__ import annotations
 
 
+def _format_governor_summary(governor: dict) -> str:
+    details = dict(governor or {})
+    if not details:
+        return ""
+    call = str(details.get("call", "observe") or "observe")
+    reason = str(details.get("reason", "") or "").strip()
+    blockers = [str(item).strip() for item in list(details.get("blocking_factors", [])) if str(item).strip()]
+    line = f"governor gate: {call}"
+    if reason:
+        line += f" ({reason})"
+    if blockers:
+        line += f" blockers={', '.join(blockers)}"
+    return line
+
+
 def synthesize_result(run: dict) -> dict:
     lines = []
     contradiction_gate = dict(run.get("contradiction_gate") or {})
@@ -15,6 +30,10 @@ def synthesize_result(run: dict) -> dict:
     replan = dict(run.get("replan") or {})
     if bool(replan.get("applied", False)):
         lines.append(f"replan: switched to {replan.get('candidate_branch_id', 'alternate')} after {replan.get('trigger', 'failure')}")
+    governor_gate = dict(run.get("governor_gate") or {})
+    governor_summary = _format_governor_summary(governor_gate)
+    if governor_summary:
+        lines.append(governor_summary)
     for item in run["results"]:
         kind = item.get("kind", "step")
         if item.get("skipped", False) and str(item.get("reason", "")) == "conditional_not_triggered":
@@ -23,6 +42,10 @@ def synthesize_result(run: dict) -> dict:
             lines.append(f"{kind}: failed, then continued through conditional fallback")
             continue
         if not item.get("ok", False):
+            if kind == "governor_gate":
+                item_governor_summary = _format_governor_summary(dict(item.get("governor") or {}))
+                lines.append(item_governor_summary or "governor gate: blocked")
+                continue
             lines.append(f"{kind}: failed")
             continue
         result = item.get("result", {})
@@ -88,4 +111,11 @@ def synthesize_result(run: dict) -> dict:
             lines.append(f"highway: {result.get('capability', 'unknown')}")
         else:
             lines.append(f"{kind}: ok")
-    return {"ok": run.get("ok", False), "summary": "\n".join(lines), "contradiction_gate": contradiction_gate}
+    response = {
+        "ok": run.get("ok", False),
+        "summary": "\n".join(lines),
+        "contradiction_gate": contradiction_gate,
+    }
+    if governor_gate:
+        response["governor_gate"] = governor_gate
+    return response

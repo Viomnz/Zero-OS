@@ -18,6 +18,14 @@ MUTATION_TOKENS = {
     "post",
     "reply",
     "act",
+    "replace",
+    "edit",
+    "update",
+    "modify",
+    "refactor",
+    "write",
+    "change",
+    "patch",
 }
 READ_ONLY_TOKENS = {
     "check",
@@ -50,6 +58,14 @@ ACTION_TOKENS = {
     "reply",
     "act",
     "plan",
+    "replace",
+    "edit",
+    "update",
+    "modify",
+    "refactor",
+    "write",
+    "change",
+    "patch",
 }
 
 
@@ -371,8 +387,9 @@ def extract_request_targets(request: str) -> dict[str, Any]:
         _add_target(targets, "urls", url, label=url)
 
     file_patterns = (
-        r"(?:read|show|inspect|open)\s+file\s+([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+)",
+        r"(?:read|show|inspect|open|edit|update|modify|refactor|change)\s+file\s+([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+)",
         r"(?:read|show|inspect)\s+([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+)",
+        r"\bin\s+([A-Za-z]:\\[^\s]+|[.]{0,2}[\\/][^\s]+|[A-Za-z0-9_./\\-]+\.[A-Za-z0-9]+)",
     )
     file_values: list[str] = []
     for pattern in file_patterns:

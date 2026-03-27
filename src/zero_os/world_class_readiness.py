@@ -68,8 +68,14 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
     planner_history_count = int(cap_summary.get("planner_feedback_history_count", 0) or 0)
     planner_route_quality_score = float(cap_summary.get("planner_route_quality_score", 100.0) or 100.0)
     planner_worst_route = str(cap_summary.get("planner_feedback_worst_route", "") or "")
+    planner_worst_route_variant = str(cap_summary.get("planner_feedback_worst_route_variant", "") or "")
     planner_target_drop_rate = float(cap_summary.get("planner_feedback_target_drop_rate", 0.0) or 0.0)
     planner_hold_rate = float(cap_summary.get("planner_feedback_contradiction_hold_rate", 0.0) or 0.0)
+    governor_call = str(cap_summary.get("governor_call", "observe") or "observe")
+    governor_mode = str(cap_summary.get("governor_mode", "normal") or "normal")
+    governor_reason = str(cap_summary.get("governor_reason", "") or "")
+    governor_blocking_factors = [str(item) for item in list(cap_summary.get("governor_blocking_factors", [])) if str(item)]
+    governor_summary = str(cap_summary.get("governor_summary", "") or f"governor gate: {governor_call}")
     derivation_strategy_freshness_score = float(cap_summary.get("self_derivation_strategy_freshness_score", 0.0) or 0.0)
     derivation_stale_strategy_count = int(cap_summary.get("self_derivation_stale_strategy_count", 0) or 0)
     derivation_version_mismatch_count = int(cap_summary.get("self_derivation_version_mismatch_count", 0) or 0)
@@ -79,10 +85,17 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
     derivation_strategy_trend_direction = str(cap_summary.get("self_derivation_strategy_trend_direction", "unknown") or "unknown")
     derivation_strategy_freshness_delta = float(cap_summary.get("self_derivation_strategy_freshness_delta", 0.0) or 0.0)
     derivation_strategy_quarantined_delta = int(cap_summary.get("self_derivation_strategy_quarantined_delta", 0) or 0)
+    recovery_trusted_snapshot_count = int(cap_summary.get("recovery_trusted_snapshot_count", 0) or 0)
+    recovery_quarantined_snapshot_count = int(cap_summary.get("recovery_quarantined_snapshot_count", 0) or 0)
+    recovery_active_incompatible_snapshot_count = int(cap_summary.get("recovery_active_incompatible_snapshot_count", 0) or 0)
     control_score = round((active_autonomous_count / max(1, autonomous_count)) * 100.0, 2)
     control_blockers: list[str] = []
     if int(cap_summary.get("approval_gated_count", 0) or 0) > 0:
         control_blockers.append("approval_gated_capabilities")
+    if recovery_trusted_snapshot_count <= 0:
+        control_blockers.append("trusted_recovery_baseline_missing")
+    if recovery_active_incompatible_snapshot_count > 0:
+        control_blockers.append("recovery_surface_mixed")
     if derivation_version_mismatch_count > 0:
         control_blockers.append("strategy_memory_version_drift")
     if derivation_quarantined_strategy_count > 0:
@@ -128,12 +141,16 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
         highest_value_step = "Add more typed API profiles so Zero AI can operate across real external systems with stronger evidence."
     elif top_gap == "approval_gated_capabilities":
         highest_value_step = "Keep converting high-value lanes into bounded typed workflows without dropping safety gates."
+    elif top_gap == "trusted_recovery_baseline_missing":
+        highest_value_step = "Create or preserve a compatible recovery snapshot before trusting broader autonomous mutation."
+    elif top_gap == "recovery_surface_mixed":
+        highest_value_step = "Quarantine or prune incompatible recovery snapshots so the visible recovery lane stays anchored on trusted rollback."
     elif top_gap == "strategy_memory_version_drift":
         highest_value_step = "Refresh self-derivation strategy memory against the current planner/code version before trusting older route behavior."
     elif top_gap == "strategy_memory_quarantined":
         highest_value_step = "Re-earn quarantined strategy memory under the current planner generation instead of silently reviving older behavior."
     elif top_gap == "planner_route_drift":
-        highest_value_step = f"Improve planner route quality on `{planner_worst_route or 'the weakest route'}` before widening more autonomous execution."
+        highest_value_step = f"Improve planner route quality on `{planner_worst_route_variant or planner_worst_route or 'the weakest route'}` before widening more autonomous execution."
     elif top_gap == "strategy_memory_stale":
         highest_value_step = "Run fresh planner/execution work so strategy memory reflects current behavior instead of stale survivorship."
     elif top_gap == "stable":
@@ -149,6 +166,14 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
         "world_class_now": overall_score >= 95.0 and not blocker_pairs,
         "top_gap": top_gap,
         "highest_value_step": highest_value_step,
+        "decision_governor": {
+            "call": governor_call,
+            "mode": governor_mode,
+            "reason": governor_reason,
+            "blocking_factors": governor_blocking_factors,
+            "summary": governor_summary,
+            "act_now_allowed": governor_call not in {"wait_for_user", "repair_continuity", "run_runtime", "stabilize_recovery"},
+        },
         "lanes": lanes,
         "inputs": {
             "pressure_score": reliability_score,
@@ -162,8 +187,15 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
             "planner_feedback_history_count": planner_history_count,
             "planner_route_quality_score": planner_route_quality_score,
             "planner_feedback_worst_route": planner_worst_route,
+            "planner_feedback_worst_route_variant": planner_worst_route_variant,
             "planner_feedback_target_drop_rate": planner_target_drop_rate,
             "planner_feedback_contradiction_hold_rate": planner_hold_rate,
+            "governor_call": governor_call,
+            "governor_mode": governor_mode,
+            "governor_reason": governor_reason,
+            "governor_blocking_factor_count": len(governor_blocking_factors),
+            "governor_blocking_factors": governor_blocking_factors,
+            "governor_summary": governor_summary,
             "self_derivation_strategy_freshness_score": derivation_strategy_freshness_score,
             "self_derivation_stale_strategy_count": derivation_stale_strategy_count,
             "self_derivation_version_mismatch_count": derivation_version_mismatch_count,
@@ -173,6 +205,9 @@ def _build_world_class_readiness_status(cwd: str) -> dict[str, Any]:
             "self_derivation_strategy_trend_direction": derivation_strategy_trend_direction,
             "self_derivation_strategy_freshness_delta": derivation_strategy_freshness_delta,
             "self_derivation_strategy_quarantined_delta": derivation_strategy_quarantined_delta,
+            "recovery_trusted_snapshot_count": recovery_trusted_snapshot_count,
+            "recovery_quarantined_snapshot_count": recovery_quarantined_snapshot_count,
+            "recovery_active_incompatible_snapshot_count": recovery_active_incompatible_snapshot_count,
         },
         "highest_value_steps": [highest_value_step],
         "path": str(_path(cwd)),

@@ -12,6 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.contradiction_engine import contradiction_engine_status, review_branch, review_run, select_stable_branch
+from zero_os.world_model import build_world_model, persist_world_model
 
 
 class ContradictionEngineTests(unittest.TestCase):
@@ -110,6 +111,68 @@ class ContradictionEngineTests(unittest.TestCase):
         self.assertGreater(review["contradiction_count"], 0)
         self.assertIn("read-only request", review["issues"][0]["message"].lower())
 
+    def test_review_branch_holds_when_world_model_has_pending_approvals_for_mutation(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "approvals": {"pending_count": 1},
+                "jobs": {"count": 0},
+            },
+        )
+        persist_world_model(str(self.base), model, flush=True)
+
+        review = review_branch(
+            str(self.base),
+            "open https://example.com and click",
+            {
+                "intent": {"intent": "web", "goals": ["open https://example.com and click"]},
+                "branch": {"id": "primary", "source": "direct_plan", "note": "mutating", "preferred": True},
+                "steps": [
+                    {"kind": "browser_open", "target": "https://example.com"},
+                    {"kind": "browser_action", "target": {"action": "click", "selector": "#go"}},
+                ],
+            },
+        )
+
+        codes = {issue["code"] for issue in review["issues"]}
+        self.assertEqual("hold", review["decision"])
+        self.assertIn("world_model_approval_block", codes)
+
+    def test_review_branch_holds_code_change_when_scope_is_not_ready(self) -> None:
+        review = review_branch(
+            str(self.base),
+            'replace "a" with "b" in README.md',
+            {
+                "intent": {"intent": "code", "goals": ['replace "a" with "b" in README.md']},
+                "branch": {"id": "primary", "source": "direct_plan", "note": "code", "preferred": True},
+                "code_workbench_context": {
+                    "scope_ready": False,
+                    "verification_ready": False,
+                    "out_of_scope_count": 1,
+                    "out_of_scope_files": ["README.md"],
+                    "missing_in_scope_files": [],
+                },
+                "steps": [
+                    {
+                        "kind": "code_change",
+                        "target": {"files": ["README.md"], "instruction": {"operation": "replace", "old": "a", "new": "b"}},
+                    }
+                ],
+            },
+        )
+
+        codes = {issue["code"] for issue in review["issues"]}
+        self.assertEqual("hold", review["decision"])
+        self.assertIn("code_scope_not_ready", codes)
+
     def test_select_stable_branch_discards_conflicting_recovery_branch(self) -> None:
         with patch(
             "zero_os.contradiction_engine._workflow_signals",
@@ -199,6 +262,45 @@ class ContradictionEngineTests(unittest.TestCase):
         )
 
         self.assertEqual("high_confidence", selection["selected_branch"]["branch"]["id"])
+
+    def test_select_stable_branch_prefers_full_target_coverage_for_web_requests(self) -> None:
+        selection = select_stable_branch(
+            str(self.base),
+            "open https://example.com and click #go",
+            [
+                {
+                    "intent": {"intent": "web", "goals": ["open https://example.com and click #go"]},
+                    "branch": {"id": "partial_coverage", "source": "direct_plan", "note": "partial", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "steps": [{"kind": "web_verify", "target": "https://example.com"}],
+                    "target_coverage": {
+                        "covered_target_ids": ["target_url"],
+                        "unbound_target_ids": ["target_action"],
+                        "coverage_ratio": 0.5,
+                    },
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+                {
+                    "intent": {"intent": "web", "goals": ["open https://example.com and click #go"]},
+                    "branch": {"id": "full_coverage", "source": "direct_plan", "note": "full", "preferred": False},
+                    "planner_confidence": 0.88,
+                    "risk_level": "medium",
+                    "steps": [
+                        {"kind": "web_verify", "target": "https://example.com"},
+                        {"kind": "browser_action", "target": {"url": "https://example.com", "action": "click", "selector": "#go"}},
+                    ],
+                    "target_coverage": {
+                        "covered_target_ids": ["target_url", "target_action"],
+                        "unbound_target_ids": [],
+                        "coverage_ratio": 1.0,
+                    },
+                    "evidence": {"total_weight": 0.9, "memory_weight": 0.4, "core_law_weight": 1.0},
+                },
+            ],
+        )
+
+        self.assertEqual("full_coverage", selection["selected_branch"]["branch"]["id"])
 
     def test_select_stable_branch_prefers_survivor_history_when_other_scores_match(self) -> None:
         derivation_dir = self.base / ".zero_os" / "assistant" / "self_derivation"
@@ -386,6 +488,37 @@ class ContradictionEngineTests(unittest.TestCase):
 
         self.assertEqual("hold", review["decision"])
         self.assertIn("typed_workflow_not_ready", {issue["code"] for issue in review["issues"]})
+
+    @patch(
+        "zero_os.contradiction_engine._workflow_signals",
+        return_value={
+            "runtime": {"runtime_ready": True},
+            "workflows": {
+                "lanes": {
+                    "self_repair": {
+                        "ready": False,
+                        "active": True,
+                        "raw_action_policy": {"decision": "approval_required"},
+                    }
+                }
+            },
+        },
+    )
+    def test_review_branch_allows_approval_backed_self_repair_lane_to_continue(self, _mock_workflow) -> None:
+        review = review_branch(
+            str(self.base),
+            "self repair runtime",
+            {
+                "intent": {"intent": "self_repair", "goals": ["self repair runtime"]},
+                "branch": {"id": "primary", "source": "direct_plan", "note": "approval-backed", "preferred": True},
+                "steps": [{"kind": "self_repair", "target": "runtime"}],
+            },
+        )
+
+        self.assertEqual("allow", review["decision"])
+        issue = next(item for item in review["issues"] if item["code"] == "typed_workflow_not_ready")
+        self.assertFalse(issue["blocking"])
+        self.assertTrue(issue["details"]["approval_backed_remediation"])
 
     @patch(
         "zero_os.contradiction_engine._evolution_signals",

@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from zero_os.code_task_lane import parse_code_instruction
+from zero_os.code_workbench import code_workbench_status, overlay_world_model_with_codebase
+from zero_os.decision_governor import governor_decide
 from zero_os.memory_tier_filter import build_memory_context, score_branch_support
 from zero_os.playbook_memory import lookup
 from zero_os.semantic_reasoner import generate_semantic_interpretations, semantic_abstraction_profile
@@ -46,13 +49,42 @@ from zero_os.task_planner_policy import (
     _resolve_intents,
     _strip_memory_context,
 )
+from zero_os.world_model import world_model_status
 
 
 PLANNER_VERSION = "2026.03.22"
+PLANNER_FEEDBACK_SCHEMA_VERSION = 3
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _planner_world_model_context(cwd: str) -> dict[str, Any]:
+    model = dict(world_model_status(cwd) or {})
+    domains = dict(model.get("domains") or {})
+    runtime = dict((domains.get("runtime") or {}).get("summary") or {})
+    continuity = dict((domains.get("continuity") or {}).get("summary") or {})
+    approvals = dict((domains.get("approvals") or {}).get("summary") or {})
+    jobs = dict((domains.get("jobs") or {}).get("summary") or {})
+    pressure = dict((domains.get("pressure") or {}).get("summary") or {})
+    codebase = dict((domains.get("codebase") or {}).get("summary") or {})
+    return {
+        "available": bool(model.get("ok", False)) and not bool(model.get("missing", False)),
+        "missing": bool(model.get("missing", False)),
+        "time_utc": str(model.get("time_utc", "")),
+        "fact_count": int(model.get("fact_count", 0) or 0),
+        "blocked_domains": list(model.get("blocked_domains", [])),
+        "degraded_domains": list(model.get("degraded_domains", [])),
+        "runtime_ready": bool(runtime.get("runtime_ready", False)),
+        "runtime_missing": bool(runtime.get("runtime_missing", False)),
+        "continuity_healthy": bool(continuity.get("same_system", False)) and not bool(continuity.get("has_contradiction", False)),
+        "approvals_pending": int(approvals.get("pending_count", 0) or 0),
+        "jobs_pending": int(jobs.get("pending_count", 0) or 0),
+        "pressure_ready": bool(pressure.get("pressure_ready", False)),
+        "codebase_scope_ready": bool(codebase.get("scope_ready", True)),
+        "codebase_verification_ready": bool(codebase.get("verification_ready", True)),
+    }
 
 
 def _feedback_path(cwd: str) -> Path:
@@ -61,23 +93,79 @@ def _feedback_path(cwd: str) -> Path:
     return path
 
 
+def _default_feedback() -> dict[str, Any]:
+    return {"schema_version": PLANNER_FEEDBACK_SCHEMA_VERSION, "history": [], "summary": {}}
+
+
 def _load_feedback(cwd: str) -> dict[str, Any]:
     path = _feedback_path(cwd)
     if not path.exists():
-        return {"schema_version": 1, "history": []}
+        return _default_feedback()
     try:
         raw = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except Exception:
-        return {"schema_version": 1, "history": []}
+        return _default_feedback()
     if not isinstance(raw, dict):
-        return {"schema_version": 1, "history": []}
-    raw.setdefault("schema_version", 1)
+        return _default_feedback()
+    raw.setdefault("schema_version", PLANNER_FEEDBACK_SCHEMA_VERSION)
     raw.setdefault("history", [])
+    raw.setdefault("summary", {})
     return raw
 
 
 def _save_feedback(cwd: str, payload: dict[str, Any]) -> None:
     _feedback_path(cwd).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _feedback_entry_is_active(entry: dict[str, Any]) -> bool:
+    try:
+        schema_version = int(entry.get("feedback_schema_version", 0) or 0)
+    except Exception:
+        schema_version = 0
+    route = str(entry.get("route", "") or "").strip()
+    route_variant = str(entry.get("route_variant", "") or "").strip()
+    return schema_version >= PLANNER_FEEDBACK_SCHEMA_VERSION and bool(route) and bool(route_variant)
+
+
+def _feedback_metrics(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    total = max(1, len(entries))
+    return {
+        "count": len(entries),
+        "contradiction_hold_rate": round(sum(1 for item in entries if item.get("contradiction_hold")) / total, 3),
+        "execution_failure_rate": round(sum(1 for item in entries if not item.get("ok", False)) / total, 3),
+        "approval_required_surprise_rate": round(sum(1 for item in entries if item.get("approval_required_surprise")) / total, 3),
+        "target_drop_rate": round(sum(int(item.get("target_drop_count", 0)) for item in entries) / total, 3),
+        "successful_completion_rate": round(sum(1 for item in entries if item.get("ok", False)) / total, 3),
+        "reroute_after_failure_rate": round(sum(1 for item in entries if item.get("rerouted_after_failure")) / total, 3),
+    }
+
+
+def _summarize_feedback(data: dict[str, Any]) -> dict[str, Any]:
+    history = [dict(item) for item in list(data.get("history", [])) if isinstance(item, dict)]
+    active_entries = [item for item in history if _feedback_entry_is_active(item)]
+    legacy_entries = [item for item in history if not _feedback_entry_is_active(item)]
+
+    routes_summary: dict[str, Any] = {}
+    route_names = sorted({str(item.get("route", "")) for item in active_entries if str(item.get("route", ""))})
+    for route_name in route_names:
+        route_entries = [item for item in active_entries if str(item.get("route", "")) == route_name]
+        routes_summary[route_name] = _feedback_metrics(route_entries)
+
+    route_variants_summary: dict[str, Any] = {}
+    route_variant_names = sorted({str(item.get("route_variant", "")) for item in active_entries if str(item.get("route_variant", ""))})
+    for route_variant_name in route_variant_names:
+        route_variant_entries = [item for item in active_entries if str(item.get("route_variant", "")) == route_variant_name]
+        route_variants_summary[route_variant_name] = _feedback_metrics(route_variant_entries)
+
+    data["summary"] = {
+        "history_count": len(active_entries),
+        "active_history_count": len(active_entries),
+        "total_history_count": len(history),
+        "legacy_history_count": len(legacy_entries),
+        "routes": routes_summary,
+        "route_variants": route_variants_summary,
+    }
+    return data
 
 
 def _metrics_quality_bias(metrics: dict[str, Any]) -> float:
@@ -180,6 +268,7 @@ def _planner_route_variant(plan: dict[str, Any]) -> str:
     explicit_variant = str(plan.get("route_variant", "") or "").strip()
     if explicit_variant:
         return explicit_variant
+    request_text = str(plan.get("request", "") or "").strip().lower()
     step_kinds = {str(step.get("kind", "")).strip() for step in list(plan.get("steps", [])) if str(step.get("kind", "")).strip()}
     browser_actions = {
         str(dict(step.get("target") or {}).get("action", "") or "").strip().lower()
@@ -208,16 +297,30 @@ def _planner_route_variant(plan: dict[str, Any]) -> str:
         return "browser_input"
     if "click" in browser_actions:
         return "browser_click"
+    if "browser_status" in step_kinds:
+        return "browser_status"
+    if "browser_dom_inspect" in step_kinds:
+        return "browser_inspect"
     if "browser_open" in step_kinds:
         return "browser_open"
+    if "web_verify" in step_kinds and not (step_kinds & {"browser_open", "browser_action", "web_fetch"}):
+        return "web_verify"
+    if "web_fetch" in step_kinds and not (step_kinds & {"browser_open", "browser_action"}):
+        return "web_fetch"
     if "cloud_deploy" in step_kinds:
         return "cloud_deploy"
     if "cloud_target_set" in step_kinds:
         return "cloud_target_set"
+    if "code_change" in step_kinds:
+        return "code_change"
     if any(kind.startswith("github_issue_") for kind in step_kinds):
         return "github_issue"
     if any(kind.startswith("github_pr_") for kind in step_kinds):
         return "github_pr"
+    if "github" in request_text and "status" in request_text:
+        return "github_status"
+    if "system_status" in step_kinds:
+        return "system_status"
     return str(((plan.get("intent") or {}).get("primary_intent") or (plan.get("intent") or {}).get("intent") or "observe")).strip() or "observe"
 
 
@@ -1097,7 +1200,18 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
     text = _normalize_text(request)
     lowered = text.lower()
     targets = extract_request_targets(text)
+    code_mutation_requested = bool((targets.get("files") or targets.get("file_ranges"))) and any(
+        token in lowered for token in ("replace", "edit", "update", "modify", "refactor", "write", "change", "patch")
+    )
+    code_workbench_context = code_workbench_status(
+        cwd,
+        requested_files=[item.get("value") for item in list(targets.get("files", []))],
+        file_ranges=[item.get("value") for item in list(targets.get("file_ranges", []))],
+        requested_mutation=code_mutation_requested,
+        request_text=text,
+    )
     read_only_request = _request_is_read_only(lowered)
+    world_model_context = _planner_world_model_context(cwd)
     memory_context = build_memory_context(cwd, text, extract_intent(text))
     route_history_bias = _route_history_bias(cwd)
     route_variant_bias_map = _route_variant_history_bias(cwd)
@@ -1132,6 +1246,16 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
     ambiguity_flags = list(composed.get("ambiguity_flags", ambiguity_flags))
 
     steps = _dedupe_steps(steps)
+    parsed_code_instruction = parse_code_instruction(text) if code_mutation_requested else {"ok": False}
+    if any(str(step.get("kind", "")) == "code_change" for step in steps):
+        for step in steps:
+            if str(step.get("kind", "")) != "code_change":
+                continue
+            target = dict(step.get("target") or {})
+            target["code_workbench"] = dict(code_workbench_context)
+            if not dict(target.get("instruction") or {}):
+                target["instruction"] = dict(parsed_code_instruction)
+            step["target"] = target
     remediation_kinds = [str(step.get("kind", "")) for step in steps if str(step.get("kind", "")) in _HIGH_RISK_REMEDIATION_KINDS]
     branch_id = "primary"
     if len(set(remediation_kinds)) > 1:
@@ -1179,6 +1303,14 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
     steps, precondition_flags = _annotate_step_contracts(steps)
     steps = _annotate_step_reasoning(steps)
     ambiguity_flags.extend(precondition_flags)
+    world_model_blockers = {
+        domain
+        for domain in list(world_model_context.get("blocked_domains", []))
+        if domain in {"approvals", "continuity", "runtime"}
+    }
+    if world_model_blockers and any(step_allows_mutation(str(step.get("kind", ""))) for step in steps):
+        ambiguity_flags.append("world_model_blocked_mutation_context")
+        conflicting_signals.extend(f"world_model_{domain}_blocked" for domain in sorted(world_model_blockers))
     coverage = _coverage_for_steps(targets, steps)
     if coverage["unbound_targets"]:
         ambiguity_flags.append("unbound_explicit_targets")
@@ -1190,7 +1322,8 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
             planner_confidence
             - float(planner_precheck.get("confidence_adjustment", 0.0) or 0.0)
             - (0.08 if str(memory_summary.get("memory_strength", "")) == "conflicting" else 0.0)
-            - min(0.08, _dependency_depth(request_decomposition) * 0.02),
+            - min(0.08, _dependency_depth(request_decomposition) * 0.02)
+            - (0.12 if "world_model_blocked_mutation_context" in ambiguity_flags else 0.0),
             3,
         ),
     )
@@ -1256,6 +1389,8 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
         "semantic_interpretations": semantic_interpretations,
         "semantic_frame": semantic_frame,
         "semantic_abstraction": semantic_abstraction,
+        "world_model_context": world_model_context,
+        "code_workbench_context": code_workbench_context,
     }
     plan["memory_context"] = memory_summary
     plan["memory_reliability"] = str((plan["memory_context"] or {}).get("memory_strength", "none"))
@@ -1311,6 +1446,11 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
     plan["route_variant_history_bias"] = round(float(route_variant_bias_map.get(str(plan["route_variant"]), 0.0) or 0.0), 3)
     plan["branch"]["route_variant"] = str(plan["route_variant"])
     plan["branch"]["route_surface"] = str(plan["route_surface"])
+    if any(str(step.get("kind", "")) == "code_change" for step in list(plan.get("steps", []))):
+        plan["decision_governor"] = governor_decide(
+            cwd,
+            world_model=overlay_world_model_with_codebase(world_model_status(cwd), dict(code_workbench_context)),
+        )
     plan["explanation"] = explain_plan(
         intent_candidate=dict((resolved.get("candidates") or [{}])[0]),
         smart_profile=dict(plan.get("smart_planner", {})),
@@ -1339,6 +1479,7 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
     entry = {
         "time_utc": _utc_now(),
         "request": _normalize_text(request),
+        "feedback_schema_version": PLANNER_FEEDBACK_SCHEMA_VERSION,
         "planner_version": str(selected_plan.get("planner_version", PLANNER_VERSION)),
         "route": route,
         "route_variant": route_variant,
@@ -1346,6 +1487,7 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
         "branch_id": str((selected_plan.get("branch") or {}).get("id", "primary")),
         "branch_reason": str(selected_plan.get("branch_reason", "")),
         "planner_confidence": float(selected_plan.get("planner_confidence", 0.0) or 0.0),
+        "coverage_ratio": float(target_coverage.get("coverage_ratio", 0.0) or 0.0),
         "ok": bool(run.get("ok", False)),
         "contradiction_hold": str(contradiction_gate.get("decision", "")) == "hold",
         "target_drop_count": len(list(target_coverage.get("unbound_targets", []))),
@@ -1355,45 +1497,13 @@ def record_planner_outcome(cwd: str, request: str, branch_selection: dict[str, A
     }
     history.append(entry)
     data["history"] = history[-200:]
-    routes_summary: dict[str, Any] = {}
-    route_names = sorted({str(item.get("route", "")) for item in data["history"] if str(item.get("route", ""))})
-    for route_name in route_names:
-        route_entries = [item for item in data["history"] if str(item.get("route", "")) == route_name]
-        total = max(1, len(route_entries))
-        routes_summary[route_name] = {
-            "count": len(route_entries),
-            "contradiction_hold_rate": round(sum(1 for item in route_entries if item.get("contradiction_hold")) / total, 3),
-            "execution_failure_rate": round(sum(1 for item in route_entries if not item.get("ok", False)) / total, 3),
-            "approval_required_surprise_rate": round(sum(1 for item in route_entries if item.get("approval_required_surprise")) / total, 3),
-            "target_drop_rate": round(sum(int(item.get("target_drop_count", 0)) for item in route_entries) / total, 3),
-            "successful_completion_rate": round(sum(1 for item in route_entries if item.get("ok", False)) / total, 3),
-            "reroute_after_failure_rate": round(sum(1 for item in route_entries if item.get("rerouted_after_failure")) / total, 3),
-        }
-    route_variants_summary: dict[str, Any] = {}
-    route_variant_names = sorted({str(item.get("route_variant", "")) for item in data["history"] if str(item.get("route_variant", ""))})
-    for route_variant_name in route_variant_names:
-        route_variant_entries = [item for item in data["history"] if str(item.get("route_variant", "")) == route_variant_name]
-        total = max(1, len(route_variant_entries))
-        route_variants_summary[route_variant_name] = {
-            "count": len(route_variant_entries),
-            "contradiction_hold_rate": round(sum(1 for item in route_variant_entries if item.get("contradiction_hold")) / total, 3),
-            "execution_failure_rate": round(sum(1 for item in route_variant_entries if not item.get("ok", False)) / total, 3),
-            "approval_required_surprise_rate": round(sum(1 for item in route_variant_entries if item.get("approval_required_surprise")) / total, 3),
-            "target_drop_rate": round(sum(int(item.get("target_drop_count", 0)) for item in route_variant_entries) / total, 3),
-            "successful_completion_rate": round(sum(1 for item in route_variant_entries if item.get("ok", False)) / total, 3),
-            "reroute_after_failure_rate": round(sum(1 for item in route_variant_entries if item.get("rerouted_after_failure")) / total, 3),
-        }
-    data["summary"] = {
-        "history_count": len(data["history"]),
-        "routes": routes_summary,
-        "route_variants": route_variants_summary,
-    }
+    data = _summarize_feedback(data)
     _save_feedback(cwd, data)
     return {"ok": True, "path": str(_feedback_path(cwd)), "entry": entry, "summary": dict(data.get("summary", {}))}
 
 
 def planner_feedback_status(cwd: str) -> dict[str, Any]:
-    data = _load_feedback(cwd)
+    data = _summarize_feedback(_load_feedback(cwd))
     return {"ok": True, "path": str(_feedback_path(cwd)), **data}
 
 

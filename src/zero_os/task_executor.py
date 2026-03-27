@@ -3,10 +3,12 @@ from __future__ import annotations
 from uuid import uuid4
 
 from zero_os.contradiction_engine import review_run, select_stable_branch
+from zero_os.decision_governor import governor_decide
 from zero_os.playbook_memory import remember
 from zero_os.result_synthesizer import synthesize_result
 from zero_os.self_derivation_engine import record_strategy_outcome, survivor_history_score
 from zero_os.task_memory import latest_resumable, save_task_run, status as task_memory_status
+from zero_os.task_planner_composer import step_allows_mutation
 from zero_os.task_planner import build_candidate_plans, build_plan, record_planner_outcome
 from zero_os.unified_action_engine import execute_step
 
@@ -112,6 +114,30 @@ def _default_branch_selection(plan: dict) -> dict:
     }
 
 
+def _plan_has_mutation(plan: dict) -> bool:
+    return any(step_allows_mutation(str(step.get("kind", ""))) for step in list(plan.get("steps", [])))
+
+
+def _governor_blocks_plan(cwd: str, plan: dict, request: str) -> dict:
+    governor = dict(plan.get("decision_governor") or governor_decide(cwd))
+    if not _plan_has_mutation(plan):
+        return {"blocked": False, "governor": governor}
+    call = str(governor.get("call", "observe") or "observe")
+    if call not in {"wait_for_user", "repair_continuity", "run_runtime", "stabilize_recovery", "wait_for_clean_scope"}:
+        return {"blocked": False, "governor": governor}
+    return {
+        "blocked": True,
+        "governor": governor,
+        "result": {
+            "ok": False,
+            "kind": "governor_gate",
+            "reason": "governor_blocked",
+            "request": request,
+            "governor": governor,
+        },
+    }
+
+
 def _execute_plan(
     cwd: str,
     request: str,
@@ -125,6 +151,7 @@ def _execute_plan(
     results = list(existing_results or [])
     steps = list(plan.get("steps", []))
     executed_conditional_indexes: set[int] = set()
+    governor_gate = _governor_blocks_plan(cwd, plan, request)
     plan_context = {
         "planner_confidence": float(plan.get("planner_confidence", 0.0) or 0.0),
         "risk_level": str(plan.get("risk_level", "low") or "low"),
@@ -132,7 +159,28 @@ def _execute_plan(
         "execution_mode": str(plan.get("execution_mode", "normal") or "normal"),
         "smart_strategy": str((plan.get("smart_planner") or {}).get("strategy", "") or ""),
         "planner_precheck": dict(plan.get("planner_precheck") or {}),
+        "code_workbench_context": dict(plan.get("code_workbench_context") or {}),
+        "decision_governor": dict(governor_gate.get("governor") or {}),
     }
+    if bool(governor_gate.get("blocked", False)):
+        results.append(dict(governor_gate.get("result") or {}))
+        contradiction_gate = review_run(cwd, request, plan, results, run_ok=False)
+        out = {
+            "ok": False,
+            "run_id": run_id,
+            "request": request,
+            "plan": plan,
+            "results": results,
+            "contradiction_gate": contradiction_gate,
+            "branch_selection": branch_selection or _default_branch_selection(plan),
+            "governor_gate": dict(governor_gate.get("governor") or {}),
+        }
+        out["response"] = synthesize_result(out)
+        remember(cwd, str(plan.get("intent", {}).get("intent", "observe")), plan)
+        save_task_run(cwd, request, out)
+        out["planner_feedback"] = record_planner_outcome(cwd, request, branch_selection or _default_branch_selection(plan), out)
+        out["task_memory"] = task_memory_status(cwd)
+        return out
     for step_index in range(start_index, len(steps)):
         if step_index in executed_conditional_indexes:
             continue
@@ -234,6 +282,8 @@ def _replan_trigger(out: dict) -> str:
     last = dict(results[-1] or {})
     reason = str(last.get("reason", "")).strip()
     if reason == "approval_required":
+        return ""
+    if reason == "governor_blocked":
         return ""
     if last.get("kind") == "autonomy_gate" and str((last.get("result") or {}).get("decision", "")) == "hold_for_review":
         return ""

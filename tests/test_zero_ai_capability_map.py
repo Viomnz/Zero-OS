@@ -13,6 +13,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from zero_os.approval_workflow import request_approval
+from zero_os.fast_path_cache import clear_fast_path_cache
 from zero_os.phase_runtime import zero_ai_runtime_run
 from zero_os.self_continuity import zero_ai_self_continuity_update
 from zero_os.task_executor import run_task
@@ -95,6 +97,10 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertIn("domain_pack_factory_status_cache_hit", status["summary"])
         self.assertIn("workflow_status_cache_hit_count", status["summary"])
         self.assertIn("workflow_status_cache_total_count", status["summary"])
+        self.assertIn("governor_call", status["summary"])
+        self.assertIn("governor_mode", status["summary"])
+        self.assertIn("governor_summary", status["summary"])
+        self.assertIn("governor_blocking_factors", status["summary"])
 
         capabilities = {item["key"]: item for item in status["capabilities"]}
         self.assertEqual("autonomous", capabilities["runtime_orchestrator"]["control_level"])
@@ -114,11 +120,24 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertEqual("autonomous", capabilities["calendar_time_lane"]["control_level"])
         self.assertEqual("autonomous", capabilities["approval_gate_state"]["control_level"])
         self.assertEqual("autonomous", capabilities["benchmark_remediation_lane"]["control_level"])
+        self.assertIn("decision_governor", capabilities)
         self.assertEqual("autonomous", capabilities["browser_control"]["control_level"])
         self.assertEqual("autonomous", capabilities["store_installation"]["control_level"])
         self.assertEqual("autonomous", capabilities["recovery_restore"]["control_level"])
         self.assertEqual("autonomous", capabilities["high_risk_self_repair"]["control_level"])
         self.assertEqual("forbidden", capabilities["identity_core_rewrite"]["control_level"])
+
+    def test_capability_map_keeps_approval_lane_active_when_queue_is_empty(self) -> None:
+        self._prime_runtime()
+
+        with patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            status = zero_ai_capability_map_status(str(self.base))
+
+        capabilities = {item["key"]: item for item in status["capabilities"]}
+        approval_lane = capabilities["approval_gate_state"]
+        self.assertTrue(approval_lane["ready"])
+        self.assertTrue(approval_lane["active"])
+        self.assertEqual(0, approval_lane["evidence"]["pending_count"])
 
     def test_capability_map_writes_status_file(self) -> None:
         self._prime_runtime()
@@ -137,6 +156,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertEqual(status["summary"]["approval_gated_count"], persisted["summary"]["approval_gated_count"])
         self.assertIn("planner_feedback_history_count", status["summary"])
         self.assertIn("planner_route_quality_score", status["summary"])
+        self.assertIn("planner_feedback_worst_route_variant", status["summary"])
         self.assertIn("self_derivation_strategy_freshness_score", status["summary"])
         self.assertIn("self_derivation_version_mismatch_count", status["summary"])
         self.assertIn("self_derivation_quarantined_strategy_count", status["summary"])
@@ -190,6 +210,7 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertIn("status_cache_hit", capabilities["capability_expansion_protocol"]["evidence"])
         self.assertIn("status_cache_hit", capabilities["domain_pack_factory"]["evidence"])
         self.assertIn("workflow_status_cache_hit", capabilities["browser_control"]["evidence"])
+        self.assertIn("summary", capabilities["decision_governor"]["evidence"])
 
     def test_capability_map_uses_fast_path_when_inputs_are_unchanged(self) -> None:
         self._prime_runtime()
@@ -201,6 +222,52 @@ class ZeroAiCapabilityMapTests(unittest.TestCase):
         self.assertFalse(first["fast_path_cache"]["hit"])
         self.assertTrue(second["fast_path_cache"]["hit"])
         self.assertEqual(first["summary"]["autonomous_count"], second["summary"]["autonomous_count"])
+
+    def test_capability_map_invalidates_when_control_workflows_artifact_changes(self) -> None:
+        self._prime_runtime()
+        first = zero_ai_capability_map_status(str(self.base))
+        self.assertFalse(first["fast_path_cache"]["hit"])
+
+        workflows_path = self.base / ".zero_os" / "assistant" / "control_workflows.json"
+        workflows_path.parent.mkdir(parents=True, exist_ok=True)
+        workflows_path.write_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "summary": {"ready_count": 4},
+                    "lanes": {
+                        "recovery": {
+                            "trusted_snapshot_count": 1,
+                            "quarantined_snapshot_count": 0,
+                            "active_incompatible_snapshot_count": 0,
+                        }
+                    },
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        clear_fast_path_cache(namespace="zero_ai_capability_map_status")
+        sentinel = {"ok": True, "summary": {"recovery_trusted_snapshot_count": 999}}
+        with patch("zero_os.zero_ai_capability_map._build_zero_ai_capability_map_status", return_value=sentinel):
+            second = zero_ai_capability_map_status(str(self.base))
+
+        self.assertFalse(second["fast_path_cache"]["hit"])
+        self.assertEqual(999, second["summary"]["recovery_trusted_snapshot_count"])
+
+    def test_capability_map_surfaces_blocked_governor_summary(self) -> None:
+        self._prime_runtime()
+        request_approval(str(self.base), "browser_action", "need approval", {"run_id": "run-1", "target": {"url": "https://example.com"}})
+
+        with patch("zero_os.phase_runtime._pid_alive", return_value=True):
+            zero_ai_runtime_run(str(self.base))
+            status = zero_ai_capability_map_status(str(self.base))
+
+        self.assertEqual("wait_for_user", status["summary"]["governor_call"])
+        self.assertIn("approval", status["summary"]["governor_summary"])
+        self.assertGreaterEqual(status["summary"]["governor_blocking_factor_count"], 1)
 
     def test_capability_map_bootstraps_benchmark_history_without_repo_root_on_sys_path(self) -> None:
         self._prime_runtime()

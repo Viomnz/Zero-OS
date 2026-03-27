@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from zero_os.self_derivation_engine import survivor_history_score, survivor_strategy_guidance
+from zero_os.world_model import world_model_status
 
 
 _MUTATING_STEP_KINDS = {
     "browser_action",
     "browser_open",
     "cloud_deploy",
+    "code_change",
     "recover",
     "self_repair",
     "store_install",
@@ -26,6 +28,7 @@ _KNOWN_STEP_KINDS = {
     "api_workflow",
     "autonomy_gate",
     "browser_action",
+    "code_change",
     "capability_expansion_protocol",
     "cloud_deploy",
     "cloud_target_set",
@@ -79,6 +82,7 @@ _INTENT_STEP_EXPECTATIONS = {
     "reasoning": {"contradiction_engine"},
     "recover": {"recover"},
     "self_repair": {"self_repair"},
+    "code": {"code_change"},
     "status": {"observe", "system_status"},
     "store_install": {"store_install"},
     "store_status": {"store_status"},
@@ -146,6 +150,17 @@ def _continuity_signals(cwd: str) -> dict[str, Any]:
             "continuity_score": 100.0,
             "policy_memory_event_count": 0,
         }
+    world_model = dict(world_model_status(cwd) or {})
+    world_domains = dict(world_model.get("domains") or {})
+    continuity_summary = dict((world_domains.get("continuity") or {}).get("summary") or {})
+    if continuity_summary:
+        return {
+            "same_system": bool(continuity_summary.get("same_system", False)),
+            "has_contradiction": bool(continuity_summary.get("has_contradiction", False)),
+            "issues": list(continuity_summary.get("issues", [])),
+            "continuity_score": float(continuity_summary.get("continuity_score", 0.0) or 0.0),
+            "policy_memory_event_count": 0,
+        }
     from zero_os.self_continuity import zero_ai_self_continuity_status
 
     continuity = zero_ai_self_continuity_status(cwd)
@@ -158,6 +173,20 @@ def _continuity_signals(cwd: str) -> dict[str, Any]:
         "issues": list(contradiction_block.get("issues", [])),
         "continuity_score": float(continuity_block.get("continuity_score", 0.0) or 0.0),
         "policy_memory_event_count": int(policy_memory.get("contradiction_event_count", 0) or 0),
+    }
+
+
+def _world_model_signals(cwd: str) -> dict[str, Any]:
+    model = dict(world_model_status(cwd) or {})
+    domains = dict(model.get("domains") or {})
+    return {
+        "ok": bool(model.get("ok", False)) and not bool(model.get("missing", False)),
+        "missing": bool(model.get("missing", False)),
+        "blocked_domains": list(model.get("blocked_domains", [])),
+        "runtime": dict((domains.get("runtime") or {}).get("summary") or {}),
+        "continuity": dict((domains.get("continuity") or {}).get("summary") or {}),
+        "approvals": dict((domains.get("approvals") or {}).get("summary") or {}),
+        "pressure": dict((domains.get("pressure") or {}).get("summary") or {}),
     }
 
 
@@ -366,6 +395,7 @@ def _workflow_signals(cwd: str) -> dict[str, Any]:
     return {
         "runtime": zero_ai_runtime_status(cwd),
         "workflows": zero_ai_control_workflows_status(cwd),
+        "world_model": _world_model_signals(cwd),
     }
 
 
@@ -400,12 +430,25 @@ def _detect_workflow_conflicts(cwd: str, plan: dict[str, Any] | None, results: l
         lane = dict(lanes.get(lane_key) or {})
         if lane and bool(lane.get("ready", False)) and bool(lane.get("active", False)):
             continue
+        raw_action_policy = dict(lane.get("raw_action_policy") or {})
+        approval_backed_remediation = (
+            lane_key in {"recovery", "self_repair"}
+            and bool(lane.get("active", False))
+            and str(raw_action_policy.get("decision", "")).strip() == "approval_required"
+        )
         issues.append(
             _issue(
                 "workflow",
                 "typed_workflow_not_ready",
-                "A selected branch depends on a typed workflow lane that is not ready.",
-                details={"lane": spec["label"], "workflow": lane},
+                "A selected branch depends on a typed workflow lane that is not ready."
+                if not approval_backed_remediation
+                else "A selected remediation branch depends on a typed workflow lane that is not autonomous-ready yet, but it remains approval-backed.",
+                blocking=not approval_backed_remediation,
+                details={
+                    "lane": spec["label"],
+                    "workflow": lane,
+                    "approval_backed_remediation": approval_backed_remediation,
+                },
             )
         )
 
@@ -453,6 +496,7 @@ def _detect_evolution_conflicts(cwd: str, plan: dict[str, Any] | None, results: 
 
 def _detect_plan_contract_conflicts(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
+    code_workbench = dict((plan or {}).get("code_workbench_context") or {})
     for step in list((plan or {}).get("steps", [])):
         kind = str(step.get("kind", "")).strip()
         if not kind:
@@ -474,6 +518,57 @@ def _detect_plan_contract_conflicts(plan: dict[str, Any] | None) -> list[dict[st
                     details={"kind": kind},
                 )
             )
+            continue
+        if kind == "code_change":
+            target = dict(step.get("target") or {})
+            if not list(target.get("files", [])) and not list(target.get("file_ranges", [])):
+                issues.append(
+                    _issue(
+                        "workflow",
+                        "code_targets_missing",
+                        "The code-change branch has no concrete file targets.",
+                        details={"step": step},
+                    )
+                )
+            if not str(dict(target.get("instruction") or {}).get("operation", "")).strip():
+                issues.append(
+                    _issue(
+                        "workflow",
+                        "code_instruction_missing",
+                        "The code-change branch has no bounded edit instruction.",
+                        details={"target": target},
+                    )
+                )
+            if not code_workbench:
+                issues.append(
+                    _issue(
+                        "workflow",
+                        "code_workbench_missing",
+                        "The code-change branch is missing its workbench readiness context.",
+                    )
+                )
+                continue
+            if int(code_workbench.get("out_of_scope_count", 0) or 0) > 0 or not bool(code_workbench.get("scope_ready", False)):
+                issues.append(
+                    _issue(
+                        "workflow",
+                        "code_scope_not_ready",
+                        "The code-change branch targets files outside the bounded writable scope.",
+                        details={
+                            "out_of_scope_files": list(code_workbench.get("out_of_scope_files", [])),
+                            "missing_in_scope_files": list(code_workbench.get("missing_in_scope_files", [])),
+                        },
+                    )
+                )
+            if not bool(code_workbench.get("verification_ready", False)):
+                issues.append(
+                    _issue(
+                        "workflow",
+                        "code_verification_missing",
+                        "The code-change branch does not have focused verification ready.",
+                        details={"compile_target_count": int(code_workbench.get("compile_target_count", 0) or 0)},
+                    )
+                )
     return issues
 
 
@@ -512,6 +607,47 @@ def _detect_planner_quality_conflicts(plan: dict[str, Any] | None) -> list[dict[
                 "planner_ambiguity_too_high_for_mutation",
                 "The planner left too many ambiguity signals on a mutating branch.",
                 details={"planner_confidence": planner_confidence, "ambiguity_flags": ambiguity_flags[:8]},
+            )
+        )
+    return issues
+
+
+def _detect_world_model_conflicts(cwd: str, plan: dict[str, Any] | None, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    signals = _world_model_signals(cwd)
+    if not bool(signals.get("ok", False)):
+        return []
+    step_kinds = _step_kind_set(plan, results)
+    mutating = bool(step_kinds & _MUTATING_STEP_KINDS)
+    approvals = dict(signals.get("approvals") or {})
+    runtime = dict(signals.get("runtime") or {})
+    continuity = dict(signals.get("continuity") or {})
+    issues: list[dict[str, Any]] = []
+
+    if mutating and int(approvals.get("pending_count", 0) or 0) > 0:
+        issues.append(
+            _issue(
+                "workflow",
+                "world_model_approval_block",
+                "The world model says approvals are pending, so this mutating branch should not proceed.",
+                details={"pending_count": int(approvals.get("pending_count", 0) or 0)},
+            )
+        )
+    if mutating and (not bool(continuity.get("same_system", False)) or bool(continuity.get("has_contradiction", False))):
+        issues.append(
+            _issue(
+                "self_model",
+                "world_model_continuity_block",
+                "The world model says continuity is not healthy enough for this mutating branch.",
+                details=continuity,
+            )
+        )
+    if mutating and (bool(runtime.get("runtime_missing", False)) or not bool(runtime.get("runtime_ready", False))):
+        issues.append(
+            _issue(
+                "workflow",
+                "world_model_runtime_block",
+                "The world model says runtime control is not ready for this mutating branch.",
+                details=runtime,
             )
         )
     return issues
@@ -559,6 +695,12 @@ def _stable_branch_claims(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
 
 def _coverage_targets(request: str, plan: dict[str, Any] | None) -> tuple[int, int]:
     intent = dict((plan or {}).get("intent") or {})
+    target_coverage = dict((plan or {}).get("target_coverage") or {})
+    covered_target_ids = list(target_coverage.get("covered_target_ids", []))
+    unbound_target_ids = list(target_coverage.get("unbound_target_ids", []))
+    total_explicit_targets = len(covered_target_ids) + len(unbound_target_ids)
+    if total_explicit_targets > 0:
+        return len(covered_target_ids), total_explicit_targets
     serialized_targets = json.dumps(
         [step.get("target") for step in list((plan or {}).get("steps", []))],
         sort_keys=True,
@@ -681,6 +823,8 @@ def _recommended_action(issues: list[dict[str, Any]]) -> str:
         return "Stabilize runtime, continuity, and agent health before allowing evolution branches."
     if "unknown_step_kind" in codes or "missing_step_kind" in codes:
         return "Regenerate the branch from typed steps only before execution."
+    if {"code_targets_missing", "code_instruction_missing", "code_workbench_missing", "code_scope_not_ready", "code_verification_missing"} & codes:
+        return "Constrain the code branch to in-scope files with a bounded edit instruction and focused verification."
     if "policy_contract_violation" in codes:
         return "Route the action through a typed safe workflow instead of a denied raw action."
     if "planner_confidence_below_high_risk_threshold" in codes or "planner_confidence_below_mutation_threshold" in codes:
@@ -711,6 +855,7 @@ def review_run(
         + _detect_goal_conflicts(request, plan, result_list)
         + _detect_context_conflicts(request, plan, result_list)
         + _detect_workflow_conflicts(cwd, plan, result_list)
+        + _detect_world_model_conflicts(cwd, plan, result_list)
         + _detect_evolution_conflicts(cwd, plan, result_list)
         + _detect_plan_contract_conflicts(plan)
         + _detect_planner_quality_conflicts(plan)
@@ -749,6 +894,7 @@ def review_run(
         "recommended_action": recommended_action,
         "boundary_summary": boundary_summary,
         "continuity": _continuity_signals(cwd),
+        "world_model": _world_model_signals(cwd),
         "last_checked_utc": _utc_now(),
         "mode": mode,
         "branch": {
@@ -827,9 +973,12 @@ def contradiction_engine_status(cwd: str) -> dict[str, Any]:
     path = _path(cwd)
     state = _load(path, _default_state())
     continuity = _continuity_signals(cwd)
+    world_model = _world_model_signals(cwd)
     highest_value_steps: list[str] = []
     if continuity["has_contradiction"] or not continuity["same_system"]:
         highest_value_steps.append("Resolve self contradictions before trusting broader autonomous reasoning.")
+    elif "approvals" in list(world_model.get("blocked_domains", [])):
+        highest_value_steps.append("Clear approval blockers before allowing mutating branches back into contradiction selection.")
     elif not bool(state.get("enabled", True)):
         highest_value_steps.append("Enable the contradiction gate so every response is checked before output.")
     elif str(state.get("last_decision", "unknown")) == "hold":
@@ -854,6 +1003,7 @@ def contradiction_engine_status(cwd: str) -> dict[str, Any]:
         "last_issues": list(state.get("last_issues", [])),
         "history_count": len(list(state.get("history", []))),
         "continuity": continuity,
+        "world_model": world_model,
         "highest_value_steps": highest_value_steps,
     }
 

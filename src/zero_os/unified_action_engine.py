@@ -6,9 +6,12 @@ from zero_os.approval_workflow import latest_approved, latest_pending, mark_exec
 from zero_os.browser_dom_automation import act as browser_dom_act, inspect_page as browser_dom_inspect, status as browser_dom_status
 from zero_os.browser_session_connector import browser_session_action, browser_session_open, browser_session_status
 from zero_os.autonomous_fix_gate import autonomy_evaluate
+from zero_os.code_task_lane import run_code_task
+from zero_os.code_workbench import code_workbench_status
 from zero_os.cloud_deploy_integration import configure_target as cloud_target_set, deploy as cloud_deploy, status as cloud_status
 from zero_os.connector_layer import run_recovery, run_self_repair, store_install, store_status, web_fetch
 from zero_os.contradiction_engine import contradiction_engine_status
+from zero_os.decision_governor import governor_decide
 from zero_os.flow_monitor import flow_scan
 from zero_os.github_integration_pack import (
     connect_repo as github_connect,
@@ -77,10 +80,37 @@ def _planner_gate_kwargs(plan_context: dict | None) -> dict:
     }
 
 
+def _governor_gate(cwd: str, kind: str, plan_context: dict | None = None) -> dict:
+    mutating_kinds = {
+        "browser_action",
+        "browser_open",
+        "cloud_deploy",
+        "code_change",
+        "store_install",
+        "self_repair",
+        "recover",
+        "github_issue_act",
+        "github_issue_reply_post",
+        "github_pr_act",
+        "github_pr_reply_post",
+    }
+    if kind not in mutating_kinds:
+        return {"allowed": True, "governor": {}}
+    context = dict(plan_context or {})
+    governor = dict(context.get("decision_governor") or governor_decide(cwd))
+    if str(governor.get("call", "observe") or "observe") in {"wait_for_user", "repair_continuity", "run_runtime", "stabilize_recovery", "wait_for_clean_scope"}:
+        return {"allowed": False, "governor": governor}
+    return {"allowed": True, "governor": governor}
+
+
 def execute_step(cwd: str, step: dict, *, run_id: str = "", plan_context: dict | None = None) -> dict:
     kind = step.get("kind", "")
     target = step.get("target", "")
     execution_mode = str(dict(plan_context or {}).get("execution_mode", "normal") or "normal")
+    governor_gate = _governor_gate(cwd, str(kind), plan_context)
+    if not bool(governor_gate.get("allowed", False)):
+        audit_event(cwd, kind, "governor_blocked", {"target": target, "governor": dict(governor_gate.get("governor") or {})})
+        return {"ok": False, "kind": kind, "reason": "governor_blocked", "governor": dict(governor_gate.get("governor") or {})}
     policy = classify_action(cwd, kind)
     if policy["decision"] == "deny":
         audit_event(cwd, kind, "denied", {"target": target})
@@ -315,6 +345,52 @@ def execute_step(cwd: str, step: dict, *, run_id: str = "", plan_context: dict |
     if kind == "highway_dispatch":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": _dispatch_via_highway(cwd, str(target))}
+    if kind == "code_change":
+        effective_target = dict(target or {})
+        workbench = code_workbench_status(
+            cwd,
+            requested_files=list(effective_target.get("files", [])),
+            file_ranges=list(effective_target.get("file_ranges", [])),
+            requested_mutation=True,
+            request_text=str(effective_target.get("request", "")),
+        )
+        effective_target["code_workbench"] = workbench
+        if policy["decision"] == "approval_required":
+            approval_state = _matching_approval(cwd, "code_change", run_id, effective_target)
+            approved = approval_state["approved"]
+            if not approved.get("ok", False):
+                pending = approval_state["pending"]
+                if pending.get("ok", False):
+                    audit_event(cwd, kind, "approval_required", {"target": effective_target, "reused_pending": True})
+                    return {"ok": False, "kind": kind, "reason": "approval_required", "approval": pending}
+                audit_event(cwd, kind, "approval_required", {"target": effective_target})
+                approval = request_approval(cwd, "code_change", "policy_requires_approval", _approval_payload(run_id, effective_target))
+                return {"ok": False, "kind": kind, "reason": "approval_required", "approval": approval}
+        gate = autonomy_evaluate(
+            cwd,
+            action="bounded code change",
+            blast_radius="workspace",
+            reversible=True,
+            evidence_count=10,
+            contradictory_signals=0,
+            independent_verifiers=3,
+            checks={
+                "code_scope_ready": bool(workbench.get("scope_ready", False)),
+                "verification_ready": bool(workbench.get("verification_ready", False)),
+                "rollback_ready": True,
+            },
+            **_planner_gate_kwargs(plan_context),
+        )
+        if gate.get("decision") != "allow":
+            return {"ok": False, "kind": kind, "reason": "autonomy_gate", "gate": gate, "workbench": workbench}
+        result = run_code_task(cwd, effective_target)
+        approved = _matching_approval(cwd, "code_change", run_id, effective_target)["approved"]
+        if approved.get("ok", False):
+            mark_executed(cwd, str(approved["approval"].get("id", "")), outcome="ok" if result.get("ok", False) else "failed")
+        audit_event(cwd, kind, "executed", {"target": {"files": list(effective_target.get("files", [])), "candidate": result.get("candidate", "")}})
+        if not bool(result.get("ok", False)):
+            return {"ok": False, "kind": kind, "reason": str(result.get("reason", "code_change_failed")), "result": result, "gate": gate, "policy": policy}
+        return {"ok": True, "kind": kind, "result": result, "gate": gate, "policy": policy}
     if kind == "store_status":
         audit_event(cwd, kind, "executed", {"target": target})
         return {"ok": True, "kind": kind, "result": store_status(cwd)}

@@ -57,6 +57,30 @@ class ZeroAiPressureHarnessTests(unittest.TestCase):
         persisted = json.loads(Path(out["path"]).read_text(encoding="utf-8"))
         self.assertEqual(out["overall_score"], persisted["overall_score"])
 
+    def test_pressure_harness_treats_unready_self_repair_lane_as_safe_hold(self) -> None:
+        out = pressure_harness_run(str(self.base))
+
+        scenario = next(
+            item for item in out["scenarios"] if item.get("name") == "self_repair_approval_handoff"
+        )
+        self.assertTrue(scenario["ok"])
+        self.assertIn("correctly held", scenario["summary"])
+        details = dict(scenario.get("details") or {})
+        first = dict(details.get("first") or {})
+        contradiction_gate = dict((first.get("response") or {}).get("contradiction_gate") or first.get("contradiction_gate") or {})
+        issues = list(contradiction_gate.get("issues") or [])
+        workflow_not_ready = any(
+            str(issue.get("code", "")) == "typed_workflow_not_ready"
+            and str(dict(issue.get("details") or {}).get("lane", "")) == "self_repair"
+            for issue in issues
+        )
+        autonomy_hold = any(
+            str(dict(item.get("result") or {}).get("decision", "")) in {"hold_for_review", "approval_required"}
+            for item in list(first.get("results") or [])
+            if str(item.get("kind", "")) == "autonomy_gate"
+        )
+        self.assertTrue(workflow_not_ready or autonomy_hold)
+
     def test_pressure_harness_status_returns_latest_run(self) -> None:
         first = pressure_harness_run(str(self.base))
         status = pressure_harness_status(str(self.base))

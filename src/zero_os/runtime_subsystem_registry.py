@@ -34,7 +34,14 @@ class RuntimeSubsystemAdapter:
 def _run_autonomy(cwd: str, context: dict[str, Any]) -> dict[str, Any]:
     autonomy = zero_ai_autonomy_sync(cwd)
     autonomy_loop = zero_ai_autonomy_loop_status(cwd)
-    if bool(autonomy_loop.get("enabled", False)):
+    if bool(context.get("skip_autonomy_background", False)):
+        autonomy_background = {
+            "ok": True,
+            "ran": False,
+            "reason": "autonomy background skipped by runtime context",
+            "autonomy_loop": autonomy_loop,
+        }
+    elif bool(autonomy_loop.get("enabled", False)):
         autonomy_background = zero_ai_autonomy_loop_tick(cwd)
     else:
         autonomy_background = {
