@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -35,6 +36,7 @@ class CodeWorkbenchTests(unittest.TestCase):
         self.assertTrue(status["workspace_ready"])
         self.assertTrue(status["scope_ready"])
         self.assertTrue(status["verification_ready"])
+        self.assertTrue(status["verification_surface_ready"])
         self.assertEqual(1, status["compile_target_count"])
         self.assertIn("tests/test_sample.py", status["focused_test_targets"])
 
@@ -50,7 +52,26 @@ class CodeWorkbenchTests(unittest.TestCase):
         self.assertEqual(1, status["out_of_scope_count"])
         self.assertIn("README.md", status["out_of_scope_files"])
 
+    def test_code_workbench_reports_git_dirty_scope(self) -> None:
+        git = subprocess.run(["git", "--version"], capture_output=True, text=True, check=False)
+        if git.returncode != 0:
+            self.skipTest("git not available")
+
+        subprocess.run(["git", "init"], cwd=self.base, capture_output=True, text=True, check=False)
+        subprocess.run(["git", "add", "src/sample.py", "tests/test_sample.py"], cwd=self.base, capture_output=True, text=True, check=False)
+        (self.base / "src" / "sample.py").write_text('VALUE = "beta"\n', encoding="utf-8")
+
+        status = code_workbench_status(
+            str(self.base),
+            requested_files=["src/sample.py"],
+            requested_mutation=True,
+            request_text='replace "alpha" with "beta" in src/sample.py',
+        )
+
+        self.assertTrue(status["git_available"])
+        self.assertTrue(status["dirty_worktree"])
+        self.assertGreaterEqual(status["dirty_in_scope_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
-

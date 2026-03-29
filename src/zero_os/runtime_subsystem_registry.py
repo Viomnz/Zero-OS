@@ -7,7 +7,9 @@ from zero_os.calendar_time import calendar_reminder_tick
 from zero_os.communications import communications_tick
 from zero_os.contradiction_engine import contradiction_engine_status
 from zero_os.self_derivation_engine import self_derivation_revalidate, self_derivation_status
-from zero_os.zero_engine import zero_engine_status, zero_engine_tick
+from zero_os.subsystem_executor import execute_subsystem_adapters
+from zero_os.zero_engine import execute_zero_engine_plane
+from zero_os.zero_engine_adapters import zero_engine_adapters
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_loop_status,
     zero_ai_autonomy_loop_tick,
@@ -18,6 +20,12 @@ from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
 from zero_os.zero_ai_evolution import zero_ai_evolution_status
 from zero_os.zero_ai_pressure_harness import pressure_harness_status
 from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
+from zero_os.subsystem_registry import (
+    register_subsystem_adapter,
+    subsystem_adapter_map,
+    subsystem_adapters,
+    unregister_subsystem_adapter,
+)
 
 
 def _noop_background(reason: str) -> dict[str, Any]:
@@ -154,33 +162,6 @@ def _run_self_derivation(cwd: str, context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _run_zero_engine(cwd: str, context: dict[str, Any]) -> dict[str, Any]:
-    background = zero_engine_tick(
-        cwd,
-        runtime_context={
-            "pressure_ready": bool(context.get("pressure_ready", False)),
-            "pressure_score": float(context.get("pressure_score", 0.0) or 0.0),
-            "continuity_ready": bool(context.get("continuity_ready", False)),
-            "continuity": dict(context.get("continuity") or {}),
-        },
-    )
-    status = zero_engine_status(cwd)
-    return {
-        "updates": {
-            "zero_engine": status,
-            "zero_engine_background": background,
-        },
-        "runtime_checks": {
-            "zero_engine": bool(status.get("ok", False)),
-            "zero_engine_background": bool(background.get("ok", False)),
-        },
-        "context": {
-            "zero_engine": status,
-            "zero_engine_background": background,
-        },
-    }
-
-
 def _run_control_workflows(cwd: str, context: dict[str, Any]) -> dict[str, Any]:
     status = zero_ai_control_workflows_status(cwd)
     return {
@@ -213,42 +194,83 @@ def _run_source_evolution(cwd: str, context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-_ADAPTERS: tuple[RuntimeSubsystemAdapter, ...] = (
-    RuntimeSubsystemAdapter(name="autonomy", order=10, run=_run_autonomy),
-    RuntimeSubsystemAdapter(name="communications", order=20, run=_run_communications),
-    RuntimeSubsystemAdapter(name="calendar_time", order=30, run=_run_calendar),
-    RuntimeSubsystemAdapter(name="contradiction", order=40, run=_run_contradiction),
-    RuntimeSubsystemAdapter(name="pressure", order=50, run=_run_pressure),
-    RuntimeSubsystemAdapter(name="self_derivation", order=60, run=_run_self_derivation),
-    RuntimeSubsystemAdapter(name="zero_engine", order=70, run=_run_zero_engine),
-    RuntimeSubsystemAdapter(name="control_workflows", order=80, run=_run_control_workflows),
-    RuntimeSubsystemAdapter(name="capability_control_map", order=90, run=_run_capability_map),
-    RuntimeSubsystemAdapter(name="evolution", order=100, run=_run_evolution),
-    RuntimeSubsystemAdapter(name="source_evolution", order=110, run=_run_source_evolution),
-)
+def register_runtime_subsystem_adapter(adapter: RuntimeSubsystemAdapter, *, replace: bool = False) -> RuntimeSubsystemAdapter:
+    return register_subsystem_adapter("runtime", adapter, replace=replace)
+
+
+def runtime_subsystem_adapter_map() -> dict[str, RuntimeSubsystemAdapter]:
+    return dict(subsystem_adapter_map("runtime"))
+
+
+def unregister_runtime_subsystem_adapter(name: str) -> RuntimeSubsystemAdapter | None:
+    return unregister_subsystem_adapter("runtime", name)
+
+
+def _install_builtin_runtime_adapters() -> None:
+    if runtime_subsystem_adapter_map():
+        return
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="autonomy", order=10, run=_run_autonomy))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="communications", order=20, run=_run_communications))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="calendar_time", order=30, run=_run_calendar))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="contradiction", order=40, run=_run_contradiction))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="pressure", order=50, run=_run_pressure))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="self_derivation", order=60, run=_run_self_derivation))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="control_workflows", order=70, run=_run_control_workflows))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="capability_control_map", order=80, run=_run_capability_map))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="evolution", order=90, run=_run_evolution))
+    register_runtime_subsystem_adapter(RuntimeSubsystemAdapter(name="source_evolution", order=100, run=_run_source_evolution))
 
 
 def runtime_subsystem_adapters() -> tuple[RuntimeSubsystemAdapter, ...]:
-    return tuple(sorted(_ADAPTERS, key=lambda adapter: (adapter.order, adapter.name)))
+    _install_builtin_runtime_adapters()
+    return tuple(subsystem_adapters("runtime", key=lambda adapter: (adapter.order, adapter.name)))
 
 
-def run_runtime_subsystems(cwd: str, *, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    shared_context = dict(context or {})
-    updates: dict[str, Any] = {}
-    runtime_checks: dict[str, Any] = {}
-    adapter_results: dict[str, Any] = {}
-    for adapter in runtime_subsystem_adapters():
-        result = dict(adapter.run(cwd, shared_context) or {})
-        adapter_results[adapter.name] = result
-        updates.update(dict(result.get("updates") or {}))
-        runtime_checks.update(dict(result.get("runtime_checks") or {}))
-        shared_context.update(dict(result.get("context") or {}))
+def run_runtime_subsystems(cwd: str, *, context: dict[str, Any] | None = None, force: bool = False) -> dict[str, Any]:
+    runtime_execution = execute_subsystem_adapters(cwd, runtime_subsystem_adapters(), context=context)
+    execution_context = dict(runtime_execution.get("context") or {})
+    zero_engine_execution = execute_zero_engine_plane(
+        cwd,
+        force=force,
+        runtime_context={
+            "pressure_ready": bool(execution_context.get("pressure_ready", False)),
+            "pressure_score": float(execution_context.get("pressure_score", 0.0) or 0.0),
+            "continuity_ready": bool(execution_context.get("continuity_ready", False)),
+            "continuity": dict(execution_context.get("continuity") or {}),
+        },
+        persist=False,
+    )
+    zero_engine_report = dict(zero_engine_execution.get("latest_report") or {})
+    updates = dict(runtime_execution.get("updates") or {})
+    updates["zero_engine"] = dict(zero_engine_execution)
+    updates["zero_engine_background"] = zero_engine_report
+    runtime_checks = dict(runtime_execution.get("runtime_checks") or {})
+    runtime_checks["zero_engine"] = bool(zero_engine_execution.get("ok", False))
+    runtime_checks["zero_engine_background"] = bool(zero_engine_report.get("ok", False))
+    execution_context["zero_engine"] = dict(zero_engine_execution)
+    execution_context["zero_engine_background"] = zero_engine_report
+    runtime_names = list(runtime_execution.get("adapter_names") or [])
+    zero_engine_names = [f"zero_engine:{name}" for name in list(zero_engine_execution.get("adapter_names") or [])]
     return {
         "ok": True,
-        "adapter_count": len(runtime_subsystem_adapters()),
-        "adapter_names": [adapter.name for adapter in runtime_subsystem_adapters()],
+        "mode": "universal",
+        "scheduler": "flattened",
+        "runtime_adapter_count": int(runtime_execution.get("adapter_count", 0) or 0),
+        "decision_adapter_count": len(zero_engine_adapters()),
+        "adapter_count": int(runtime_execution.get("adapter_count", 0) or 0) + len(zero_engine_adapters()),
+        "adapter_names": runtime_names + zero_engine_names,
+        "runtime_adapter_names": runtime_names,
+        "decision_adapter_names": zero_engine_names,
         "updates": updates,
         "runtime_checks": runtime_checks,
-        "context": shared_context,
-        "adapter_results": adapter_results,
+        "context": execution_context,
+        "adapter_results": dict(runtime_execution.get("adapter_results") or {}),
+        "zero_engine_execution": dict(zero_engine_execution),
+        "state_updates": {
+            "zero_engine_status": dict(zero_engine_execution),
+            "workspace_scan_snapshot": dict(zero_engine_execution.get("scan_snapshot_payload") or {}),
+        },
     }
+
+
+_install_builtin_runtime_adapters()

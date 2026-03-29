@@ -17,6 +17,8 @@ from zero_os.approval_workflow import request_approval
 from zero_os.phase_runtime import zero_ai_runtime_run
 from zero_os.self_continuity import zero_ai_self_continuity_update
 from zero_os.zero_ai_autonomy import (
+    _select_current_goal,
+    _save_goals,
     zero_ai_autonomy_add_goal,
     zero_ai_autonomy_drain,
     zero_ai_autonomy_loop_set,
@@ -157,6 +159,46 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         self.assertEqual("run_runtime", current["action_kind"])
         self.assertEqual("run_runtime", synced["signals"]["governor_call"])
 
+    def test_select_current_goal_prefers_world_model_goal_bias_over_static_priority(self) -> None:
+        state = {
+            "current_goal_id": "",
+            "goals": [
+                {
+                    "id": "g1",
+                    "key": "manual_review_logs",
+                    "title": "Review runtime logs",
+                    "priority": 95,
+                    "state": "open",
+                    "requires_user": False,
+                    "action_kind": "request_task",
+                    "created_utc": "2026-03-28T00:00:00+00:00",
+                },
+                {
+                    "id": "g2",
+                    "key": "restore_continuity",
+                    "title": "Repair continuity",
+                    "priority": 70,
+                    "state": "open",
+                    "requires_user": False,
+                    "action_kind": "repair_continuity",
+                    "created_utc": "2026-03-28T00:05:00+00:00",
+                },
+            ],
+        }
+        signals = {
+            "world_model": {
+                "domains": {"goals": {"summary": {"current_goal_title": "Repair continuity"}}},
+                "causal_assessment": {"action_bias": "repair_continuity"},
+            },
+            "decision_governor": {"call": "repair_continuity"},
+        }
+
+        selected = _select_current_goal(state, signals)
+
+        self.assertIsNotNone(selected)
+        self.assertEqual("restore_continuity", selected["key"])
+        self.assertEqual("g2", state["current_goal_id"])
+
     def test_autonomy_run_executes_runtime_goal(self) -> None:
         self._prime_identity()
 
@@ -183,6 +225,19 @@ class ZeroAiAutonomyTests(unittest.TestCase):
         blocked = next(goal for goal in status["goals"] if goal["key"] == "pending_approvals")
         self.assertEqual("blocked", blocked["state"])
         self.assertEqual("wait_for_user", status["decision_governor"]["call"])
+
+    def test_autonomy_status_exposes_execution_priority_queue(self) -> None:
+        self._prime_identity()
+
+        synced = zero_ai_autonomy_sync(str(self.base))
+
+        self.assertTrue(synced["status"]["execution_priority_queue"])
+        first = synced["status"]["execution_priority_queue"][0]
+        self.assertEqual("stabilize_runtime", first["goal"]["key"])
+        self.assertEqual("run_runtime", first["priority"]["governor_call"])
+        self.assertTrue(
+            any(reason.startswith("matches_action_bias:run_runtime") or reason.startswith("matches_governor_call:run_runtime") for reason in first["priority"]["reasons"])
+        )
 
     def test_expired_approvals_stop_blocking_autonomy(self) -> None:
         self._prime_stable_runtime()
@@ -225,6 +280,98 @@ class ZeroAiAutonomyTests(unittest.TestCase):
 
         manual = next(goal for goal in status["goals"] if goal["key"].startswith("manual_check_system_status"))
         self.assertEqual("resolved", manual["state"])
+
+    def test_autonomy_run_uses_contextual_execution_priority_for_multiple_open_goals(self) -> None:
+        state = {
+            "schema_version": 1,
+            "updated_utc": "2026-03-28T00:00:00+00:00",
+            "current_goal_id": "",
+            "goals": [
+                {
+                    "id": "g1",
+                    "key": "manual_review_logs",
+                    "title": "Review runtime logs",
+                    "description": "Review runtime logs",
+                    "priority": 99,
+                    "source": "manual",
+                    "state": "open",
+                    "risk": "low",
+                    "action_kind": "request_task",
+                    "action_args": {"request": "review runtime logs"},
+                    "next_action": "review runtime logs",
+                    "requires_user": False,
+                    "blocked_reason": "",
+                    "attempts": 0,
+                    "last_result_ok": None,
+                    "last_result_summary": "",
+                    "created_utc": "2026-03-28T00:00:00+00:00",
+                    "updated_utc": "2026-03-28T00:00:00+00:00",
+                    "resolved_utc": "",
+                    "evidence": {},
+                    "managed": False,
+                },
+                {
+                    "id": "g2",
+                    "key": "restore_continuity",
+                    "title": "Repair continuity",
+                    "description": "Repair continuity",
+                    "priority": 70,
+                    "source": "continuity",
+                    "state": "open",
+                    "risk": "medium",
+                    "action_kind": "repair_continuity",
+                    "action_args": {},
+                    "next_action": "zero ai self repair restore continuity",
+                    "requires_user": False,
+                    "blocked_reason": "",
+                    "attempts": 0,
+                    "last_result_ok": None,
+                    "last_result_summary": "",
+                    "created_utc": "2026-03-28T00:05:00+00:00",
+                    "updated_utc": "2026-03-28T00:05:00+00:00",
+                    "resolved_utc": "",
+                    "evidence": {},
+                    "managed": True,
+                },
+            ],
+        }
+        _save_goals(str(self.base), state)
+        signals = {
+            "runtime": {"runtime_ready": True, "missing": False},
+            "runtime_loop": {"enabled": True, "interval_seconds": 180},
+            "runtime_agent": {"installed": True, "running": True},
+            "continuity": {
+                "continuity": {"same_system": False, "continuity_score": 72.0},
+                "contradiction_detection": {"has_contradiction": True},
+            },
+            "continuity_healthy": False,
+            "continuity_score": 72.0,
+            "control_workflows": {},
+            "capability_control_map": {},
+            "pressure": {},
+            "evolution": {},
+            "source_evolution": {},
+            "approvals": {"pending_count": 0, "expired_count": 0},
+            "jobs": {"count": 0},
+            "world_model": {
+                "domains": {"goals": {"summary": {"current_goal_title": "Repair continuity"}}},
+                "causal_assessment": {"action_bias": "repair_continuity"},
+                "attention": {"current_goal_title": "Repair continuity"},
+                "blocked_domains": ["continuity"],
+            },
+            "decision_governor": {"call": "repair_continuity", "mode": "safe"},
+        }
+
+        with patch("zero_os.zero_ai_autonomy._collect_signals", return_value=signals), patch(
+            "zero_os.zero_ai_autonomy._execute_goal_action",
+            return_value={"ok": True, "action_kind": "repair_continuity", "result": {"ok": True, "summary": "continuity restored"}},
+        ):
+            run = zero_ai_autonomy_run(str(self.base))
+
+        self.assertTrue(run["ok"])
+        self.assertEqual("restore_continuity", run["goal"]["key"])
+        self.assertEqual("repair_continuity", run["execution"]["action_kind"])
+        self.assertEqual("restore_continuity", run["autonomy"]["execution_priority_queue"][0]["goal"]["key"])
 
     def test_autonomy_loop_tick_runs_due_goal(self) -> None:
         self._prime_identity()

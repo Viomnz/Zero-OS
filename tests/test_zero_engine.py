@@ -31,15 +31,25 @@ class ZeroEngineTests(unittest.TestCase):
 
         self.assertTrue(report["ok"])
         self.assertEqual("parallel", report["latest_report"]["scan_mode"])
+        self.assertEqual("universal", report["latest_report"]["executor"])
         self.assertIn("scan_snapshot", report["latest_report"])
         self.assertIn("antivirus", report["latest_report"]["subsystems"])
         self.assertIn("pressure", report["latest_report"]["subsystems"])
         self.assertIn("recovery", report["latest_report"]["subsystems"])
         self.assertIn("resilience", report["latest_report"]["subsystems"])
         self.assertIn("self_derivation", report["latest_report"]["subsystems"])
+        self.assertIn("mutation_budget", report["latest_report"])
         self.assertTrue((self.base / ".zero_os" / "runtime" / "zero_engine_status.json").exists())
         self.assertTrue((self.base / ".zero_os" / "runtime" / "workspace_scan_snapshot.json").exists())
         self.assertEqual(report["last_run_utc"], status["last_run_utc"])
+        mutating_ran = [
+            name
+            for name, subsystem in report["latest_report"]["subsystems"].items()
+            if bool(subsystem.get("ran", False))
+            and str(dict(subsystem.get("decision") or {}).get("action", "observe")) in {"backup", "failover_apply", "revalidate", "verify"}
+        ]
+        self.assertLessEqual(len(mutating_ran), 1)
+        self.assertEqual(1, int(report["latest_report"]["mutation_budget"]["limit"]))
 
     def test_zero_engine_status_exposes_extended_builtin_adapter_set(self) -> None:
         status = zero_engine_status(str(self.base))

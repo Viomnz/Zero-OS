@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from time import perf_counter
 from typing import Any
+from uuid import uuid4
 
-from zero_os.decision_engine import decide_zero_engine
+from zero_os.decision_engine import decide_zero_engine, zero_engine_action_is_mutating
 from zero_os.scan_coordinator import build_workspace_scan_snapshot, workspace_scan_summary
 from zero_os.state_registry import (
     boot_state_registry,
-    flush_state_registry,
+    commit_state_transaction,
     get_state_store,
-    update_state_store,
 )
+from zero_os.subsystem_executor import execute_subsystem_adapters
 from zero_os.zero_engine_adapters import zero_engine_adapters
 
 
@@ -97,75 +95,50 @@ def zero_engine_status(cwd: str) -> dict[str, Any]:
     }
 
 
-def zero_engine_tick(cwd: str, *, force: bool = False, runtime_context: dict[str, Any] | None = None) -> dict[str, Any]:
+def execute_zero_engine_plane(
+    cwd: str,
+    *,
+    force: bool = False,
+    runtime_context: dict[str, Any] | None = None,
+    persist: bool = False,
+) -> dict[str, Any]:
     boot_state_registry(cwd)
     adapters = list(zero_engine_adapters())
     state = _normalize_state(get_state_store(cwd, "zero_engine_status", _default_state()))
     subsystems = dict(state.get("subsystems") or {})
 
-    scan_started = perf_counter()
     scan_snapshot = build_workspace_scan_snapshot(cwd, force=force)
     scan_summary = workspace_scan_summary(scan_snapshot)
-    facts: dict[str, Any] = {}
-    scan_errors: dict[str, Any] = {}
-    with ThreadPoolExecutor(max_workers=max(1, len(adapters))) as executor:
-        futures = {
-            executor.submit(adapter.scan, cwd, scan_snapshot): adapter.name
-            for adapter in adapters
-        }
-        for future in as_completed(futures):
-            name = futures[future]
-            try:
-                subsystem_facts = dict(future.result() or {})
-            except Exception as exc:
-                subsystem_facts = {
-                    "missing": True,
-                    "scan_error": str(exc),
-                    "report": {"ok": False, "reason": str(exc)},
-                }
-                scan_errors[name] = {"reason": str(exc)}
-            subsystem_facts["scan_snapshot"] = scan_snapshot
-            facts[name] = subsystem_facts
-    scan_duration_ms = round((perf_counter() - scan_started) * 1000.0, 3)
-    decision_block = decide_zero_engine(cwd, facts, runtime_context=runtime_context)
-    decisions = dict(decision_block.get("decisions") or {})
-    subsystem_reports: dict[str, Any] = {}
-    ran_count = 0
-    now_utc = _utc_now()
-
-    for adapter in adapters:
-        name = adapter.name
-        subsystem_state = dict(subsystems.get(name) or {})
-        decision = dict(decisions.get(name) or {})
-        interval_seconds = int(subsystem_state.get("interval_seconds", adapter.interval_seconds) or adapter.interval_seconds)
-        subsystem_state["interval_seconds"] = interval_seconds
-        fact_report = dict(facts.get(name) or {})
-        if "scan_snapshot" in fact_report:
-            fact_report["scan_snapshot"] = scan_summary
-        if not _due(str(subsystem_state.get("last_run_utc", "")), interval_seconds, force=force):
-            subsystem_reports[name] = {
-                "ok": True,
-                "ran": False,
-                "reason": "subsystem not due",
-                "decision": decision,
-                "facts": fact_report,
-            }
-            subsystems[name] = subsystem_state
-            continue
-        result = adapter.enforce(cwd, decision, dict(facts.get(name) or {}))
-        subsystem_state["last_run_utc"] = now_utc
-        subsystem_state["last_decision"] = decision
-        subsystem_state["last_result"] = result
-        subsystem_state["last_reason"] = str(decision.get("reason", ""))
-        subsystems[name] = subsystem_state
-        subsystem_reports[name] = {
-            "ok": bool(result.get("ok", False)),
-            "ran": True,
-            "decision": decision,
-            "facts": fact_report,
-            "result": result,
-        }
-        ran_count += 1
+    execution = execute_subsystem_adapters(
+        cwd,
+        adapters,
+        context=runtime_context,
+        force=force,
+        subsystem_state=subsystems,
+        scan_snapshot=scan_snapshot,
+        decide_all=lambda exec_cwd, exec_facts, exec_context: decide_zero_engine(
+            exec_cwd,
+            exec_facts,
+            runtime_context=exec_context,
+        ),
+        due_predicate=lambda last_run_utc, interval_seconds, force_run: _due(
+            last_run_utc,
+            interval_seconds,
+            force=force_run,
+        ),
+        mutation_action_predicate=zero_engine_action_is_mutating,
+    )
+    decisions = dict(execution.get("decisions") or {})
+    subsystem_reports = dict(execution.get("subsystem_reports") or {})
+    now_utc = str(execution.get("generated_utc", _utc_now()))
+    scan_duration_ms = round(float(execution.get("scan_duration_ms", 0.0) or 0.0), 3)
+    scan_errors = dict(execution.get("scan_errors") or {})
+    ran_count = int(execution.get("ran_count", 0) or 0)
+    executed_mutation_count = int(execution.get("executed_mutation_count", 0) or 0)
+    deferred_mutation_count = int(execution.get("deferred_mutation_count", 0) or 0)
+    mutation_winner_name = str(execution.get("mutation_winner_subsystem", "") or "")
+    decision_block = dict(execution.get("decision_block") or {})
+    subsystems = dict(execution.get("updated_subsystems") or {})
 
     report = {
         "ok": True,
@@ -178,7 +151,17 @@ def zero_engine_tick(cwd: str, *, force: bool = False, runtime_context: dict[str
         "next_priority_subsystem": str(decision_block.get("next_priority_subsystem", "")),
         "next_priority_action": str(decision_block.get("next_priority_action", "")),
         "next_priority_reason": str(decision_block.get("next_priority_reason", "")),
+        "mutation_budget": {
+            "limit": 1,
+            "candidate_count": int(execution.get("due_mutating_candidate_count", 0) or 0),
+            "recommended_winner_subsystem": str(dict(decision_block.get("mutation_budget") or {}).get("winner_subsystem", "")),
+            "recommended_winner_action": str(dict(decision_block.get("mutation_budget") or {}).get("winner_action", "")),
+            "applied_winner_subsystem": mutation_winner_name,
+            "executed_mutation_count": executed_mutation_count,
+            "deferred_mutation_count": deferred_mutation_count,
+        },
         "scan_mode": "parallel",
+        "executor": "universal",
         "scan_duration_ms": scan_duration_ms,
         "scan_error_count": len(scan_errors),
         "scan_errors": scan_errors,
@@ -189,13 +172,34 @@ def zero_engine_tick(cwd: str, *, force: bool = False, runtime_context: dict[str
     state["last_run_utc"] = now_utc
     state["subsystems"] = subsystems
     state["latest_report"] = report
-
-    update_state_store(cwd, "zero_engine_status", lambda current: dict(state))
-    flush_state_registry(cwd, names=["zero_engine_status", "workspace_scan_snapshot"])
-    return {
+    result = {
         "ok": True,
         "adapter_count": len(adapters),
         "adapter_names": [adapter.name for adapter in adapters],
         "path": str(_engine_path(cwd)),
+        "scan_snapshot_payload": dict(scan_snapshot),
+        "scan_snapshot_summary": scan_summary,
         **state,
     }
+    if persist:
+        commit_id = f"zero-engine-{uuid4()}"
+        result["control_plane_commit_id"] = commit_id
+        result["latest_report"]["control_plane_commit_id"] = commit_id
+        persisted_state = dict(result)
+        persisted_state.pop("scan_snapshot_payload", None)
+        persisted_state.pop("scan_snapshot_summary", None)
+        transaction = commit_state_transaction(
+            cwd,
+            {
+                "zero_engine_status": persisted_state,
+                "workspace_scan_snapshot": dict(scan_snapshot),
+            },
+            label="zero_engine_tick",
+            transaction_id=commit_id,
+        )
+        result["control_plane_commit"] = transaction
+    return result
+
+
+def zero_engine_tick(cwd: str, *, force: bool = False, runtime_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    return execute_zero_engine_plane(cwd, force=force, runtime_context=runtime_context, persist=True)

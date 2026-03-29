@@ -17,6 +17,12 @@ from zero_os.resilience import (
 )
 from zero_os.runtime_smart_logic import recovery_decision, rollout_decision
 from zero_os.self_derivation_engine import self_derivation_revalidate, self_derivation_status
+from zero_os.subsystem_registry import (
+    register_subsystem_adapter,
+    subsystem_adapter_map,
+    subsystem_adapters,
+    unregister_subsystem_adapter,
+)
 from zero_os.zero_ai_pressure_harness import pressure_harness_run, pressure_harness_status
 
 
@@ -368,30 +374,24 @@ class ZeroEngineAdapter:
     enforce: Callable[[str, dict[str, Any], dict[str, Any]], dict[str, Any]]
 
 
-_ADAPTERS: dict[str, ZeroEngineAdapter] = {}
-
-
 def register_zero_engine_adapter(adapter: ZeroEngineAdapter, *, replace: bool = False) -> ZeroEngineAdapter:
-    if adapter.name in _ADAPTERS and not replace:
-        raise ValueError(f"zero engine adapter already registered: {adapter.name}")
-    _ADAPTERS[adapter.name] = adapter
-    return adapter
+    return register_subsystem_adapter("zero_engine", adapter, replace=replace)
 
 
 def zero_engine_adapters() -> tuple[ZeroEngineAdapter, ...]:
-    return tuple(_ADAPTERS[name] for name in sorted(_ADAPTERS))
+    return tuple(subsystem_adapters("zero_engine", key=lambda adapter: adapter.name))
 
 
 def zero_engine_adapter_map() -> dict[str, ZeroEngineAdapter]:
-    return dict(_ADAPTERS)
+    return dict(subsystem_adapter_map("zero_engine"))
 
 
 def unregister_zero_engine_adapter(name: str) -> ZeroEngineAdapter | None:
-    return _ADAPTERS.pop(str(name), None)
+    return unregister_subsystem_adapter("zero_engine", name)
 
 
 def _install_builtin_adapters() -> None:
-    if _ADAPTERS:
+    if zero_engine_adapter_map():
         return
     register_zero_engine_adapter(
         ZeroEngineAdapter(

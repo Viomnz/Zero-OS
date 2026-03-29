@@ -130,6 +130,9 @@ class DecisionGovernorTests(unittest.TestCase):
                     "requested_code_mutation": True,
                     "scope_ready": True,
                     "verification_ready": True,
+                    "verification_surface_ready": True,
+                    "dirty_in_scope_count": 0,
+                    "source_canary_ready": True,
                     "target_file_count": 1,
                     "in_scope_count": 1,
                     "out_of_scope_count": 0,
@@ -145,6 +148,137 @@ class DecisionGovernorTests(unittest.TestCase):
 
         self.assertEqual("run_code_fix_loop", decision["call"])
         self.assertEqual("guarded", decision["mode"])
+
+    def test_governor_waits_for_clean_scope_when_in_scope_targets_are_already_dirty(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "code_workbench": {
+                    "workspace_ready": True,
+                    "requested_code_mutation": True,
+                    "scope_ready": True,
+                    "verification_ready": True,
+                    "verification_surface_ready": True,
+                    "dirty_in_scope_count": 1,
+                    "target_file_count": 1,
+                    "in_scope_count": 1,
+                    "out_of_scope_count": 0,
+                    "missing_in_scope_count": 0,
+                    "ready": True,
+                },
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+
+        decision = governor_decide(str(self.base), world_model=model)
+
+        self.assertEqual("wait_for_clean_scope", decision["call"])
+        self.assertIn("1 in-scope code target(s) already dirty", decision["blocking_factors"])
+
+    def test_governor_routes_to_code_canary_when_verification_surface_is_weak(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "code_workbench": {
+                    "workspace_ready": True,
+                    "requested_code_mutation": True,
+                    "scope_ready": True,
+                    "verification_ready": True,
+                    "verification_surface_ready": False,
+                    "dirty_in_scope_count": 0,
+                    "source_canary_ready": True,
+                    "target_file_count": 1,
+                    "in_scope_count": 1,
+                    "out_of_scope_count": 0,
+                    "missing_in_scope_count": 0,
+                    "ready": True,
+                },
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+
+        decision = governor_decide(str(self.base), world_model=model)
+
+        self.assertEqual("run_code_canary", decision["call"])
+        self.assertEqual("guarded", decision["mode"])
+
+    def test_governor_progresses_goal_when_world_model_is_stable(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "goal_memory": {
+                    "goal_count": 1,
+                    "open_count": 1,
+                    "blocked_count": 0,
+                    "current_goal_title": "Fix planner drift",
+                    "current_goal_next_action": "run goal loop",
+                    "current_goal_requires_user": False,
+                    "current_goal_state": "open",
+                    "loop_enabled": True,
+                    "loop_due_now": True,
+                },
+                "observation_stream": {"event_count": 0, "blocking_event_count": 0, "recent": []},
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+
+        decision = governor_decide(str(self.base), world_model=model)
+
+        self.assertEqual("goal_progress", decision["call"])
+        self.assertEqual("normal", decision["mode"])
+
+    def test_governor_requests_runtime_refresh_when_world_model_is_stale(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+        model["stale"] = True
+        model["fresh_enough"] = False
+        model["stale_domains"] = ["runtime"]
+
+        decision = governor_decide(str(self.base), world_model=model)
+
+        self.assertEqual("run_runtime", decision["call"])
+        self.assertEqual("safe", decision["mode"])
+        self.assertIn("runtime", decision["blocking_factors"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 
 from zero_os.state_registry import (
     boot_state_registry,
+    commit_state_transaction,
     flush_state_registry,
     get_state_store,
     put_state_store,
@@ -171,3 +172,112 @@ class StateRegistryTests(unittest.TestCase):
         self.assertGreaterEqual(conflict_total, 1)
         self.assertEqual("runtime_agent", refreshed.get("writer"))
         self.assertGreaterEqual(int(refreshed.get("tick", -1)), 0)
+
+    def test_commit_state_transaction_persists_correlated_control_plane_stores(self) -> None:
+        committed = commit_state_transaction(
+            str(self.base),
+            {
+                "phase_runtime_status": {"ok": True, "control_plane_commit_id": "tx-1"},
+                "world_model_latest": {"ok": True, "control_plane_commit_id": "tx-1", "domains": {}},
+            },
+            label="unit_control_plane",
+            transaction_id="tx-1",
+        )
+
+        phase = get_state_store(str(self.base), "phase_runtime_status", {})
+        world = get_state_store(str(self.base), "world_model_latest", {})
+        status = state_registry_status(str(self.base))
+
+        self.assertTrue(committed["ok"])
+        self.assertEqual("tx-1", phase.get("control_plane_commit_id"))
+        self.assertEqual("tx-1", world.get("control_plane_commit_id"))
+        self.assertTrue(status["transaction"]["present"])
+        self.assertEqual("committed", status["transaction"]["status"])
+        self.assertEqual("tx-1", status["transaction"]["transaction_id"])
+
+    def test_boot_state_registry_recovers_pending_transaction_from_staged_payloads(self) -> None:
+        runtime_dir = self.base / ".zero_os" / "runtime"
+        transaction_dir = runtime_dir / "state_registry_transactions" / "boot-tx"
+        transaction_dir.mkdir(parents=True, exist_ok=True)
+        phase_payload = {"ok": True, "control_plane_commit_id": "boot-tx", "orchestrator_active": True}
+        world_payload = {"ok": True, "control_plane_commit_id": "boot-tx", "domains": {}, "fact_count": 0}
+        (transaction_dir / "phase_runtime_status.json").write_text(json.dumps(phase_payload, indent=2) + "\n", encoding="utf-8")
+        (transaction_dir / "world_model_latest.json").write_text(json.dumps(world_payload, indent=2) + "\n", encoding="utf-8")
+        (runtime_dir / "state_registry_transaction.json").write_text(
+            json.dumps(
+                {
+                    "transaction_id": "boot-tx",
+                    "label": "boot_recovery",
+                    "time_utc": "2026-03-28T00:00:00+00:00",
+                    "store_names": ["phase_runtime_status", "world_model_latest"],
+                    "payload_paths": {
+                        "phase_runtime_status": str(transaction_dir / "phase_runtime_status.json"),
+                        "world_model_latest": str(transaction_dir / "world_model_latest.json"),
+                    },
+                    "status": "pending",
+                    "written_names": ["phase_runtime_status"],
+                    "failure_count": 0,
+                    "failures": [],
+                    "conflict_count": 0,
+                    "conflicts": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        boot = boot_state_registry(str(self.base))
+        phase = get_state_store(str(self.base), "phase_runtime_status", {})
+        world = get_state_store(str(self.base), "world_model_latest", {})
+        status = state_registry_status(str(self.base))
+
+        self.assertTrue(boot["transaction_recovery"]["recovered"])
+        self.assertEqual("recovered", boot["transaction_recovery"]["status"])
+        self.assertEqual("boot-tx", phase.get("control_plane_commit_id"))
+        self.assertEqual("boot-tx", world.get("control_plane_commit_id"))
+        self.assertEqual("recovered", status["transaction"]["status"])
+        self.assertFalse(transaction_dir.exists())
+
+    def test_boot_state_registry_quarantines_pending_transaction_when_newer_truth_exists(self) -> None:
+        runtime_dir = self.base / ".zero_os" / "runtime"
+        transaction_dir = runtime_dir / "state_registry_transactions" / "stale-tx"
+        transaction_dir.mkdir(parents=True, exist_ok=True)
+        stale_payload = {"ok": True, "control_plane_commit_id": "stale-tx", "orchestrator_active": True}
+        (transaction_dir / "phase_runtime_status.json").write_text(json.dumps(stale_payload, indent=2) + "\n", encoding="utf-8")
+        (runtime_dir / "phase_runtime_status.json").write_text(
+            json.dumps({"ok": True, "control_plane_commit_id": "newer-tx", "orchestrator_active": True}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (runtime_dir / "state_registry_transaction.json").write_text(
+            json.dumps(
+                {
+                    "transaction_id": "stale-tx",
+                    "label": "boot_recovery",
+                    "time_utc": "2026-03-28T00:00:00+00:00",
+                    "store_names": ["phase_runtime_status"],
+                    "payload_paths": {
+                        "phase_runtime_status": str(transaction_dir / "phase_runtime_status.json"),
+                    },
+                    "status": "pending",
+                    "written_names": [],
+                    "failure_count": 0,
+                    "failures": [],
+                    "conflict_count": 0,
+                    "conflicts": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        boot = boot_state_registry(str(self.base))
+        phase = get_state_store(str(self.base), "phase_runtime_status", {})
+        status = state_registry_status(str(self.base))
+
+        self.assertTrue(boot["transaction_recovery"]["quarantined"])
+        self.assertEqual("quarantined", boot["transaction_recovery"]["status"])
+        self.assertEqual("newer-tx", phase.get("control_plane_commit_id"))
+        self.assertEqual("quarantined", status["transaction"]["status"])
+        self.assertTrue((runtime_dir / "state_registry_transactions" / "quarantine" / "stale-tx" / "transaction.json").exists())

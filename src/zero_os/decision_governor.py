@@ -31,14 +31,66 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
                 "jobs_pending": 0,
                 "pressure_ready": False,
                 "recovery_ready": False,
-            "recovery_snapshot_count": 0,
-            "recovery_compatible_count": 0,
-            "revalidation_ready_count": 0,
-            "requested_code_mutation": False,
-            "code_scope_ready": False,
-            "code_verification_ready": False,
-        },
-    }
+                "recovery_snapshot_count": 0,
+                "recovery_compatible_count": 0,
+                "revalidation_ready_count": 0,
+                "requested_code_mutation": False,
+                "code_scope_ready": False,
+                "code_verification_ready": False,
+                "code_verification_surface_ready": False,
+                "code_dirty_worktree": False,
+                "code_dirty_in_scope_count": 0,
+                "code_source_canary_ready": False,
+                "goal_count": 0,
+                "open_goal_count": 0,
+                "blocked_goal_count": 0,
+                "current_goal_title": "",
+                "goal_loop_due_now": False,
+                "observation_blocking_event_count": 0,
+                "causal_action_bias": "observe",
+                "stale_domains": [],
+            },
+        }
+    if bool(model.get("stale", False)) and not bool(model.get("fresh_enough", True)):
+        stale_domains = [str(item) for item in list(model.get("stale_domains", [])) if str(item)]
+        return {
+            "ok": True,
+            "time_utc": _utc_now(),
+            "call": "run_runtime",
+            "mode": "safe",
+            "priority": 90,
+            "confidence": 0.88,
+            "reason": "world model is stale, so runtime truth must be refreshed before autonomous action",
+            "blocking_factors": stale_domains,
+            "observed": {
+                "runtime_ready": False,
+                "runtime_missing": False,
+                "same_system": False,
+                "has_contradiction": False,
+                "approvals_pending": 0,
+                "jobs_pending": 0,
+                "pressure_ready": False,
+                "recovery_ready": False,
+                "recovery_snapshot_count": 0,
+                "recovery_compatible_count": 0,
+                "revalidation_ready_count": 0,
+                "requested_code_mutation": False,
+                "code_scope_ready": False,
+                "code_verification_ready": False,
+                "code_verification_surface_ready": False,
+                "code_dirty_worktree": False,
+                "code_dirty_in_scope_count": 0,
+                "code_source_canary_ready": False,
+                "goal_count": 0,
+                "open_goal_count": 0,
+                "blocked_goal_count": 0,
+                "current_goal_title": "",
+                "goal_loop_due_now": False,
+                "observation_blocking_event_count": 0,
+                "causal_action_bias": "run_runtime",
+                "stale_domains": stale_domains,
+            },
+        }
     domains = dict(model.get("domains") or {})
     runtime = dict((domains.get("runtime") or {}).get("summary") or {})
     continuity = dict((domains.get("continuity") or {}).get("summary") or {})
@@ -50,6 +102,9 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
     evolution = dict((domains.get("evolution") or {}).get("summary") or {})
     source_evolution = dict((domains.get("source_evolution") or {}).get("summary") or {})
     codebase = dict((domains.get("codebase") or {}).get("summary") or {})
+    goals = dict((domains.get("goals") or {}).get("summary") or {})
+    observation_stream = dict((domains.get("observation_stream") or {}).get("summary") or {})
+    causal_assessment = dict(model.get("causal_assessment") or {})
 
     call = "observe"
     mode = "normal"
@@ -76,7 +131,20 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
     requested_code_mutation = bool(codebase.get("requested_code_mutation", False))
     code_scope_ready = bool(codebase.get("scope_ready", False))
     code_verification_ready = bool(codebase.get("verification_ready", False))
+    code_verification_surface_ready = bool(codebase.get("verification_surface_ready", False))
+    code_dirty_worktree = bool(codebase.get("dirty_worktree", False))
+    code_dirty_in_scope_count = int(codebase.get("dirty_in_scope_count", 0) or 0)
     code_out_of_scope_count = int(codebase.get("out_of_scope_count", 0) or 0)
+    code_source_canary_ready = bool(codebase.get("source_canary_ready", False))
+    goal_count = int(goals.get("goal_count", 0) or 0)
+    open_goal_count = int(goals.get("open_count", 0) or 0)
+    blocked_goal_count = int(goals.get("blocked_count", 0) or 0)
+    current_goal_title = str(goals.get("current_goal_title", "") or "")
+    current_goal_requires_user = bool(goals.get("current_goal_requires_user", False))
+    current_goal_state = str(goals.get("current_goal_state", "") or "")
+    goal_loop_due_now = bool(goals.get("loop_due_now", False))
+    observation_blocking_event_count = int(observation_stream.get("blocking_event_count", 0) or 0)
+    causal_action_bias = str(causal_assessment.get("action_bias", "observe") or "observe")
 
     if approvals_pending > 0:
         call = "wait_for_user"
@@ -126,7 +194,7 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
             blockers.append("no recovery snapshots available")
         if recovery_compatible_count <= 0:
             blockers.append("latest compatible snapshot missing")
-    elif requested_code_mutation and (not code_scope_ready or code_out_of_scope_count > 0):
+    elif requested_code_mutation and (not code_scope_ready or code_out_of_scope_count > 0 or code_dirty_in_scope_count > 0):
         call = "wait_for_clean_scope"
         mode = "safe"
         priority = 77
@@ -136,19 +204,37 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
             blockers.append("code scope not ready")
         if code_out_of_scope_count > 0:
             blockers.append(f"{code_out_of_scope_count} code target(s) out of scope")
-    elif requested_code_mutation and not code_verification_ready:
+        if code_dirty_in_scope_count > 0:
+            blockers.append(f"{code_dirty_in_scope_count} in-scope code target(s) already dirty")
+    elif requested_code_mutation and not code_verification_surface_ready:
         call = "run_code_canary"
         mode = "guarded"
         priority = 76
-        confidence = 0.86
-        reason = "code mutation needs focused verification before promotion"
-        blockers.append("code verification not ready")
+        confidence = 0.86 if code_source_canary_ready else 0.78
+        reason = "code mutation lacks focused compile/test coverage, so bounded canary verification should run first"
+        blockers.append("focused code verification surface missing")
+        if not code_source_canary_ready:
+            blockers.append("source canary not yet warmed")
     elif requested_code_mutation and code_scope_ready and code_verification_ready:
         call = "run_code_fix_loop"
         mode = "guarded"
         priority = 75
         confidence = 0.87
         reason = "code mutation is ready for bounded fix-and-verify execution"
+    elif current_goal_requires_user or current_goal_state == "blocked":
+        call = "wait_for_user"
+        mode = "blocked"
+        priority = 74
+        confidence = 0.9
+        reason = "an active goal is blocked and needs user review or blocker clearance"
+        if current_goal_title:
+            blockers.append(f"goal blocked: {current_goal_title}")
+    elif current_goal_title and open_goal_count > 0 and causal_action_bias == "goal_progress":
+        call = "goal_progress"
+        mode = "normal"
+        priority = 64 if goal_loop_due_now else 58
+        confidence = 0.82
+        reason = "the world model has an active goal and the system is stable enough for bounded progress"
     elif revalidation_ready_count > 0 and pressure_ready and same_system and not has_contradiction:
         call = "self_derivation_revalidate"
         mode = "guarded"
@@ -210,6 +296,17 @@ def governor_decide(cwd: str, *, world_model: dict[str, Any] | None = None) -> d
             "requested_code_mutation": requested_code_mutation,
             "code_scope_ready": code_scope_ready,
             "code_verification_ready": code_verification_ready,
+            "code_verification_surface_ready": code_verification_surface_ready,
+            "code_dirty_worktree": code_dirty_worktree,
+            "code_dirty_in_scope_count": code_dirty_in_scope_count,
+            "code_source_canary_ready": code_source_canary_ready,
+            "goal_count": goal_count,
+            "open_goal_count": open_goal_count,
+            "blocked_goal_count": blocked_goal_count,
+            "current_goal_title": current_goal_title,
+            "goal_loop_due_now": goal_loop_due_now,
+            "observation_blocking_event_count": observation_blocking_event_count,
+            "causal_action_bias": causal_action_bias,
         },
     }
 

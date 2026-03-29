@@ -18,7 +18,8 @@ from zero_os.conscious_machine_architecture import (
 )
 from zero_os.fast_path_cache import cached_compute
 from zero_os.state_cache import flush_state_writes, json_state_revision, load_json_state, queue_json_state, state_cache_status
-from zero_os.state_registry import boot_state_registry, flush_state_registry, state_registry_status, update_state_store
+from zero_os.state_registry import boot_state_registry, commit_state_transaction, flush_state_registry, get_state_store, state_registry_status, update_state_store
+from zero_os.subsystem_registry import subsystem_registry_status
 from zero_os.zero_ai_autonomy import (
     zero_ai_autonomy_loop_status,
     zero_ai_autonomy_loop_tick,
@@ -751,6 +752,8 @@ def zero_ai_runtime_agent_worker_run(cwd: str, poll_seconds: int = 30) -> dict:
 
 def _build_runtime_status(cwd: str) -> dict:
     from zero_os.decision_governor import governor_status
+    from zero_os.goal_memory import goal_memory_status
+    from zero_os.observation_bus import observation_stream_status
     from zero_os.zero_ai_control_workflows import zero_ai_control_workflows_status
     from zero_os.zero_ai_capability_map import zero_ai_capability_map_status
     from zero_os.zero_ai_evolution import zero_ai_evolution_status
@@ -758,12 +761,14 @@ def _build_runtime_status(cwd: str) -> dict:
     from zero_os.world_model import world_model_status
     from zero_os.zero_ai_source_evolution import zero_ai_source_evolution_status
 
-    boot_state_registry(cwd)
+    boot = boot_state_registry(cwd)
     runtime_loop = zero_ai_runtime_loop_status(cwd)
     runtime_agent = zero_ai_runtime_agent_status(cwd)
     from zero_os.zero_engine import zero_engine_status
     world_model = world_model_status(cwd)
     governor = governor_status(cwd, world_model=world_model)
+    goal_memory = goal_memory_status(cwd)
+    observation_stream = observation_stream_status(cwd)
     p = _runtime(cwd) / "phase_runtime_status.json"
     if not p.exists():
         return {
@@ -771,7 +776,9 @@ def _build_runtime_status(cwd: str) -> dict:
             "missing": True,
             "hint": "run: zero ai runtime run",
             "state_cache": state_cache_status(),
+            "state_registry_boot": boot,
             "state_registry": state_registry_status(cwd),
+            "subsystem_registry": subsystem_registry_status(),
             "runtime_loop": runtime_loop,
             "runtime_agent": runtime_agent,
             "zero_engine": zero_engine_status(cwd),
@@ -780,6 +787,8 @@ def _build_runtime_status(cwd: str) -> dict:
             "evolution": zero_ai_evolution_status(cwd),
             "self_derivation": self_derivation_status(cwd),
             "source_evolution": zero_ai_source_evolution_status(cwd),
+            "goal_memory": goal_memory,
+            "observation_stream": observation_stream,
             "world_model": world_model,
             "decision_governor": governor,
             "decision_governor_summary": _governor_summary(governor),
@@ -787,7 +796,9 @@ def _build_runtime_status(cwd: str) -> dict:
         }
     status = _load(p, {"ok": False, "missing": True, "hint": "run: zero ai runtime run"})
     status["state_cache"] = state_cache_status()
+    status["state_registry_boot"] = boot
     status["state_registry"] = state_registry_status(cwd)
+    status["subsystem_registry"] = subsystem_registry_status()
     status["runtime_loop"] = runtime_loop
     status["runtime_agent"] = runtime_agent
     status["zero_engine"] = zero_engine_status(cwd)
@@ -796,6 +807,8 @@ def _build_runtime_status(cwd: str) -> dict:
     status["evolution"] = zero_ai_evolution_status(cwd)
     status["self_derivation"] = self_derivation_status(cwd)
     status["source_evolution"] = zero_ai_source_evolution_status(cwd)
+    status["goal_memory"] = goal_memory
+    status["observation_stream"] = observation_stream
     status["world_model"] = world_model
     status["decision_governor"] = governor
     status["decision_governor_summary"] = _governor_summary(governor)
@@ -813,6 +826,7 @@ def zero_ai_runtime_status(cwd: str) -> dict:
             "phase_runtime": _path_revision(runtime_dir / "phase_runtime_status.json"),
             "zero_engine": _path_revision(runtime_dir / "zero_engine_status.json"),
             "world_model": _path_revision(runtime_dir / "world_model_latest.json"),
+            "observation_stream": _path_revision(runtime_dir / "observation_stream.json"),
             "runtime_agent": _runtime_agent_cache_token(cwd),
             "runtime_loop": _runtime_loop_cache_token(cwd),
             "self_derivation_memory": json_state_revision(base / ".zero_os" / "assistant" / "self_derivation" / "memory.json"),
@@ -938,12 +952,14 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
     from zero_os.assistant_job_runner import status as job_status
     from zero_os.code_workbench import code_workbench_status
     from zero_os.decision_governor import governor_decide
+    from zero_os.goal_memory import goal_memory_status
+    from zero_os.observation_bus import build_observation_stream
     from zero_os.recovery import zero_ai_backup_status
     from zero_os.runtime_subsystem_registry import run_runtime_subsystems
     from zero_os.self_continuity import zero_ai_self_continuity_status
-    from zero_os.world_model import build_world_model, persist_world_model
+    from zero_os.world_model import build_world_model
 
-    boot_state_registry(cwd)
+    boot = boot_state_registry(cwd)
     phase8 = consciousness_architecture_phase8_status()
     phase9 = consciousness_architecture_phase9_status()
     runtime_agent_before = zero_ai_runtime_agent_status(cwd)
@@ -1005,7 +1021,9 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
         "ok": True,
         "time_utc": _utc_now(),
         "state_cache": state_cache_status(),
+        "state_registry_boot": boot,
         "state_registry": state_registry_status(cwd),
+        "subsystem_registry": subsystem_registry_status(),
         "orchestrator_active": True,
         "phase_active": [8, 9],
         "phase8_ready": bool(phase8.get("phase8_condition_met", False)),
@@ -1068,8 +1086,14 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
     runtime_subsystems = run_runtime_subsystems(cwd, context={"skip_autonomy_background": bool(skip_autonomy_background)})
     status.update(dict(runtime_subsystems.get("updates") or {}))
     status["runtime_subsystems"] = {
+        "execution_mode": str(runtime_subsystems.get("mode", "") or ""),
+        "scheduler": str(runtime_subsystems.get("scheduler", "") or ""),
         "adapter_count": int(runtime_subsystems.get("adapter_count", 0) or 0),
         "adapter_names": list(runtime_subsystems.get("adapter_names") or []),
+        "runtime_adapter_count": int(runtime_subsystems.get("runtime_adapter_count", 0) or 0),
+        "decision_adapter_count": int(runtime_subsystems.get("decision_adapter_count", 0) or 0),
+        "runtime_adapter_names": list(runtime_subsystems.get("runtime_adapter_names") or []),
+        "decision_adapter_names": list(runtime_subsystems.get("decision_adapter_names") or []),
     }
     status["runtime_checks"].update(dict(runtime_subsystems.get("runtime_checks") or {}))
     status["runtime_loop"] = zero_ai_runtime_loop_status(cwd)
@@ -1079,6 +1103,7 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
     status["code_workbench"] = code_workbench_status(cwd)
     status["approvals"] = approval_status(cwd)
     status["jobs"] = job_status(cwd)
+    status["goal_memory"] = goal_memory_status(cwd)
 
     status["runtime_score"] = round(
         (
@@ -1107,9 +1132,47 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
             "code_workbench": status["code_workbench"],
             "approvals": status["approvals"],
             "jobs": status["jobs"],
+            "goal_memory": status["goal_memory"],
+        },
+    )
+    observation_stream = build_observation_stream(
+        get_state_store(cwd, "observation_stream", {}) or {},
+        list(world_model.get("facts", [])),
+        source_cycle="phase_runtime_control_plane",
+    )
+    world_model = build_world_model(
+        cwd,
+        sources={
+            "runtime": status,
+            "runtime_loop": status["runtime_loop"],
+            "runtime_agent": status["runtime_agent"],
+            "continuity": status["continuity"],
+            "recovery": status["recovery"],
+            "pressure": dict(runtime_subsystems.get("context", {}).get("pressure") or {}),
+            "control_workflows": status.get("control_workflows", {}),
+            "capability_control_map": status.get("capability_control_map", {}),
+            "zero_engine": status.get("zero_engine", {}),
+            "self_derivation": status.get("self_derivation", {}),
+            "evolution": status.get("evolution", {}),
+            "source_evolution": status.get("source_evolution", {}),
+            "code_workbench": status["code_workbench"],
+            "approvals": status["approvals"],
+            "jobs": status["jobs"],
+            "goal_memory": status["goal_memory"],
+            "observation_stream": observation_stream,
         },
     )
     governor = governor_decide(cwd, world_model=world_model)
+    control_plane_commit_id = secrets.token_hex(8)
+    state_updates = dict(runtime_subsystems.get("state_updates") or {})
+    zero_engine_status = dict(state_updates.get("zero_engine_status") or status.get("zero_engine") or {})
+    zero_engine_status.pop("scan_snapshot_payload", None)
+    workspace_scan_snapshot = dict(state_updates.get("workspace_scan_snapshot") or {})
+    zero_engine_status["control_plane_commit_id"] = control_plane_commit_id
+    world_model["control_plane_commit_id"] = control_plane_commit_id
+    status["control_plane_commit_id"] = control_plane_commit_id
+    status["zero_engine"] = zero_engine_status
+    status["observation_stream"] = observation_stream
     status["world_model"] = world_model
     status["decision_governor"] = governor
     status["decision_governor_summary"] = _governor_summary(governor)
@@ -1124,10 +1187,21 @@ def zero_ai_runtime_run(cwd: str, *, skip_autonomy_background: bool = False) -> 
             "law_compliance": benchmark["law_compliance"],
         },
     )
-    update_state_store(cwd, "phase_runtime_status", lambda current: dict(status))
-    persist_world_model(cwd, world_model)
+    control_plane_commit = commit_state_transaction(
+        cwd,
+        {
+            "phase_runtime_status": dict(status),
+            "world_model_latest": dict(world_model),
+            "zero_engine_status": dict(zero_engine_status),
+            "observation_stream": dict(observation_stream),
+            "workspace_scan_snapshot": dict(workspace_scan_snapshot),
+        },
+        label="phase_runtime_control_plane",
+        transaction_id=control_plane_commit_id,
+    )
+    status["control_plane_commit"] = control_plane_commit
     _flush_runtime_state()
-    flush_state_registry(cwd, names=["phase_runtime_status", "zero_engine_status", "world_model_latest"])
     status["state_cache"] = state_cache_status()
     status["state_registry"] = state_registry_status(cwd)
+    status["subsystem_registry"] = subsystem_registry_status()
     return status

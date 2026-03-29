@@ -4,6 +4,12 @@ from typing import Any
 
 from zero_os.zero_engine_adapters import zero_engine_adapters
 
+_MUTATING_ACTIONS = {"backup", "failover_apply", "revalidate", "verify"}
+
+
+def zero_engine_action_is_mutating(action: str) -> bool:
+    return str(action or "observe").strip() in _MUTATING_ACTIONS
+
 
 def decide_maintenance_action(snapshot: dict[str, Any]) -> dict[str, Any]:
     runtime = dict(snapshot.get("runtime") or {})
@@ -64,6 +70,19 @@ def decide_zero_engine(cwd: str, facts: dict[str, Any], *, runtime_context: dict
             str(item[0]),
         ),
     )
+    mutating_candidates = [
+        (name, decision)
+        for name, decision in decisions.items()
+        if zero_engine_action_is_mutating(str(decision.get("action", "observe")))
+    ]
+    mutation_winner = max(
+        mutating_candidates,
+        key=lambda item: (
+            priority.get(str(item[1].get("action", "observe")), 0),
+            float(item[1].get("confidence", 0.0) or 0.0),
+            str(item[0]),
+        ),
+    ) if mutating_candidates else None
     return {
         "ok": True,
         "adapter_count": len(decisions),
@@ -71,4 +90,10 @@ def decide_zero_engine(cwd: str, facts: dict[str, Any], *, runtime_context: dict
         "next_priority_subsystem": str(next_subsystem[0]),
         "next_priority_action": str(next_subsystem[1].get("action", "observe")),
         "next_priority_reason": str(next_subsystem[1].get("reason", "")),
+        "mutation_budget": {
+            "limit": 1,
+            "candidate_count": len(mutating_candidates),
+            "winner_subsystem": str(mutation_winner[0]) if mutation_winner else "",
+            "winner_action": str(mutation_winner[1].get("action", "observe")) if mutation_winner else "",
+        },
     }

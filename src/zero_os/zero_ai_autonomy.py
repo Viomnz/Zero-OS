@@ -232,12 +232,156 @@ def _resolve_goal(state: dict, key: str, summary: str = "") -> None:
             goal["last_result_summary"] = summary
 
 
-def _select_current_goal(state: dict) -> dict | None:
-    candidates = [goal for goal in state.get("goals", []) if goal.get("state") in {"open", "blocked"}]
-    if not candidates:
+def _goal_action_matches_bias(goal: dict, action_bias: str) -> bool:
+    bias = str(action_bias or "").strip().lower()
+    if not bias:
+        return False
+    action_kind = str(goal.get("action_kind", "") or "").strip().lower()
+    key = str(goal.get("key", "") or "").strip().lower()
+    title = str(goal.get("title", "") or "").strip().lower()
+    if bias == "goal_progress":
+        return str(goal.get("state", "")) == "open"
+    if bias == "run_runtime":
+        return action_kind == "run_runtime" or key == "stabilize_runtime"
+    if bias == "repair_continuity":
+        return action_kind == "repair_continuity" or key == "restore_continuity"
+    if bias == "wait_for_user":
+        return bool(goal.get("requires_user", False))
+    if bias == "stabilize_recovery":
+        return "recovery" in key or "recovery" in title
+    if bias == "wait_for_clean_scope":
+        return "scope" in key or "code" in title
+    return action_kind == bias or key == bias
+
+
+def _goal_context_snapshot(signals: dict | None = None) -> dict:
+    payload = dict(signals or {})
+    world_model = dict(payload.get("world_model") or {})
+    goal_summary = dict((dict(world_model.get("domains") or {}).get("goals") or {}).get("summary") or {})
+    causal_assessment = dict(world_model.get("causal_assessment") or {})
+    attention = dict(world_model.get("attention") or {})
+    decision_governor = dict(payload.get("decision_governor") or {})
+    if not decision_governor:
+        decision_governor = {
+            "call": str(payload.get("governor_call", "observe") or "observe"),
+            "mode": str(payload.get("governor_mode", "normal") or "normal"),
+        }
+    current_goal_title = str(
+        goal_summary.get("current_goal_title")
+        or attention.get("current_goal_title")
+        or payload.get("current_goal_title")
+        or ""
+    ).strip().lower()
+    return {
+        "world_model": world_model,
+        "decision_governor": decision_governor,
+        "current_goal_title": current_goal_title,
+        "action_bias": str(causal_assessment.get("action_bias", "") or decision_governor.get("call", "") or "observe").strip().lower(),
+        "governor_call": str(decision_governor.get("call", "observe") or "observe").strip().lower(),
+        "blocked_domains": [str(item) for item in list(world_model.get("blocked_domains", [])) if str(item)],
+        "recent_blocking_event_count": int(attention.get("recent_blocking_event_count", 0) or 0),
+    }
+
+
+def _goal_execution_priority(goal: dict, signals: dict | None = None) -> dict:
+    context = _goal_context_snapshot(signals)
+    current_goal_title = str(context.get("current_goal_title", "") or "")
+    action_bias = str(context.get("action_bias", "observe") or "observe")
+    governor_call = str(context.get("governor_call", "observe") or "observe")
+    blocked_domains = {str(item) for item in list(context.get("blocked_domains", []))}
+    recent_blocking_event_count = int(context.get("recent_blocking_event_count", 0) or 0)
+
+    title = str(goal.get("title", "") or "").strip().lower()
+    action_kind = str(goal.get("action_kind", "") or "").strip().lower()
+    key = str(goal.get("key", "") or "").strip().lower()
+    priority = int(goal.get("priority", 0) or 0)
+    state = str(goal.get("state", "") or "")
+    requires_user = bool(goal.get("requires_user", False))
+    score = float(priority) / 100.0
+    reasons: list[str] = [f"base_priority:{priority}"]
+
+    if current_goal_title and title == current_goal_title:
+        score += 0.45
+        reasons.append("matches_current_goal_title")
+    if _goal_action_matches_bias(goal, action_bias):
+        score += 0.32
+        reasons.append(f"matches_action_bias:{action_bias}")
+    if governor_call != "observe" and action_kind == governor_call:
+        score += 0.28
+        reasons.append(f"matches_governor_call:{governor_call}")
+    elif governor_call == "goal_progress" and state == "open" and not requires_user:
+        score += 0.12
+        reasons.append("supports_goal_progress")
+    elif governor_call == "observe" and action_kind == "inspect_status":
+        score += 0.08
+        reasons.append("supports_observe")
+
+    if recent_blocking_event_count > 0 and action_kind in {"inspect_status", "jobs_tick"}:
+        score += 0.06
+        reasons.append("responds_to_recent_blocking_events")
+
+    if "runtime" in blocked_domains and action_kind == "run_runtime":
+        score += 0.14
+        reasons.append("addresses_runtime_blocker")
+    if "continuity" in blocked_domains and action_kind == "repair_continuity":
+        score += 0.14
+        reasons.append("addresses_continuity_blocker")
+    if "recovery" in blocked_domains and ("recovery" in title or "recovery" in key):
+        score += 0.14
+        reasons.append("addresses_recovery_blocker")
+    if "jobs" in blocked_domains and action_kind == "jobs_tick":
+        score += 0.1
+        reasons.append("addresses_jobs_blocker")
+
+    if requires_user or state == "blocked":
+        score -= 0.85
+        reasons.append("blocked_for_execution")
+        if action_bias == "wait_for_user" and _goal_action_matches_bias(goal, action_bias):
+            score += 0.9
+            reasons.append("top_user_attention_goal")
+
+    return {
+        "goal_id": str(goal.get("id", "")),
+        "goal_key": str(goal.get("key", "")),
+        "title": str(goal.get("title", "")),
+        "state": state,
+        "action_kind": action_kind,
+        "priority": priority,
+        "requires_user": requires_user,
+        "score": round(score, 3),
+        "reasons": reasons,
+        "action_bias": action_bias,
+        "governor_call": governor_call,
+    }
+
+
+def _rank_goal_candidates(state: dict, signals: dict | None = None) -> list[dict]:
+    ranked = []
+    for goal in list(state.get("goals", [])):
+        if str(goal.get("state", "")) not in {"open", "blocked"}:
+            continue
+        priority = _goal_execution_priority(goal, signals)
+        ranked.append(
+            {
+                "goal": dict(goal),
+                "priority": priority,
+            }
+        )
+    ranked.sort(
+        key=lambda item: (
+            -float(dict(item.get("priority") or {}).get("score", 0.0) or 0.0),
+            *_goal_sort_key(dict(item.get("goal") or {})),
+        )
+    )
+    return ranked
+
+
+def _select_current_goal(state: dict, signals: dict | None = None) -> dict | None:
+    ranked = _rank_goal_candidates(state, signals)
+    if not ranked:
         state["current_goal_id"] = ""
         return None
-    selected = sorted(candidates, key=_goal_sort_key)[0]
+    selected = dict((ranked[0].get("goal") or {}))
     state["current_goal_id"] = str(selected.get("id", ""))
     return selected
 
@@ -510,11 +654,14 @@ def _sync_managed_goals(cwd: str, state: dict, signals: dict) -> dict:
 
 
 def _build_status(cwd: str, state: dict, signals: dict) -> dict:
-    current = _select_current_goal(state)
+    ranked_goals = _rank_goal_candidates(state, signals)
+    current = dict((ranked_goals[0].get("goal") or {})) if ranked_goals else None
+    state["current_goal_id"] = str((current or {}).get("id", ""))
     goals = list(state.get("goals", []))
     open_goals = [goal for goal in goals if goal.get("state") == "open"]
     blocked_goals = [goal for goal in goals if goal.get("state") == "blocked"]
     resolved_goals = [goal for goal in goals if goal.get("state") == "resolved"]
+    next_ready = next((dict(item.get("goal") or {}) for item in ranked_goals if str((item.get("goal") or {}).get("state", "")) == "open"), None)
     loop = _load_loop(cwd)
     next_run = _parse_utc(str(loop.get("next_run_utc", "")))
     loop_due = bool(loop.get("enabled", False)) and (next_run is None or datetime.now(timezone.utc) >= next_run)
@@ -527,6 +674,15 @@ def _build_status(cwd: str, state: dict, signals: dict) -> dict:
         "current_goal_title": str((current or {}).get("title", "")),
         "current_goal_next_action": str((current or {}).get("next_action", "")),
         "blocked_reason": str((current or {}).get("blocked_reason", "")),
+        "current_goal_priority": dict((ranked_goals[0].get("priority") or {})) if ranked_goals else {},
+        "next_ready_goal": next_ready,
+        "execution_priority_queue": [
+            {
+                "goal": dict(item.get("goal") or {}),
+                "priority": dict(item.get("priority") or {}),
+            }
+            for item in ranked_goals[:8]
+        ],
         "goal_count": len(goals),
         "open_count": len(open_goals),
         "blocked_count": len(blocked_goals),
@@ -590,6 +746,8 @@ def zero_ai_autonomy_sync(cwd: str) -> dict:
             "self_evolution_due_now": bool((signals["evolution"] or {}).get("due_now", False)),
             "governor_call": str((signals["decision_governor"] or {}).get("call", "observe") or "observe"),
             "governor_mode": str((signals["decision_governor"] or {}).get("mode", "normal") or "normal"),
+            "world_model": signals["world_model"],
+            "decision_governor": signals["decision_governor"],
         },
     }
 
@@ -697,7 +855,7 @@ def _execute_goal_action(cwd: str, goal: dict) -> dict:
 def zero_ai_autonomy_run(cwd: str) -> dict:
     synced = zero_ai_autonomy_sync(cwd)
     state = _load_goals(cwd)
-    current = _select_current_goal(state)
+    current = _select_current_goal(state, synced.get("signals"))
     _save_goals(cwd, state)
 
     if current is None:

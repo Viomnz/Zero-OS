@@ -69,6 +69,9 @@ def _planner_world_model_context(cwd: str) -> dict[str, Any]:
     jobs = dict((domains.get("jobs") or {}).get("summary") or {})
     pressure = dict((domains.get("pressure") or {}).get("summary") or {})
     codebase = dict((domains.get("codebase") or {}).get("summary") or {})
+    goals = dict((domains.get("goals") or {}).get("summary") or {})
+    observation_stream = dict((domains.get("observation_stream") or {}).get("summary") or {})
+    causal = dict(model.get("causal_assessment") or {})
     return {
         "available": bool(model.get("ok", False)) and not bool(model.get("missing", False)),
         "missing": bool(model.get("missing", False)),
@@ -84,6 +87,87 @@ def _planner_world_model_context(cwd: str) -> dict[str, Any]:
         "pressure_ready": bool(pressure.get("pressure_ready", False)),
         "codebase_scope_ready": bool(codebase.get("scope_ready", True)),
         "codebase_verification_ready": bool(codebase.get("verification_ready", True)),
+        "goal_count": int(goals.get("goal_count", 0) or 0),
+        "open_goal_count": int(goals.get("open_count", 0) or 0),
+        "blocked_goal_count": int(goals.get("blocked_count", 0) or 0),
+        "current_goal_title": str(goals.get("current_goal_title", "") or ""),
+        "current_goal_next_action": str(goals.get("current_goal_next_action", "") or ""),
+        "observation_blocking_event_count": int(observation_stream.get("blocking_event_count", 0) or 0),
+        "causal_action_bias": str(causal.get("action_bias", "observe") or "observe"),
+        "predicted_failure_modes": list(causal.get("predicted_failure_modes", [])),
+    }
+
+
+def _goal_alignment_score(request_text: str, plan: dict[str, Any], world_model_context: dict[str, Any]) -> dict[str, Any]:
+    current_goal_title = str(world_model_context.get("current_goal_title", "") or "").strip()
+    current_goal_next_action = str(world_model_context.get("current_goal_next_action", "") or "").strip()
+    action_bias = str(world_model_context.get("causal_action_bias", "observe") or "observe").strip().lower()
+    if not current_goal_title and not current_goal_next_action and action_bias == "observe":
+        return {
+            "score": 0.0,
+            "current_goal_title": "",
+            "current_goal_next_action": "",
+            "action_bias": action_bias,
+            "matched_request_terms": [],
+            "matched_step_terms": [],
+        }
+
+    request_lower = _normalize_text(request_text).lower()
+    steps = [dict(step) for step in list(plan.get("steps", []))]
+    step_text = " ".join(
+        " ".join(
+            [
+                str(step.get("kind", "")),
+                json.dumps(step.get("target", ""), sort_keys=True, default=str),
+                " ".join(str(item) for item in list(step.get("attached_targets", []))),
+            ]
+        )
+        for step in steps
+    ).lower()
+    branch_id = str((plan.get("branch") or {}).get("id", "") or "").strip().lower()
+    token_source = f"{current_goal_title} {current_goal_next_action}".lower()
+    tokens = [
+        token
+        for token in re.split(r"[^a-z0-9]+", token_source)
+        if len(token) >= 4 and token not in {"https", "http", "www", "json", "true", "false"}
+    ]
+    unique_tokens = list(dict.fromkeys(tokens))
+    matched_request_terms = [token for token in unique_tokens if token in request_lower]
+    matched_step_terms = [token for token in unique_tokens if token in step_text]
+
+    score = min(0.12, len(matched_request_terms) * 0.02) + min(0.18, len(matched_step_terms) * 0.04)
+    allows_mutation = any(step_allows_mutation(str(step.get("kind", ""))) for step in steps)
+    coverage_ratio = float(dict(plan.get("target_coverage") or {}).get("coverage_ratio", 0.0) or 0.0)
+
+    if action_bias == "goal_progress":
+        if allows_mutation and coverage_ratio >= 1.0:
+            score += 0.06
+        elif branch_id in {"observation_only", "minimal_safe", "conservative_execution"}:
+            score -= 0.04
+    elif action_bias == "wait_for_user":
+        score += 0.03 if not allows_mutation else -0.06
+    elif action_bias == "run_runtime":
+        if any(str(step.get("kind", "")) in {"run_runtime", "autonomy_gate"} for step in steps):
+            score += 0.08
+    elif action_bias == "repair_continuity":
+        if any("continuity" in json.dumps(step.get("target", ""), sort_keys=True, default=str).lower() for step in steps):
+            score += 0.08
+    elif action_bias == "stabilize_recovery":
+        if any(str(step.get("kind", "")) == "recover" or "recovery" in json.dumps(step.get("target", ""), sort_keys=True, default=str).lower() for step in steps):
+            score += 0.08
+    elif action_bias == "wait_for_clean_scope":
+        if any(str(step.get("kind", "")) == "code_change" for step in steps):
+            score -= 0.08
+        else:
+            score += 0.02
+
+    return {
+        "score": round(max(-0.1, min(0.35, score)), 3),
+        "current_goal_title": current_goal_title,
+        "current_goal_next_action": current_goal_next_action,
+        "action_bias": action_bias,
+        "matched_request_terms": matched_request_terms,
+        "matched_step_terms": matched_step_terms,
     }
 
 
@@ -1004,6 +1088,11 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
                 len(list(attached.get("conflicting_signals", []))),
                 len(list(coverage.get("unbound_targets", []))),
             )
+        attached["goal_alignment"] = _goal_alignment_score(
+            request_text,
+            attached,
+            dict(attached.get("world_model_context") or primary.get("world_model_context") or {}),
+        )
         attached["survivor_history_prior"] = survivor_history_score(cwd, attached)
         _add_candidate(candidates, exact_seen, semantic_seen, attached)
 
@@ -1173,6 +1262,7 @@ def build_candidate_plans(request: str, cwd: str = ".", base_plan: dict | None =
     candidates.sort(
         key=lambda candidate: (
             -float(candidate.get("derivation_survival_score", 0.0) or 0.0),
+            -float(dict(candidate.get("goal_alignment") or {}).get("score", 0.0) or 0.0),
             -float(dict(candidate.get("survivor_history_prior") or {}).get("score", 0.0) or 0.0),
             -float(candidate.get("route_variant_history_bias", 0.0) or 0.0),
             -float(candidate.get("planner_confidence", 0.0) or 0.0),
@@ -1446,6 +1536,7 @@ def build_plan(request: str, cwd: str = ".", *, memory_mode: str = "balanced", r
     plan["route_variant_history_bias"] = round(float(route_variant_bias_map.get(str(plan["route_variant"]), 0.0) or 0.0), 3)
     plan["branch"]["route_variant"] = str(plan["route_variant"])
     plan["branch"]["route_surface"] = str(plan["route_surface"])
+    plan["goal_alignment"] = _goal_alignment_score(text, plan, world_model_context)
     if any(str(step.get("kind", "")) == "code_change" for step in list(plan.get("steps", []))):
         plan["decision_governor"] = governor_decide(
             cwd,

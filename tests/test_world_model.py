@@ -122,6 +122,117 @@ class WorldModelTests(unittest.TestCase):
         self.assertIn("codebase", model["blocked_domains"])
         self.assertFalse(model["domains"]["codebase"]["healthy"])
 
+    def test_build_world_model_tracks_dirty_codebase_and_canary_state(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "code_workbench": {
+                    "workspace_ready": True,
+                    "requested_code_mutation": True,
+                    "scope_ready": True,
+                    "verification_ready": True,
+                    "verification_surface_ready": False,
+                    "dirty_worktree": True,
+                    "dirty_in_scope_count": 1,
+                    "source_canary_ready": True,
+                    "target_file_count": 1,
+                    "in_scope_count": 1,
+                    "out_of_scope_count": 0,
+                    "missing_in_scope_count": 0,
+                    "ready": True,
+                },
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+
+        self.assertIn("codebase", model["blocked_domains"])
+        self.assertEqual(1, model["domains"]["codebase"]["summary"]["dirty_in_scope_count"])
+        self.assertTrue(model["domains"]["codebase"]["summary"]["source_canary_ready"])
+
+    def test_build_world_model_tracks_goal_memory_and_causal_assessment(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "goal_memory": {
+                    "goal_count": 2,
+                    "open_count": 1,
+                    "blocked_count": 0,
+                    "resolved_count": 1,
+                    "current_goal_title": "Fix planner drift",
+                    "current_goal_next_action": "run goal loop",
+                    "current_goal_requires_user": False,
+                    "current_goal_state": "open",
+                    "current_goal_risk": "medium",
+                    "loop_enabled": True,
+                    "loop_due_now": True,
+                },
+                "observation_stream": {
+                    "event_count": 3,
+                    "blocking_event_count": 1,
+                    "warning_event_count": 1,
+                    "error_event_count": 0,
+                    "domains": ["runtime", "goals"],
+                    "recent": [
+                        {"domain": "runtime", "name": "runtime_ready", "blocking": True, "severity": "warning", "time_utc": "2026-03-28T00:00:00+00:00"}
+                    ],
+                },
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+
+        self.assertIn("goals", model["domains"])
+        self.assertIn("observation_stream", model["domains"])
+        self.assertEqual("Fix planner drift", model["domains"]["goals"]["summary"]["current_goal_title"])
+        self.assertEqual("goal_progress", model["causal_assessment"]["action_bias"])
+        self.assertEqual(1, model["causal_assessment"]["recent_blocking_event_count"])
+
+    def test_world_model_status_marks_critical_domains_stale(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "approvals": {"pending_count": 0},
+                "jobs": {"count": 0},
+            },
+        )
+        model["time_utc"] = "2000-01-01T00:00:00+00:00"
+        for domain in model["domains"].values():
+            domain["observed_at_utc"] = "2000-01-01T00:00:00+00:00"
+
+        persist_world_model(str(self.base), model, flush=True)
+
+        saved = world_model_status(str(self.base))
+
+        self.assertTrue(saved["stale"])
+        self.assertFalse(saved["fresh_enough"])
+        self.assertFalse(saved["ok"])
+        self.assertIn("runtime", saved["stale_domains"])
+
 
 if __name__ == "__main__":
     unittest.main()

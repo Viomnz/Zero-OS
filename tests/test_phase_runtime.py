@@ -18,6 +18,7 @@ if str(SRC) not in sys.path:
 from zero_os.assistant_job_runner import schedule_recurring_builtin
 from zero_os.calendar_time import calendar_reminder_add
 from zero_os.communications import communications_draft_add, communications_send_request
+from zero_os.goal_memory import goal_memory_status
 from zero_os.self_derivation_engine import (
     _branch_shape_profile,
     _current_planner_version,
@@ -41,6 +42,7 @@ from zero_os.phase_runtime import (
     zero_ai_runtime_run,
     zero_ai_runtime_status,
 )
+from zero_os.zero_ai_autonomy import zero_ai_autonomy_add_goal
 from zero_os.self_continuity import zero_ai_continuity_governance_set, zero_ai_self_continuity_update
 from zero_os.state_cache import clear_state_cache, state_cache_status
 from zero_os.state_registry import get_state_store, state_registry_status, update_state_store
@@ -79,6 +81,7 @@ class ZeroAIRuntimeTests(unittest.TestCase):
     def test_runtime_run_turns_off_background_continuity_when_stable(self) -> None:
         zero_ai_identity(str(self.base))
         zero_ai_self_continuity_update(str(self.base))
+        zero_ai_autonomy_add_goal(str(self.base), "Fix planner drift", priority=85)
         zero_ai_continuity_governance_set(str(self.base), True, 120)
         schedule_recurring_builtin(str(self.base), "continuity_governance", interval_seconds=120, enabled=True)
 
@@ -100,9 +103,14 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("evolution", runtime)
         self.assertIn("source_evolution", runtime)
         self.assertIn("code_workbench", runtime)
+        self.assertIn("goal_memory", runtime)
+        self.assertIn("observation_stream", runtime)
         self.assertIn("world_model", runtime)
         self.assertIn("decision_governor", runtime)
         self.assertIn("runtime_subsystems", runtime)
+        self.assertIn("control_plane_commit_id", runtime)
+        self.assertIn("state_registry_boot", runtime)
+        self.assertTrue(runtime["control_plane_commit"]["ok"])
         self.assertTrue(runtime["autonomy"]["ok"])
         self.assertTrue(runtime["autonomy_background"]["ok"])
         self.assertTrue(runtime["zero_engine"]["ok"])
@@ -112,6 +120,13 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertTrue(runtime["evolution"]["ok"])
         self.assertTrue(runtime["source_evolution"]["ok"])
         self.assertGreaterEqual(int(runtime["runtime_subsystems"]["adapter_count"]), 1)
+        self.assertEqual("universal", runtime["runtime_subsystems"]["execution_mode"])
+        self.assertEqual("flattened", runtime["runtime_subsystems"]["scheduler"])
+        self.assertGreaterEqual(int(runtime["runtime_subsystems"]["decision_adapter_count"]), 1)
+        self.assertGreaterEqual(int(runtime["observation_stream"]["event_count"]), 1)
+        self.assertEqual("Fix planner drift", runtime["goal_memory"]["current_goal_title"])
+        self.assertTrue(runtime["state_registry_boot"]["ok"])
+        self.assertIn("transaction_recovery", runtime["state_registry_boot"])
 
         saved = zero_ai_runtime_status(str(self.base))
         self.assertIn("continuity_governance_background", saved)
@@ -123,17 +138,33 @@ class ZeroAIRuntimeTests(unittest.TestCase):
         self.assertIn("self_derivation", saved)
         self.assertIn("source_evolution", saved)
         self.assertIn("code_workbench", saved)
+        self.assertIn("goal_memory", saved)
+        self.assertIn("observation_stream", saved)
         self.assertIn("world_model", saved)
         self.assertIn("decision_governor", saved)
         self.assertIn("decision_governor_summary", saved)
+        self.assertIn("subsystem_registry", saved)
+        self.assertIn("state_registry_boot", saved)
         self.assertEqual(
             runtime["decision_governor"]["call"],
             saved["decision_governor"]["call"],
         )
+        self.assertEqual(runtime["control_plane_commit_id"], saved["control_plane_commit_id"])
+        self.assertEqual(runtime["control_plane_commit_id"], saved["world_model"]["control_plane_commit_id"])
+        self.assertEqual(runtime["control_plane_commit_id"], saved["zero_engine"]["control_plane_commit_id"])
         self.assertIn(runtime["decision_governor"]["call"], saved["decision_governor_summary"])
         world_model_store = get_state_store(str(self.base), "world_model_latest", {})
         self.assertTrue(world_model_store.get("ok"))
         self.assertEqual(saved["world_model"]["fact_count"], world_model_store["fact_count"])
+        self.assertEqual(runtime["control_plane_commit_id"], world_model_store["control_plane_commit_id"])
+        observation_stream_store = get_state_store(str(self.base), "observation_stream", {})
+        self.assertGreaterEqual(int(observation_stream_store.get("event_count", 0) or 0), 1)
+        self.assertEqual("Fix planner drift", goal_memory_status(str(self.base))["current_goal_title"])
+        self.assertTrue(saved["state_registry"]["transaction"]["present"])
+        self.assertEqual("committed", saved["state_registry"]["transaction"]["status"])
+        self.assertIn("runtime", saved["subsystem_registry"]["planes"])
+        self.assertIn("zero_engine", saved["subsystem_registry"]["planes"])
+        self.assertIn("transaction_recovery", saved["state_registry_boot"])
 
     def test_runtime_status_uses_fast_path_when_inputs_are_unchanged(self) -> None:
         zero_ai_identity(str(self.base))

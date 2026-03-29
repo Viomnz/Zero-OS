@@ -211,6 +211,74 @@ class TaskPlannerUpgradeTests(unittest.TestCase):
         self.assertIn("approvals", plan["world_model_context"]["blocked_domains"])
         self.assertIn("world_model_blocked_mutation_context", plan["ambiguity_flags"])
 
+    def test_build_plan_exposes_goal_alignment_from_world_model_context(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "goal_memory": {
+                    "goal_count": 1,
+                    "open_count": 1,
+                    "blocked_count": 0,
+                    "current_goal_title": "Open Example Domain",
+                    "current_goal_next_action": "open https://example.com",
+                    "current_goal_state": "open",
+                    "current_goal_requires_user": False,
+                    "loop_enabled": True,
+                    "loop_due_now": True,
+                },
+            },
+        )
+        persist_world_model(str(self.base), model, flush=True)
+
+        plan = build_plan("open https://example.com and click", str(self.base))
+
+        self.assertGreater(float(plan["goal_alignment"]["score"]), 0.0)
+        self.assertEqual("goal_progress", plan["goal_alignment"]["action_bias"])
+        self.assertIn("open", plan["goal_alignment"]["matched_request_terms"])
+        self.assertIn("example", plan["goal_alignment"]["matched_step_terms"])
+
+    def test_build_candidate_plans_uses_goal_alignment_for_branch_context(self) -> None:
+        model = build_world_model(
+            str(self.base),
+            sources={
+                "runtime": {"runtime_ready": True, "missing": False, "runtime_score": 100.0},
+                "runtime_loop": {"enabled": True},
+                "runtime_agent": {"installed": True, "running": True},
+                "continuity": {
+                    "continuity": {"same_system": True, "continuity_score": 100.0},
+                    "contradiction_detection": {"has_contradiction": False},
+                },
+                "pressure": {"missing": False, "overall_score": 100.0},
+                "goal_memory": {
+                    "goal_count": 1,
+                    "open_count": 1,
+                    "blocked_count": 0,
+                    "current_goal_title": "Open Example Domain",
+                    "current_goal_next_action": "open https://example.com",
+                    "current_goal_state": "open",
+                    "current_goal_requires_user": False,
+                    "loop_enabled": True,
+                    "loop_due_now": True,
+                },
+            },
+        )
+        persist_world_model(str(self.base), model, flush=True)
+
+        bundle = build_candidate_plans("show file src/main.py and open https://example.com", str(self.base))
+
+        primary = next(candidate for candidate in bundle["candidates"] if candidate["branch"]["id"] == "primary")
+        file_only = next(candidate for candidate in bundle["candidates"] if candidate["branch"]["id"].startswith("single_target_files_"))
+        self.assertGreater(float(primary["goal_alignment"]["score"]), float(file_only["goal_alignment"]["score"]))
+        self.assertTrue(all("goal_alignment" in candidate for candidate in bundle["candidates"]))
+
     def test_planner_feedback_status_aggregates_multiple_routes(self) -> None:
         run_task(str(self.base), "browser status")
         run_task(str(self.base), "world class readiness")
