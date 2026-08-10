@@ -106,15 +106,17 @@ def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
 def classify_action(cwd: str, action_kind: str) -> dict:
     policy = policy_status(cwd)
     kind = action_kind.strip()
-    tier = str((policy.get("actions") or {}).get(kind) or "safe_auto")
-    spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["safe_auto"])
+    configured = (policy.get("actions") or {}).get(kind)
+    tier = str(configured or "forbidden")
+    spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["forbidden"])
     return {
-        "decision": str(spec.get("decision", "allow")),
+        "decision": str(spec.get("decision", "deny")),
         "tier": tier,
         "action_kind": kind,
         "requires_rollback": bool(spec.get("requires_rollback", False)),
         "requires_approval": bool(spec.get("requires_approval", False)),
         "description": str(spec.get("description", "")),
+        "explicitly_configured": configured is not None,
     }
 
 
