@@ -69,7 +69,7 @@ class OpenAIResponsesBackend:
     name = "openai_responses"
 
     def __init__(self, *, model: str | None = None, api_key: str | None = None) -> None:
-        self.model = str(model or os.getenv("ZERO_AI_LLM_MODEL", "gpt-5.6"))
+        self.model = str(model or os.getenv("ZERO_AI_LLM_MODEL", "gpt-5"))
         self.api_key = str(api_key or os.getenv("OPENAI_API_KEY", ""))
 
     def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
