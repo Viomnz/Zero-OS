@@ -6,6 +6,7 @@ from pathlib import Path
 
 from zero_os.action_simulator import simulate_action
 from zero_os.confidence_engine import score_confidence
+from zero_os.pure_logic_authority import certify_candidate
 from zero_os.risk_engine import autonomous_thresholds, classify_risk, rollback_ready
 
 
@@ -59,11 +60,7 @@ def capture_health_snapshot(cwd: str) -> dict:
     score += 20 if signals["security_report"] else 0
     score += 15 if signals["recovery_report"] else 0
     score += 15 if signals["native_store_state"] else 0
-    return {
-        "time_utc": _utc_now(),
-        "health_score": score,
-        "signals": signals,
-    }
+    return {"time_utc": _utc_now(), "health_score": score, "signals": signals}
 
 
 def _delta_quality(before: dict | None, after: dict | None) -> float | None:
@@ -92,15 +89,7 @@ def _event_quality(event: dict) -> float:
     verification_passed = bool(event.get("verification_passed", outcome == "success"))
     recovery_seconds = float(event.get("recovery_seconds", 0.0) or 0.0)
     blast_radius = str(event.get("blast_radius", "local")).lower()
-    blast_penalty = {
-        "local": 0.0,
-        "service": 0.03,
-        "cluster": 0.06,
-        "system": 0.1,
-        "global": 0.14,
-        "multi-region": 0.14,
-        "fleet": 0.14,
-    }.get(blast_radius, 0.05)
+    blast_penalty = {"local": 0.0, "service": 0.03, "cluster": 0.06, "system": 0.1, "global": 0.14, "multi-region": 0.14, "fleet": 0.14}.get(blast_radius, 0.05)
     rollback_penalty = 0.08 if rollback_used else 0.0
     verification_bonus = 0.05 if verification_passed and outcome == "success" else 0.0
     recovery_penalty = min(0.12, recovery_seconds / 600.0 * 0.12) if outcome == "success" else 0.0
@@ -118,12 +107,7 @@ def _history_rate(cwd: str, action: str) -> float:
 
 def autonomy_status(cwd: str) -> dict:
     history = _load_history(cwd)
-    return {
-        "ok": True,
-        "history_events": len(history.get("events", [])),
-        "thresholds": autonomous_thresholds(),
-        "rollback": rollback_ready(cwd),
-    }
+    return {"ok": True, "history_events": len(history.get("events", [])), "thresholds": autonomous_thresholds(), "rollback": rollback_ready(cwd)}
 
 
 def autonomy_evaluate(
@@ -141,6 +125,8 @@ def autonomy_evaluate(
     planner_ambiguity_count: int = 0,
     planner_execution_mode: str | None = None,
     planner_strategy: str | None = None,
+    authority_evidence: list[dict] | None = None,
+    proposer_source: str = "autonomous_fix_gate",
 ) -> dict:
     risk = classify_risk(action, blast_radius=blast_radius, reversible=reversible)
     rollback = rollback_ready(cwd)
@@ -167,10 +153,26 @@ def autonomy_evaluate(
         planner_conf = max(0.0, min(1.0, float(planner_confidence)))
         confidence_weight = 0.5 if str(planner_risk_level or risk["risk"]).lower() in {"high", "system", "critical"} else 0.3
         effective_confidence = round(min(effective_confidence, (effective_confidence * (1.0 - confidence_weight)) + (planner_conf * confidence_weight)), 4)
+
+    mutation_scope = f"mutation:{action}"
+    authority = certify_candidate(
+        {"source": proposer_source, "scope": [mutation_scope]},
+        list(authority_evidence or []),
+    )
+
     action_decision = "allow"
-    reason = "threshold_met"
+    reason = "scope_authority_certified"
     blockers: list[str] = []
-    if not rollback.get("ready", False) and risk["risk"] == "high":
+
+    if contradictory_signals > 0:
+        action_decision = "hold_for_review"
+        reason = "contradiction_active"
+        blockers.append("contradiction_active")
+    elif authority.get("status") != "provisional" or float(authority.get("authority", 0.0) or 0.0) <= 0.0:
+        action_decision = "hold_for_review"
+        reason = "independent_scope_authority_missing"
+        blockers.extend(list(authority.get("reasons", [])))
+    elif not rollback.get("ready", False) and risk["risk"] == "high":
         action_decision = "hold_for_review"
         reason = "rollback_not_ready"
         blockers.append("rollback_not_ready")
@@ -195,8 +197,11 @@ def autonomy_evaluate(
         reason = "safe_mode_requires_higher_confidence"
         blockers.append("safe_mode_requires_higher_confidence")
     elif effective_confidence < threshold:
+        # Confidence may make the system more conservative, never more authoritative.
         action_decision = "hold_for_review"
         reason = "confidence_below_threshold"
+        blockers.append("confidence_below_threshold")
+
     return {
         "ok": True,
         "action": action,
@@ -205,6 +210,7 @@ def autonomy_evaluate(
         "simulation": simulation,
         "confidence": confidence,
         "effective_confidence": effective_confidence,
+        "authority": authority,
         "planner": planner_signal,
         "decision": action_decision,
         "decision_reason": reason,
