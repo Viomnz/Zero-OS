@@ -6,6 +6,7 @@ from typing import Any, Iterable
 
 from zero_os.authority_ledger import AuthorityLedger
 from zero_os.evidence_binding import EvidenceRecord, evidence_for_exact_claim, independent_support_count
+from zero_os.execution_authority_ticket import issue_execution_ticket
 
 
 @dataclass(frozen=True)
@@ -80,3 +81,44 @@ def authorize_action(
         return ActionAuthorityDecision(False, "authority_not_active_for_scope", request.authority_id, request.required_scope, support_groups)
 
     return ActionAuthorityDecision(True, "provisional_scoped_authority", request.authority_id, request.required_scope, support_groups)
+
+
+def authorize_and_issue_execution_ticket(
+    cwd: str,
+    action_kind: str,
+    request: ActionAuthorityRequest,
+    *,
+    ledger: AuthorityLedger,
+    evidence: Iterable[EvidenceRecord],
+    active_revocation_conditions: Iterable[str] = (),
+    now_utc: datetime | None = None,
+    minimum_independent_groups: int = 2,
+    ttl_seconds: int = 30,
+) -> dict[str, Any]:
+    """Authorize an exact claim, then mint a short-lived single-use execution ticket.
+
+    Ticket issuance is downstream of Pure Logic authority. Callers cannot mint a
+    usable mutation ticket by passing confidence, planner score, or model output.
+    """
+    decision = authorize_action(
+        request,
+        ledger=ledger,
+        evidence=evidence,
+        active_revocation_conditions=active_revocation_conditions,
+        now_utc=now_utc,
+        minimum_independent_groups=minimum_independent_groups,
+    )
+    if not decision.allowed:
+        return {"ok": False, "decision": decision, "ticket": None}
+    if not request.mutating:
+        return {"ok": True, "decision": decision, "ticket": None}
+    ticket = issue_execution_ticket(
+        cwd,
+        action_kind=str(action_kind),
+        authority_id=request.authority_id,
+        subject_id=request.subject_id,
+        required_scope=request.required_scope,
+        state_revision=request.state_revision,
+        ttl_seconds=ttl_seconds,
+    )
+    return {"ok": True, "decision": decision, "ticket": ticket}
