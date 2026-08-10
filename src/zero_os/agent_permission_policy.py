@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.execution_authority_ticket import consume_execution_ticket
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -31,10 +33,12 @@ _DEFAULT_ACTION_TIERS = {
 _TIER_SPECS = {
     "observe_only": {"decision": "observe_only", "description": "Allowed only as read-only observation or status gathering.", "requires_rollback": False, "requires_approval": False},
     "safe_auto": {"decision": "allow", "description": "May run automatically without approval.", "requires_rollback": False, "requires_approval": False},
-    "guarded_auto": {"decision": "allow", "description": "May run automatically only if autonomy and rollback checks pass.", "requires_rollback": True, "requires_approval": False},
-    "approval_required": {"decision": "approval_required", "description": "Requires explicit user approval before execution.", "requires_rollback": True, "requires_approval": True},
+    "guarded_auto": {"decision": "allow", "description": "May run automatically only if autonomy, rollback, and Pure Logic authority checks pass.", "requires_rollback": True, "requires_approval": False},
+    "approval_required": {"decision": "approval_required", "description": "Requires explicit user approval and Pure Logic execution authority before execution.", "requires_rollback": True, "requires_approval": True},
     "forbidden": {"decision": "deny", "description": "Blocked by policy.", "requires_rollback": False, "requires_approval": False},
 }
+
+_MUTATING_TIERS = {"guarded_auto", "approval_required"}
 
 
 def _policy_path(cwd: str) -> Path:
@@ -106,15 +110,24 @@ def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
 def classify_action(cwd: str, action_kind: str) -> dict:
     policy = policy_status(cwd)
     kind = action_kind.strip()
-    tier = str((policy.get("actions") or {}).get(kind) or "safe_auto")
-    spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["safe_auto"])
+    configured = (policy.get("actions") or {}).get(kind)
+    tier = str(configured or "forbidden")
+    spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["forbidden"])
+    authority = {"ok": True, "reason": "read_only_or_non_mutating_tier"}
+    decision = str(spec.get("decision", "deny"))
+    if tier in _MUTATING_TIERS:
+        authority = consume_execution_ticket(cwd, kind)
+        if not bool(authority.get("ok", False)):
+            decision = "deny"
     return {
-        "decision": str(spec.get("decision", "allow")),
+        "decision": decision,
         "tier": tier,
         "action_kind": kind,
         "requires_rollback": bool(spec.get("requires_rollback", False)),
         "requires_approval": bool(spec.get("requires_approval", False)),
         "description": str(spec.get("description", "")),
+        "explicitly_configured": configured is not None,
+        "pure_logic_authority": authority,
     }
 
 

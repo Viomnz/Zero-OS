@@ -22,6 +22,19 @@ def _strings(values: Iterable[Any] | None) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in list(values or []) if str(item).strip())
 
 
+def _not_expired(expires_at_utc: str, *, now_utc: datetime | None = None) -> bool:
+    if not str(expires_at_utc or "").strip():
+        return True
+    try:
+        expiry = datetime.fromisoformat(str(expires_at_utc).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    now = now_utc or datetime.now(timezone.utc)
+    return now <= expiry.astimezone(timezone.utc)
+
+
 @dataclass(frozen=True)
 class Claim:
     claim_id: str
@@ -61,7 +74,7 @@ class Claim:
             "observed_at_utc": self.observed_at_utc,
             "expires_at_utc": self.expires_at_utc,
             "revocation_conditions": list(self.revocation_conditions),
-            "may_mutate": self.status == CLAIM_PROVISIONAL and self.authority > 0.0,
+            "may_mutate": authority_required(self, next(iter(self.demonstrated_scope), "")),
         }
 
 
@@ -93,6 +106,28 @@ def make_claim(
         observed_at_utc=str(observed_at_utc or _utc_now()),
         expires_at_utc=str(expires_at_utc or ""),
         revocation_conditions=_strings(revocation_conditions),
+    )
+
+
+def claim_from_dict(payload: dict[str, Any]) -> Claim:
+    return Claim(
+        claim_id=str(payload.get("claim_id", "")),
+        claim_type=str(payload.get("claim_type", "")),
+        value=payload.get("value"),
+        source=str(payload.get("source", "")),
+        requested_scope=frozenset(_strings(payload.get("requested_scope", []))),
+        demonstrated_scope=frozenset(_strings(payload.get("demonstrated_scope", []))),
+        provenance=_strings(payload.get("provenance", [])),
+        assumptions=_strings(payload.get("assumptions", [])),
+        alternatives=_strings(payload.get("alternatives", [])),
+        contradictions=_strings(payload.get("contradictions", [])),
+        falsification_attempts=_strings(payload.get("falsification_attempts", [])),
+        independent_evidence_groups=_strings(payload.get("independent_evidence_groups", [])),
+        status=str(payload.get("status", CLAIM_PROPOSED)),
+        authority=float(payload.get("authority", 0.0) or 0.0),
+        observed_at_utc=str(payload.get("observed_at_utc", "") or _utc_now()),
+        expires_at_utc=str(payload.get("expires_at_utc", "") or ""),
+        revocation_conditions=_strings(payload.get("revocation_conditions", [])),
     )
 
 
@@ -132,7 +167,7 @@ def certify_claim(claim: Claim, evidence: Iterable[dict[str, Any]]) -> Claim:
     )
 
 
-def authority_required(claim: Claim, scope: str) -> bool:
+def authority_required(claim: Claim, scope: str, *, now_utc: datetime | None = None) -> bool:
     target = str(scope).strip()
     return bool(
         target
@@ -140,4 +175,5 @@ def authority_required(claim: Claim, scope: str) -> bool:
         and claim.authority > 0.0
         and target in claim.demonstrated_scope
         and not claim.contradictions
+        and _not_expired(claim.expires_at_utc, now_utc=now_utc)
     )
