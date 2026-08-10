@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
+from zero_os.authority_integrity_audit import audit_authority_integrity
 from zero_os.authority_ledger import AuthorityLedger
 from zero_os.evidence_binding import EvidenceRecord, evidence_for_exact_claim, independent_support_count
 from zero_os.execution_authority_ticket import issue_execution_ticket
+from zero_os.mutation_registry import canonical_mutation_kind, mutation_class
 
 
 @dataclass(frozen=True)
@@ -41,12 +43,17 @@ def authorize_action(
 ) -> ActionAuthorityDecision:
     """Final authority boundary immediately before a state-changing action.
 
-    The action is denied unless exact-claim evidence, dependency health, freshness,
-    scope, and revocation checks all survive. Discovery confidence is intentionally
-    absent from this API.
+    The action is denied unless exact-claim evidence, dependency integrity,
+    freshness, scope, contradictions, expiry, and revocation checks all survive.
+    Discovery confidence, LLM confidence, planner scores, and memory weights are
+    intentionally absent from this API.
     """
     if not request.mutating:
         return ActionAuthorityDecision(True, "read_only", request.authority_id, request.required_scope, 0)
+
+    integrity = audit_authority_integrity(ledger)
+    if not bool(integrity.get("authority_integrity_permitted", False)):
+        return ActionAuthorityDecision(False, "authority_graph_integrity_failed", request.authority_id, request.required_scope, 0)
 
     ledger.revoke_for_condition(active_revocation_conditions)
     record = ledger.get(request.authority_id)
@@ -67,10 +74,9 @@ def authorize_action(
     if any(not item.supports and request.required_scope in item.scope for item in exact):
         return ActionAuthorityDecision(False, "contradictory_exact_claim_evidence", request.authority_id, request.required_scope, support_groups)
 
-    expected_fingerprint = record.value_fingerprint
     from zero_os.evidence_binding import canonical_fingerprint
 
-    if canonical_fingerprint(request.claim_value) != expected_fingerprint:
+    if canonical_fingerprint(request.claim_value) != record.value_fingerprint:
         return ActionAuthorityDecision(False, "claim_value_changed", request.authority_id, request.required_scope, support_groups)
     if record.subject_id != request.subject_id or record.claim_type != request.claim_type:
         return ActionAuthorityDecision(False, "authority_subject_mismatch", request.authority_id, request.required_scope, support_groups)
@@ -95,11 +101,21 @@ def authorize_and_issue_execution_ticket(
     minimum_independent_groups: int = 2,
     ttl_seconds: int = 30,
 ) -> dict[str, Any]:
-    """Authorize an exact claim, then mint a short-lived single-use execution ticket.
+    """Authorize an exact mutation claim and mint a short-lived single-use ticket."""
+    canonical_kind = canonical_mutation_kind(action_kind)
+    spec = mutation_class(canonical_kind)
+    if request.mutating and spec is None:
+        return {"ok": False, "reason": "unknown_mutation_kind", "decision": None, "ticket": None}
+    if request.mutating and request.required_scope != spec.required_scope:
+        return {
+            "ok": False,
+            "reason": "registered_mutation_scope_mismatch",
+            "required_scope": spec.required_scope,
+            "requested_scope": request.required_scope,
+            "decision": None,
+            "ticket": None,
+        }
 
-    Ticket issuance is downstream of Pure Logic authority. Callers cannot mint a
-    usable mutation ticket by passing confidence, planner score, or model output.
-    """
     decision = authorize_action(
         request,
         ledger=ledger,
@@ -114,11 +130,16 @@ def authorize_and_issue_execution_ticket(
         return {"ok": True, "decision": decision, "ticket": None}
     ticket = issue_execution_ticket(
         cwd,
-        action_kind=str(action_kind),
+        action_kind=canonical_kind,
         authority_id=request.authority_id,
         subject_id=request.subject_id,
-        required_scope=request.required_scope,
+        required_scope=spec.required_scope,
         state_revision=request.state_revision,
         ttl_seconds=ttl_seconds,
     )
     return {"ok": True, "decision": decision, "ticket": ticket}
+
+
+def authorize_action_and_mint_ticket(*args, **kwargs):
+    """Compatibility name used by the Zero-OS migration tests and callers."""
+    return authorize_and_issue_execution_ticket(*args, **kwargs)
