@@ -4,7 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from zero_os.execution_authority_ticket import consume_execution_ticket
+from zero_os.mutation_registry import canonical_mutation_kind, is_known_mutation
+from zero_os.pure_logic_runtime_kernel import authorize_runtime_mutation
 
 
 def _utc_now() -> str:
@@ -28,12 +29,22 @@ _DEFAULT_ACTION_TIERS = {
     "store_install": "approval_required",
     "recover": "approval_required",
     "self_repair": "approval_required",
+    "cloud_deploy": "approval_required",
+    "cloud_target_set": "approval_required",
+    "github_issue_act": "approval_required",
+    "github_pr_act": "approval_required",
+    "github_issue_reply_post": "approval_required",
+    "github_pr_reply_post": "approval_required",
+    "self_upgrade": "approval_required",
+    "policy_change": "approval_required",
+    "authority_change": "approval_required",
+    "credential_change": "approval_required",
 }
 
 _TIER_SPECS = {
     "observe_only": {"decision": "observe_only", "description": "Allowed only as read-only observation or status gathering.", "requires_rollback": False, "requires_approval": False},
     "safe_auto": {"decision": "allow", "description": "May run automatically without approval.", "requires_rollback": False, "requires_approval": False},
-    "guarded_auto": {"decision": "allow", "description": "May run automatically only if autonomy, rollback, and Pure Logic authority checks pass.", "requires_rollback": True, "requires_approval": False},
+    "guarded_auto": {"decision": "allow", "description": "May run automatically only if rollback and Pure Logic authority checks pass.", "requires_rollback": True, "requires_approval": False},
     "approval_required": {"decision": "approval_required", "description": "Requires explicit user approval and Pure Logic execution authority before execution.", "requires_rollback": True, "requires_approval": True},
     "forbidden": {"decision": "deny", "description": "Blocked by policy.", "requires_rollback": False, "requires_approval": False},
 }
@@ -89,12 +100,14 @@ def policy_status(cwd: str) -> dict:
 
 
 def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
-    normalized_kind = str(action_kind or "").strip()
+    normalized_kind = canonical_mutation_kind(action_kind)
     normalized_tier = str(tier or "").strip().lower()
     if not normalized_kind:
         return {"ok": False, "reason": "empty_action_kind"}
     if normalized_tier not in _TIER_SPECS:
         return {"ok": False, "reason": f"unknown_tier:{normalized_tier}", "allowed_tiers": sorted(_TIER_SPECS.keys())}
+    if is_known_mutation(normalized_kind) and normalized_tier == "safe_auto":
+        return {"ok": False, "reason": "known_mutation_cannot_be_safe_auto"}
     policy = policy_status(cwd)
     actions = dict(policy.get("actions") or {})
     actions[normalized_kind] = normalized_tier
@@ -109,15 +122,22 @@ def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
 
 def classify_action(cwd: str, action_kind: str) -> dict:
     policy = policy_status(cwd)
-    kind = action_kind.strip()
+    kind = canonical_mutation_kind(action_kind)
     configured = (policy.get("actions") or {}).get(kind)
     tier = str(configured or "forbidden")
     spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["forbidden"])
     authority = {"ok": True, "reason": "read_only_or_non_mutating_tier"}
     decision = str(spec.get("decision", "deny"))
-    if tier in _MUTATING_TIERS:
-        authority = consume_execution_ticket(cwd, kind)
-        if not bool(authority.get("ok", False)):
+    if tier in _MUTATING_TIERS or is_known_mutation(kind):
+        kernel = authorize_runtime_mutation(cwd, kind)
+        authority = {
+            "ok": kernel.allowed,
+            "reason": kernel.reason,
+            "required_scope": kernel.required_scope,
+            "risk": kernel.risk,
+            "ticket": kernel.authority,
+        }
+        if not kernel.allowed:
             decision = "deny"
     return {
         "decision": decision,
@@ -134,7 +154,7 @@ def classify_action(cwd: str, action_kind: str) -> dict:
 def audit_event(cwd: str, action_kind: str, state: str, payload: dict | None = None) -> dict:
     record = {
         "time_utc": _utc_now(),
-        "action_kind": action_kind,
+        "action_kind": canonical_mutation_kind(action_kind),
         "state": state,
         "payload": payload or {},
     }
