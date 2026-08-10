@@ -9,6 +9,13 @@ def score_confidence(
     rollback_score: float,
     independent_verifiers: int,
 ) -> dict:
+    """Return a ranking/calibration signal, never authority.
+
+    Pure Logic invariant: confidence can prioritize investigation and compare
+    candidates, but it cannot certify scope, erase contradiction, or authorize
+    mutation. Callers that need authority must use an independent authority
+    boundary such as ``pure_logic_authority.certify_scope``.
+    """
     evidence_score = min(0.3, max(0, int(evidence_count)) * 0.05)
     contradiction_penalty = min(0.25, max(0, int(contradictory_signals)) * 0.08)
     history_score = max(0.0, min(0.25, float(historical_success_rate) * 0.25))
@@ -19,6 +26,10 @@ def score_confidence(
     confidence = round(max(0.0, min(0.99, confidence)), 4)
     return {
         "confidence": confidence,
+        "authority": 0.0,
+        "ranking_only": True,
+        "scope_certified": False,
+        "confidence_is_not_authority": True,
         "factors": {
             "evidence_score": round(evidence_score, 4),
             "contradiction_penalty": round(contradiction_penalty, 4),
