@@ -27,7 +27,7 @@ def evaluate_sensitive_sink(
     """Re-read live containment state at the irreversible/sensitive sink.
 
     Earlier grants and capability leases cannot override a later containment
-    contradiction. Missing process state fails closed for protected operations.
+    contradiction. Missing or unverified process identity fails closed.
     """
     identity = str(process_identity or "").strip()
     if not identity:
@@ -38,6 +38,10 @@ def evaluate_sensitive_sink(
         return ContainmentSinkDecision(False, "CONTAINMENT_SINK_DENIED", ("live_containment_state_missing",), identity, -1, "UNKNOWN")
 
     reasons: list[str] = []
+    if not state.identity_verified:
+        reasons.append("process_identity_not_kernel_bound")
+    if state.authority_state == "UNVERIFIED":
+        reasons.append("process_authority_unverified")
     if expected_revision is not None and int(expected_revision) != int(state.revision):
         reasons.append("containment_revision_stale")
 
@@ -68,6 +72,7 @@ def sink_enforcement_invariants() -> dict:
         "sink_rechecks_live_containment": True,
         "stale_pre_revocation_authority_cannot_override": True,
         "missing_sensitive_process_state_fails_closed": True,
+        "unverified_process_identity_fails_closed": True,
         "containment_can_only_shrink_not_grant_authority": True,
         "path_logic_final_authority": False,
     }
