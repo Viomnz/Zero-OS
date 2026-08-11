@@ -7,6 +7,7 @@ from zero_os.decoy_beacon_response import respond_to_decoy_touch
 from zero_os.decoy_event_ingest import ingest_decoy_event
 from zero_os.linux_decoy_event_adapter import LinuxAccessRecord, adapt_linux_access_record
 from zero_os.live_containment_state import LiveContainmentRegistry
+from zero_os.process_identity_evidence import KernelProcessIdentityEvidence
 from zero_os.replay_resistant_event_ledger import EventSequenceRecord, ReplayResistantEventLedger, event_digest
 
 
@@ -17,8 +18,8 @@ class LiveContainmentDecision:
     reasons: tuple[str, ...]
     process_identity: str = ""
     authority_state: str = ""
-    export_allowed: bool = True
-    key_release_allowed: bool = True
+    export_allowed: bool = False
+    key_release_allowed: bool = False
     final_malicious_judgment: bool = False
     authority_granted: bool = False
 
@@ -58,10 +59,23 @@ def process_linux_decoy_event(
     if not ingested.accepted or ingested.touch is None:
         return LiveContainmentDecision(False, ingested.status, ingested.reasons)
 
+    # The authenticated kernel event may establish process identity evidence, but
+    # it does not grant protected-data authority. Containment remains a veto layer.
+    state = containment.register_kernel_evidence(KernelProcessIdentityEvidence(
+        pid=int(event.process_id),
+        process_start_time_ns=event.process_start_time_ns,
+        executable_hash=event.executable_hash,
+        uid=event.uid,
+        gid=event.gid,
+        source=event.source,
+        source_event_id=event.source_event_id,
+        source_authenticated=True,
+        kernel_origin_verified=event.provenance_verified,
+    ))
+
     verdict, response = respond_to_decoy_touch(beacon, ingested.touch)
     process_identity = ingested.touch.process_id
     if not verdict.suspicious:
-        state = containment.get(process_identity)
         return LiveContainmentDecision(
             True,
             response.status,
