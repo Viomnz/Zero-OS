@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterable
+
+from zero_os.relational_authority import RelationAuthorityContract, evaluate_relation_authority
 
 
 class CompositionState(str, Enum):
@@ -31,6 +32,7 @@ class CompositionRequest:
     interaction_model_available: bool = False
     reversible: bool = True
     uncertainty: float = 1.0
+    relation_authority: RelationAuthorityContract | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,7 @@ class CompositionDecision:
     state: CompositionState
     reasons: tuple[str, ...]
     demonstrated_joint_scope: tuple[str, ...]
+    relation_authority_survived: bool = False
     final_authority_granted: bool = False
     path_logic_final_authority: bool = False
 
@@ -64,7 +67,27 @@ def evaluate_composition(request: CompositionRequest) -> CompositionDecision:
     if not request.reversible and float(request.uncertainty) > 0.2:
         reasons.append("irreversible_composition_under_excess_uncertainty")
 
+    relation_survived = False
+    if request.relation_authority is None:
+        reasons.append("relation_authority_missing")
+    else:
+        relation = request.relation_authority.relation
+        expected_members = tuple(sorted(part.part_id for part in request.parts))
+        actual_members = tuple(sorted(relation.member_ids))
+        if relation.relation_id != request.composition_id:
+            reasons.append("relation_identity_mismatch")
+        if actual_members != expected_members:
+            reasons.append("relation_membership_mismatch")
+        if relation.requested_joint_state != request.requested_joint_state:
+            reasons.append("relation_joint_state_mismatch")
+        relation_decision = evaluate_relation_authority(request.relation_authority)
+        relation_survived = relation_decision.survived
+        if not relation_survived:
+            reasons.extend(f"relation:{reason}" for reason in relation_decision.reasons)
+
     if "joint_invariants_not_survived" in reasons or "irreversible_composition_under_excess_uncertainty" in reasons:
+        state = CompositionState.BLOCK
+    elif any(reason.startswith("relation:joint_invariants_not_survived") or reason.startswith("relation:relation_evidence_contradicted") for reason in reasons):
         state = CompositionState.BLOCK
     elif reasons:
         state = CompositionState.INVESTIGATE
@@ -74,8 +97,9 @@ def evaluate_composition(request: CompositionRequest) -> CompositionDecision:
     return CompositionDecision(
         eligible_to_continue_authority_evaluation=not reasons,
         state=state,
-        reasons=tuple(reasons),
+        reasons=tuple(dict.fromkeys(reasons)),
         demonstrated_joint_scope=tuple(request.certified_joint_states),
+        relation_authority_survived=relation_survived,
         final_authority_granted=False,
         path_logic_final_authority=False,
     )
@@ -84,6 +108,7 @@ def evaluate_composition(request: CompositionRequest) -> CompositionDecision:
 def composition_invariants() -> tuple[str, ...]:
     return (
         "local_authority_does_not_imply_joint_authority",
+        "relations_and_joint_states_are_authority_subjects",
         "locally_valid_components_can_form_globally_invalid_state",
         "joint_state_requires_independent_scope_and_invariant_pressure",
         "composition_gate_may_block_but_never_grant_final_authority",
