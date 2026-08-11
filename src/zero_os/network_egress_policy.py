@@ -42,8 +42,11 @@ def evaluate_egress(url: str, *, headers: dict[str, str] | None = None, write: b
     if not lease.active():
         return EgressDecision(False, "capability_lease_expired", host, scheme)
 
-    required_scope = "network:write" if write else "network:read"
-    if required_scope not in lease.scopes:
+    if write:
+        network_ok = "network:write" in lease.scopes
+    else:
+        network_ok = bool({"network:fetch", "network:read", "network:verify"} & lease.scopes)
+    if not network_ok:
         return EgressDecision(False, "network_scope_missing", host, scheme)
 
     host_scope = f"host:{host}"
