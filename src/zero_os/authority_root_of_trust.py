@@ -12,6 +12,7 @@ from typing import Iterable
 from uuid import uuid4
 
 from zero_os.authority_ledger import AuthorityLedger
+from zero_os.authority_runtime_trace import record_event
 from zero_os.objective_authority import ObjectiveAuthorityLedger
 from zero_os.pure_logic_authority_kernel import ConstitutionalRequest, decide as constitutional_decide
 from zero_os.resource_law_budget import VerificationBudget
@@ -117,15 +118,6 @@ def issue_attestation_from_constitution(
     legal_state_ok: bool = True,
     ttl_seconds: int = 30,
 ) -> tuple[AuthorityAttestation, object]:
-    """Recompute constitutional authority inside the issuer boundary.
-
-    Callers do not pass `allowed=True`. The issuer independently evaluates the
-    request against the supplied authority/objective ledgers and verification
-    budget, then signs the exact resulting principal/action/state/scope binding.
-    A same-privilege attacker that can rewrite these ledgers, steal this process's
-    key, or modify the verifier remains outside the demonstrated software-only
-    trust scope until process/OS/hardware isolation exists.
-    """
     decision = constitutional_decide(
         request=constitutional_request,
         authority_ledger=authority_ledger,
@@ -142,11 +134,12 @@ def issue_attestation_from_constitution(
         raise PermissionError("issuer scope does not contain constitutional action scope")
     now = _utc_now()
     ttl = max(1, min(int(ttl_seconds), 300))
+    artifact_id = str(uuid4())
     unsigned = {
         "schema_version": SCHEMA_VERSION,
         "issuer_id": ISSUER_ID,
         "artifact_kind": str(artifact_kind),
-        "artifact_id": str(uuid4()),
+        "artifact_id": artifact_id,
         "principal_id": constitutional_request.actor.principal_id,
         "authority_id": constitutional_request.authority_id,
         "objective_id": constitutional_request.objective_id,
@@ -160,4 +153,38 @@ def issue_attestation_from_constitution(
         "constitutional_status": decision.status,
     }
     signature = hmac.new(_issuer_secret(cwd), _canonical(unsigned), hashlib.sha256).hexdigest()
-    return AuthorityAttestation(**unsigned, signature=signature), decision
+    attestation = AuthorityAttestation(**unsigned, signature=signature)
+
+    binding = {
+        "verification_depth": decision.verification_depth,
+        "required_evidence_groups": decision.required_evidence_groups,
+        "scopes": list(requested_scopes),
+        "artifact_kind": artifact_kind,
+    }
+    record_event(
+        cwd,
+        trace_id=artifact_id,
+        event_kind="constitutional_decision",
+        principal_id=attestation.principal_id,
+        authority_id=attestation.authority_id,
+        objective_id=attestation.objective_id,
+        action_kind=attestation.action_kind,
+        subject_id=attestation.subject_id,
+        state_revision=attestation.state_revision,
+        artifact_id=artifact_id,
+        payload={**binding, "status": decision.status},
+    )
+    record_event(
+        cwd,
+        trace_id=artifact_id,
+        event_kind="issuer_attestation",
+        principal_id=attestation.principal_id,
+        authority_id=attestation.authority_id,
+        objective_id=attestation.objective_id,
+        action_kind=attestation.action_kind,
+        subject_id=attestation.subject_id,
+        state_revision=attestation.state_revision,
+        artifact_id=artifact_id,
+        payload={**binding, "issuer_id": attestation.issuer_id, "expires_at_utc": attestation.expires_at_utc},
+    )
+    return attestation, decision
