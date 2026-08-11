@@ -10,6 +10,10 @@ from zero_os.self_continuity import zero_ai_self_continuity_status
 from zero_os.task_memory import load_memory
 
 
+# Public invariant consumed by the runtime-integration audit and by callers that
+# need to distinguish retrieval priority from epistemic/operational authority.
+memory_is_not_authority = True
+
 _INTENT_STEP_HINTS = {
     "planning": {"controller_registry"},
     "reasoning": {"contradiction_engine"},
@@ -79,6 +83,11 @@ def _load_policy_memory_payload(cwd: str) -> dict[str, Any]:
 
 
 def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) -> dict[str, Any]:
+    """Build retrieval context for discovery/planning only.
+
+    Evidence weights are ranking hints. They do not satisfy AuthorityLedger,
+    ObjectiveAuthority, scope certification, or execution-ticket requirements.
+    """
     intent_data = dict(intent or {})
     intent_name = str(intent_data.get("intent", "observe"))
     request_text = request.strip()
@@ -91,6 +100,7 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
             "key": "current_request",
             "relevance": 1.0,
             "evidence_weight": 1.0,
+            "authority_weight": 0.0,
             "stable": True,
             "support_step_kinds": expected_step_kinds,
             "summary": request_text,
@@ -116,6 +126,7 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
                 "key": str(task.get("request", "")),
                 "relevance": relevance if relevance > 0 else 0.25,
                 "evidence_weight": min(1.0, 0.35 + max(relevance, 0.25) * 0.65),
+                "authority_weight": 0.0,
                 "stable": True,
                 "support_step_kinds": task_steps,
                 "summary": str(task.get("request", "")),
@@ -137,6 +148,7 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
                     "key": intent_name,
                     "relevance": relevance if relevance > 0 else 0.2,
                     "evidence_weight": min(1.0, 0.4 + max(relevance, 0.2) * 0.6),
+                    "authority_weight": 0.0,
                     "stable": True,
                     "support_step_kinds": playbook_steps,
                     "summary": f"playbook:{intent_name}",
@@ -160,9 +172,10 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
             "key": "core_law",
             "relevance": 1.0,
             "evidence_weight": core_weight,
+            "authority_weight": 0.0,
             "stable": contradiction_free and same_system,
             "support_step_kinds": expected_step_kinds,
-            "summary": "core law",
+            "summary": "remembered core-policy context",
             "constraints": core_constraints,
             "goals": core_goals,
         }
@@ -190,6 +203,9 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
         "filtered_out": filtered_out,
         "support_by_kind": support_by_kind,
         "memory_confidence": memory_confidence,
+        "authority_weight": 0.0,
+        "memory_is_not_authority": True,
+        "epistemic_role": "discovery_and_priority_only",
         "core_constraints": core_constraints,
         "core_goals": core_goals,
         "same_system": same_system,
@@ -198,6 +214,7 @@ def build_memory_context(cwd: str, request: str, intent: dict[str, Any] | None) 
 
 
 def score_branch_support(plan: dict[str, Any], memory_context: dict[str, Any]) -> dict[str, Any]:
+    """Score branch priority without granting truth/scope/execution authority."""
     steps = list(plan.get("steps", []))
     step_kinds = [str(step.get("kind", "")).strip() for step in steps if str(step.get("kind", "")).strip()]
     support_by_kind = dict(memory_context.get("support_by_kind") or {})
@@ -217,6 +234,7 @@ def score_branch_support(plan: dict[str, Any], memory_context: dict[str, Any]) -
                     "source": item.get("source", ""),
                     "key": item.get("key", ""),
                     "evidence_weight": item.get("evidence_weight", 0.0),
+                    "authority_weight": 0.0,
                 }
             )
 
@@ -225,6 +243,9 @@ def score_branch_support(plan: dict[str, Any], memory_context: dict[str, Any]) -
         "memory_weight": memory_weight,
         "core_law_weight": core_law_weight,
         "total_weight": total_weight,
+        "advisory_priority_weight": total_weight,
+        "authority_weight": 0.0,
+        "memory_is_not_authority": True,
         "supported_step_kinds": step_kinds,
         "supporting_items": supporting_items,
         "memory_confidence": float(memory_context.get("memory_confidence", 0.0)),
