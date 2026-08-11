@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from zero_os.antivirus import (
+from zero_os.pure_logic_security_api import (
     monitor_set as antivirus_monitor_set,
     monitor_status as antivirus_monitor_status,
     monitor_tick as antivirus_monitor_tick,
