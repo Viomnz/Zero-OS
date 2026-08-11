@@ -1,3 +1,5 @@
+from zero_os.enterprise_security import preexec_check
+from zero_os.highway import Highway
 from zero_os.protected_data_authority import DataSensitivity, ProtectedDataSubject
 from zero_os.protected_data_runtime import _direct_plaintext_allowed
 from zero_os.protected_export_sinks import ExportAuthorizationEvidence
@@ -79,3 +81,18 @@ def test_export_authorization_evidence_cannot_claim_final_authority():
     )
     assert not ok
     assert "export_evidence_cannot_claim_final_authority" in reasons
+
+
+def test_highway_routes_status_instead_of_applying_legacy_global_auth_wall(tmp_path):
+    highway = Highway(cwd=str(tmp_path))
+    result = highway.dispatch("core status", cwd=str(tmp_path))
+    assert result.capability == "system"
+    assert "Authentication is required by policy." not in result.summary
+    assert "Zero OS Pure Logic Authority Core" in result.summary
+    assert "nothing_internal_is_reality" in result.summary
+
+
+def test_critical_command_remains_capability_scoped_and_fails_closed_without_signature(tmp_path):
+    allowed, reason = preexec_check(str(tmp_path), "shell run whoami")
+    assert not allowed
+    assert "requires signed payload token" in reason
