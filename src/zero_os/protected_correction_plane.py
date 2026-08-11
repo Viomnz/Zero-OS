@@ -85,6 +85,13 @@ def default_correction_plane() -> ProtectedCorrectionPlane:
                 "recovery_policy",
                 "security_key_rotation",
                 "zero_os_source",
+                "firmware_policy",
+                "firmware_boot_manifest",
+                "firmware_root_public_keys",
+                "firmware_rollback_counter",
+                "firmware_recovery_policy",
+                "firmware_reality_checkpoint",
+                "firmware_update_authority",
             }
         ),
         runtime_writers=frozenset(),
