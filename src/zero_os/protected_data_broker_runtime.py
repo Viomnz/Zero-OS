@@ -25,6 +25,8 @@ class BrokerDecryptResponse:
     content_revision: str
     operation: str
     destination: str = ""
+    containment_revision: int = 0
+    containment_enforced_by_broker: bool = False
 
 
 class ProtectedDataBroker(Protocol):
@@ -80,6 +82,15 @@ def read_protected_via_broker(
     grant_ok = bool(grant_verdict.get("ok", False))
     process_compromised = bool(getattr(compromise_state, "process_contested", False) or getattr(compromise_state, "principal_contested", False))
 
+    broker_sink = evaluate_sensitive_sink(
+        containment=containment,
+        process_identity=process_identity,
+        operation="key_release",
+        expected_revision=initial_sink.containment_revision,
+    )
+    if not broker_sink.allowed:
+        raise PermissionError(";".join(broker_sink.reasons) or broker_sink.status)
+
     request = KeyReleaseRequest(
         principal_id=principal_id,
         data_id=subject.data_id,
@@ -90,6 +101,7 @@ def read_protected_via_broker(
         data_grant_id=str(grant.artifact_id),
         authority_artifact_id=str(grant.artifact_id),
         process_identity=str(process_identity),
+        containment_revision=broker_sink.containment_revision,
     )
     release: KeyReleaseDecision = evaluate_key_release(
         descriptor=broker.descriptor,
@@ -102,20 +114,13 @@ def read_protected_via_broker(
     if not release.release_eligible:
         raise PermissionError(";".join(release.reasons) or "protected_key_release_denied")
 
-    # The broker boundary rechecks live state immediately before decrypt. A grant
-    # that was valid before a decoy contradiction cannot cross this point later.
-    broker_sink = evaluate_sensitive_sink(
-        containment=containment,
-        process_identity=process_identity,
-        operation="key_release",
-        expected_revision=initial_sink.containment_revision,
-    )
-    if not broker_sink.allowed:
-        raise PermissionError(";".join(broker_sink.reasons) or broker_sink.status)
-
     response = broker.decrypt(request, container)
     if not response.ok:
         raise PermissionError(response.status or "protected_broker_decrypt_denied")
+    if not response.containment_enforced_by_broker:
+        raise PermissionError("broker_did_not_enforce_live_containment")
+    if int(response.containment_revision) != int(request.containment_revision):
+        raise PermissionError("broker_containment_revision_mismatch")
     if response.broker_id != broker.descriptor.broker_id:
         raise PermissionError("protected_broker_identity_mismatch")
     if response.key_id != container.key_id or response.data_id != subject.data_id or response.content_revision != subject.state_revision:
@@ -129,7 +134,7 @@ def read_protected_via_broker(
         containment=containment,
         process_identity=process_identity,
         operation="protected_read",
-        expected_revision=broker_sink.containment_revision,
+        expected_revision=request.containment_revision,
     )
     if not final_sink.allowed:
         raise PermissionError(";".join(final_sink.reasons) or final_sink.status)
