@@ -1,34 +1,38 @@
+from zero_os.authority_root_of_trust import issue_attestation
 from zero_os.execution_authority_ticket import (
     acknowledge_consumed_execution_ticket,
     consume_execution_ticket,
-    issue_execution_ticket,
+    ticket_from_attestation,
 )
 from zero_os.self_repair import self_repair_run
 
 
-def test_sink_handoff_requires_prior_runtime_consumption(tmp_path):
-    issue_execution_ticket(
-        str(tmp_path),
-        action_kind="self_repair",
+def _mint(cwd: str):
+    attestation = issue_attestation(
+        cwd,
+        artifact_kind="execution_ticket",
+        principal_id="operator",
         authority_id="a1",
+        objective_id="obj1",
+        action_kind="self_repair",
         subject_id="repair-1",
-        required_scope="system:self_repair",
         state_revision="r1",
+        scopes=("runtime:self_repair",),
+        constitutional_allowed=True,
+        constitutional_status="AUTHORIZED",
     )
+    return ticket_from_attestation(cwd, attestation)
+
+
+def test_sink_handoff_requires_prior_runtime_consumption(tmp_path):
+    _mint(str(tmp_path))
     ack = acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")
     assert ack["ok"] is False
     assert ack["reason"] == "fresh_consumed_ticket_handoff_missing"
 
 
 def test_sink_handoff_is_single_use(tmp_path):
-    issue_execution_ticket(
-        str(tmp_path),
-        action_kind="self_repair",
-        authority_id="a1",
-        subject_id="repair-1",
-        required_scope="system:self_repair",
-        state_revision="r1",
-    )
+    _mint(str(tmp_path))
     consumed = consume_execution_ticket(str(tmp_path), "self_repair")
     assert consumed["ok"] is True
     first = acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")
