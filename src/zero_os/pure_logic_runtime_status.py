@@ -5,6 +5,7 @@ from pathlib import Path
 from zero_os.authority_issuer_boundary import current_software_issuer_status
 from zero_os.authority_runtime_integration_audit import audit_authority_runtime_integration
 from zero_os.authority_runtime_trace import verify_trace_chain
+from zero_os.path_law_authority_guard import audit_path_law_non_authority
 from zero_os.security_control_plane import verify_history_chain
 from zero_os.security_control_plane_audit import audit_security_control_plane
 
@@ -24,6 +25,7 @@ def pure_logic_runtime_status(root: str | Path) -> dict:
     base = Path(root).resolve()
     authority = audit_authority_runtime_integration(base)
     security = audit_security_control_plane(base)
+    path_law = audit_path_law_non_authority(base)
     trace = verify_trace_chain(str(base))
     control_history = verify_history_chain(str(base))
     issuer = current_software_issuer_status()
@@ -33,6 +35,8 @@ def pure_logic_runtime_status(root: str | Path) -> dict:
         blockers.append("authority_runtime_integration_incomplete")
     if not security.get("promotion_permitted", False):
         blockers.append("security_control_plane_incomplete")
+    if not path_law.get("promotion_permitted", False):
+        blockers.append("path_law_authority_violation")
     if not trace.get("ok", False):
         blockers.append("authority_runtime_trace_invalid")
     if not control_history.get("ok", False):
@@ -49,6 +53,7 @@ def pure_logic_runtime_status(root: str | Path) -> dict:
         "blockers": blockers,
         "authority_runtime": authority,
         "security_control_plane": security,
+        "path_law_non_authority": path_law,
         "authority_trace_chain": trace,
         "security_control_history": control_history,
         "issuer_boundary": {
@@ -62,6 +67,8 @@ def pure_logic_runtime_status(root: str | Path) -> dict:
         "claims": {
             "discovery_is_not_scope_authority": True,
             "memory_is_not_execution_authority": True,
+            "path_logic_is_not_final_authority": True,
+            "path_logic_role": "select_only_among_independently_authorized_surviving_paths",
             "objectives_have_separate_authority": True,
             "privileged_actions_require_scoped_authority": True,
             "security_controls_are_protected_policy": True,
