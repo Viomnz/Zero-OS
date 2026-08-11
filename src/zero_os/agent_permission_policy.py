@@ -4,8 +4,10 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.authority_root_of_trust import verify_attestation
 from zero_os.capability_lease import current_capability_lease
 from zero_os.capability_registry import capability_class
+from zero_os.execution_authority_ticket import acknowledge_consumed_execution_ticket
 from zero_os.mutation_registry import canonical_mutation_kind, is_known_mutation
 from zero_os.pure_logic_runtime_kernel import authorize_runtime_mutation
 
@@ -15,32 +17,14 @@ def _utc_now() -> str:
 
 
 _DEFAULT_ACTION_TIERS = {
-    "observe": "safe_auto",
-    "system_status": "safe_auto",
-    "tool_registry": "safe_auto",
-    "browser_status": "safe_auto",
-    "browser_dom_inspect": "safe_auto",
-    "web_verify": "safe_auto",
-    "web_fetch": "safe_auto",
-    "browser_open": "safe_auto",
-    "store_status": "safe_auto",
-    "api_request": "safe_auto",
-    "api_workflow": "safe_auto",
-    "code_change": "guarded_auto",
-    "browser_action": "approval_required",
-    "store_install": "approval_required",
-    "recover": "approval_required",
-    "self_repair": "approval_required",
-    "cloud_deploy": "approval_required",
-    "cloud_target_set": "approval_required",
-    "github_issue_act": "approval_required",
-    "github_pr_act": "approval_required",
-    "github_issue_reply_post": "approval_required",
-    "github_pr_reply_post": "approval_required",
-    "self_upgrade": "approval_required",
-    "policy_change": "approval_required",
-    "authority_change": "approval_required",
-    "credential_change": "approval_required",
+    "observe": "safe_auto", "system_status": "safe_auto", "tool_registry": "safe_auto", "browser_status": "safe_auto",
+    "browser_dom_inspect": "safe_auto", "web_verify": "safe_auto", "web_fetch": "safe_auto", "browser_open": "safe_auto",
+    "store_status": "safe_auto", "api_request": "safe_auto", "api_workflow": "safe_auto", "code_change": "guarded_auto",
+    "browser_action": "approval_required", "store_install": "approval_required", "recover": "approval_required",
+    "self_repair": "approval_required", "cloud_deploy": "approval_required", "cloud_target_set": "approval_required",
+    "github_issue_act": "approval_required", "github_pr_act": "approval_required", "github_issue_reply_post": "approval_required",
+    "github_pr_reply_post": "approval_required", "self_upgrade": "approval_required", "policy_change": "approval_required",
+    "authority_change": "approval_required", "credential_change": "approval_required",
 }
 
 _TIER_SPECS = {
@@ -50,7 +34,6 @@ _TIER_SPECS = {
     "approval_required": {"decision": "approval_required", "description": "Requires explicit user approval and Pure Logic execution authority before execution.", "requires_rollback": True, "requires_approval": True},
     "forbidden": {"decision": "deny", "description": "Blocked by policy.", "requires_rollback": False, "requires_approval": False},
 }
-
 _MUTATING_TIERS = {"guarded_auto", "approval_required"}
 
 
@@ -58,20 +41,7 @@ def _policy_path(cwd: str) -> Path:
     path = Path(cwd).resolve() / ".zero_os" / "assistant" / "agent_policy.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
-        path.write_text(
-            json.dumps(
-                {
-                    "allow": sorted([kind for kind, tier in _DEFAULT_ACTION_TIERS.items() if tier in {"safe_auto", "guarded_auto"}]),
-                    "approval_required": sorted([kind for kind, tier in _DEFAULT_ACTION_TIERS.items() if tier == "approval_required"]),
-                    "deny": [],
-                    "actions": dict(_DEFAULT_ACTION_TIERS),
-                    "tiers": dict(_TIER_SPECS),
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        path.write_text(json.dumps({"allow": sorted([k for k, v in _DEFAULT_ACTION_TIERS.items() if v in {"safe_auto", "guarded_auto"}]), "approval_required": sorted([k for k, v in _DEFAULT_ACTION_TIERS.items() if v == "approval_required"]), "deny": [], "actions": dict(_DEFAULT_ACTION_TIERS), "tiers": dict(_TIER_SPECS)}, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -84,81 +54,57 @@ def _audit_path(cwd: str) -> Path:
 def policy_status(cwd: str) -> dict:
     policy = json.loads(_policy_path(cwd).read_text(encoding="utf-8", errors="replace"))
     actions = dict(_DEFAULT_ACTION_TIERS)
-    for kind in policy.get("allow", []):
-        actions[str(kind)] = "safe_auto"
-    for kind in policy.get("approval_required", []):
-        actions[str(kind)] = "approval_required"
-    for kind in policy.get("deny", []):
-        actions[str(kind)] = "forbidden"
-    actions.update({str(key): str(value) for key, value in dict(policy.get("actions") or {}).items() if str(value)})
+    for kind in policy.get("allow", []): actions[str(kind)] = "safe_auto"
+    for kind in policy.get("approval_required", []): actions[str(kind)] = "approval_required"
+    for kind in policy.get("deny", []): actions[str(kind)] = "forbidden"
+    actions.update({str(k): str(v) for k, v in dict(policy.get("actions") or {}).items() if str(v)})
     policy["actions"] = actions
     policy["tiers"] = {**_TIER_SPECS, **dict(policy.get("tiers") or {})}
-    policy["allow"] = sorted([kind for kind, tier in actions.items() if tier in {"safe_auto", "guarded_auto"}])
-    policy["approval_required"] = sorted([kind for kind, tier in actions.items() if tier == "approval_required"])
-    policy["deny"] = sorted([kind for kind, tier in actions.items() if tier == "forbidden"])
+    policy["allow"] = sorted([k for k, v in actions.items() if v in {"safe_auto", "guarded_auto"}])
+    policy["approval_required"] = sorted([k for k, v in actions.items() if v == "approval_required"])
+    policy["deny"] = sorted([k for k, v in actions.items() if v == "forbidden"])
     policy["tier_counts"] = {tier: sum(1 for value in actions.values() if value == tier) for tier in policy["tiers"].keys()}
     _policy_path(cwd).write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
     return policy
 
 
 def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
+    handoff = acknowledge_consumed_execution_ticket(cwd, "policy_change", max_handoff_seconds=10)
+    if not bool(handoff.get("ok", False)):
+        return {"ok": False, "reason": "constitutional_policy_change_handoff_missing", "authority": handoff}
     normalized_kind = canonical_mutation_kind(action_kind)
     normalized_tier = str(tier or "").strip().lower()
-    if not normalized_kind:
-        return {"ok": False, "reason": "empty_action_kind"}
-    if normalized_tier not in _TIER_SPECS:
-        return {"ok": False, "reason": f"unknown_tier:{normalized_tier}", "allowed_tiers": sorted(_TIER_SPECS.keys())}
-    if is_known_mutation(normalized_kind) and normalized_tier == "safe_auto":
-        return {"ok": False, "reason": "known_mutation_cannot_be_safe_auto"}
+    if not normalized_kind: return {"ok": False, "reason": "empty_action_kind"}
+    if normalized_tier not in _TIER_SPECS: return {"ok": False, "reason": f"unknown_tier:{normalized_tier}", "allowed_tiers": sorted(_TIER_SPECS.keys())}
+    if is_known_mutation(normalized_kind) and normalized_tier == "safe_auto": return {"ok": False, "reason": "known_mutation_cannot_be_safe_auto"}
     policy = policy_status(cwd)
     actions = dict(policy.get("actions") or {})
     actions[normalized_kind] = normalized_tier
     policy["actions"] = actions
-    policy["allow"] = sorted([kind for kind, value in actions.items() if value in {"safe_auto", "guarded_auto"}])
-    policy["approval_required"] = sorted([kind for kind, value in actions.items() if value == "approval_required"])
-    policy["deny"] = sorted([kind for kind, value in actions.items() if value == "forbidden"])
+    policy["allow"] = sorted([k for k, v in actions.items() if v in {"safe_auto", "guarded_auto"}])
+    policy["approval_required"] = sorted([k for k, v in actions.items() if v == "approval_required"])
+    policy["deny"] = sorted([k for k, v in actions.items() if v == "forbidden"])
     policy["updated_utc"] = _utc_now()
+    policy["last_authority_ticket"] = str((handoff.get("ticket") or {}).get("ticket_id", ""))
     _policy_path(cwd).write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
     return {"ok": True, "action_kind": normalized_kind, "tier": normalized_tier, "policy": policy_status(cwd)}
 
 
-def _sensitive_capability_authority(kind: str) -> dict | None:
+def _sensitive_capability_authority(cwd: str, kind: str) -> dict | None:
     capability = capability_class(kind)
-    if capability is None or capability.mode == "mutation":
-        return None
-    if not capability.sensitive and capability.risk not in {"high", "critical"}:
-        return None
-
+    if capability is None or capability.mode == "mutation": return None
+    if not capability.sensitive and capability.risk not in {"high", "critical"}: return None
     lease = current_capability_lease()
-    if lease is None:
-        return {
-            "ok": False,
-            "reason": "constitutional_capability_lease_missing",
-            "required_scope": capability.required_scope,
-            "risk": capability.risk,
-        }
-    if not lease.active():
-        return {
-            "ok": False,
-            "reason": "constitutional_capability_lease_expired",
-            "required_scope": capability.required_scope,
-            "risk": capability.risk,
-        }
+    if lease is None: return {"ok": False, "reason": "constitutional_capability_lease_missing", "required_scope": capability.required_scope, "risk": capability.risk}
+    if not lease.active(): return {"ok": False, "reason": "constitutional_capability_lease_expired", "required_scope": capability.required_scope, "risk": capability.risk}
+    attested = verify_attestation(cwd, lease.attestation)
+    if not bool(attested.get("ok", False)):
+        return {"ok": False, "reason": str(attested.get("reason", "constitutional_capability_attestation_invalid")), "required_scope": capability.required_scope, "risk": capability.risk}
+    if lease.attestation.artifact_kind != "capability_lease" or lease.attestation.principal_id != lease.principal_id or tuple(lease.attestation.scopes) != tuple(sorted(lease.scopes)):
+        return {"ok": False, "reason": "constitutional_capability_lease_binding_mismatch", "required_scope": capability.required_scope, "risk": capability.risk}
     if capability.required_scope not in lease.scopes:
-        return {
-            "ok": False,
-            "reason": "constitutional_capability_scope_missing",
-            "required_scope": capability.required_scope,
-            "risk": capability.risk,
-            "lease_scopes": sorted(lease.scopes),
-        }
-    return {
-        "ok": True,
-        "reason": "v5_constitutional_capability_lease_present",
-        "required_scope": capability.required_scope,
-        "risk": capability.risk,
-        "principal_id": lease.principal_id,
-    }
+        return {"ok": False, "reason": "constitutional_capability_scope_missing", "required_scope": capability.required_scope, "risk": capability.risk, "lease_scopes": sorted(lease.scopes)}
+    return {"ok": True, "reason": "v8_attested_constitutional_capability_lease_present", "required_scope": capability.required_scope, "risk": capability.risk, "principal_id": lease.principal_id, "issuer_id": lease.attestation.issuer_id}
 
 
 def classify_action(cwd: str, action_kind: str) -> dict:
@@ -169,44 +115,19 @@ def classify_action(cwd: str, action_kind: str) -> dict:
     spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["forbidden"])
     authority = {"ok": True, "reason": "low_risk_read_or_non_mutating_tier"}
     decision = str(spec.get("decision", "deny"))
-
     if tier in _MUTATING_TIERS or is_known_mutation(kind):
         kernel = authorize_runtime_mutation(cwd, kind)
-        authority = {
-            "ok": kernel.allowed,
-            "reason": kernel.reason,
-            "required_scope": kernel.required_scope,
-            "risk": kernel.risk,
-            "ticket": kernel.authority,
-        }
-        if not kernel.allowed:
-            decision = "deny"
+        authority = {"ok": kernel.allowed, "reason": kernel.reason, "required_scope": kernel.required_scope, "risk": kernel.risk, "ticket": kernel.authority}
+        if not kernel.allowed: decision = "deny"
     else:
-        sensitive = _sensitive_capability_authority(kind)
+        sensitive = _sensitive_capability_authority(cwd, kind)
         if sensitive is not None:
             authority = sensitive
-            if not bool(sensitive.get("ok", False)):
-                decision = "deny"
-
-    return {
-        "decision": decision,
-        "tier": tier,
-        "action_kind": kind,
-        "requires_rollback": bool(spec.get("requires_rollback", False)),
-        "requires_approval": bool(spec.get("requires_approval", False)),
-        "description": str(spec.get("description", "")),
-        "explicitly_configured": configured is not None,
-        "pure_logic_authority": authority,
-    }
+            if not bool(sensitive.get("ok", False)): decision = "deny"
+    return {"decision": decision, "tier": tier, "action_kind": kind, "requires_rollback": bool(spec.get("requires_rollback", False)), "requires_approval": bool(spec.get("requires_approval", False)), "description": str(spec.get("description", "")), "explicitly_configured": configured is not None, "pure_logic_authority": authority}
 
 
 def audit_event(cwd: str, action_kind: str, state: str, payload: dict | None = None) -> dict:
-    record = {
-        "time_utc": _utc_now(),
-        "action_kind": canonical_mutation_kind(action_kind),
-        "state": state,
-        "payload": payload or {},
-    }
-    with _audit_path(cwd).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    record = {"time_utc": _utc_now(), "action_kind": canonical_mutation_kind(action_kind), "state": state, "payload": payload or {}}
+    with _audit_path(cwd).open("a", encoding="utf-8") as handle: handle.write(json.dumps(record, sort_keys=True) + "\n")
     return {"ok": True, "record": record}
