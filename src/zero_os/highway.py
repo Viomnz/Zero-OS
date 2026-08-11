@@ -43,8 +43,10 @@ class Highway:
         )
 
     def dispatch(self, text: str, cwd: str = ".") -> Result:
-        if self.core.authentication_required:
-            return Result("core", "Authentication is required by policy.")
+        # Authentication and authority are capability-scoped. Do not reinterpret
+        # CorePolicy.authentication_required (a legacy compatibility property) as
+        # a universal login wall: doing so prevents even read-only/status lanes
+        # from reaching their own enforcement and makes every command unusable.
         mode = get_mode(cwd)
         profile_setting = get_profile_setting(cwd)
         hw = detect_hardware()

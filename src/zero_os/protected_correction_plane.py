@@ -96,6 +96,7 @@ def default_correction_plane() -> ProtectedCorrectionPlane:
                 "decoy_authority_shrink_policy",
                 "decoy_linux_event_adapter_policy",
                 "decoy_event_sequence_ledger_policy",
+                "process_identity_binding_policy",
                 "live_containment_state_policy",
                 "containment_sink_enforcement_policy",
                 "containment_revision_policy",

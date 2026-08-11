@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from zero_os.decoy_beacon import DecoyBeacon, DecoyTouch
+from zero_os.process_identity_evidence import canonical_process_identity
 
 
 class DecoyAccessKind(str, Enum):
@@ -60,7 +61,7 @@ def ingest_decoy_event(beacon: DecoyBeacon, event: DecoyKernelEvent) -> DecoyIng
         reasons.append("kernel_audit_sequence_missing")
     if event.process_start_time_ns <= 0:
         reasons.append("process_lifetime_binding_missing")
-    if not event.executable_hash:
+    if not event.executable_hash or ":" in str(event.executable_hash):
         reasons.append("process_executable_hash_missing")
     try:
         datetime.fromisoformat(event.observed_at.replace("Z", "+00:00"))
@@ -68,11 +69,17 @@ def ingest_decoy_event(beacon: DecoyBeacon, event: DecoyKernelEvent) -> DecoyIng
         reasons.append("invalid_observation_time")
     if reasons:
         return DecoyIngestDecision(False, "DECOY_EVENT_REJECTED", tuple(reasons), None)
-    expected_actor = event.actor_id in set(beacon.expected_accessors)
+
+    process_identity = canonical_process_identity(
+        pid=int(event.process_id),
+        process_start_time_ns=event.process_start_time_ns,
+        executable_hash=event.executable_hash,
+    )
+    expected_identity = process_identity in set(beacon.expected_process_identities)
     touch = DecoyTouch(
         beacon_id=event.beacon_id,
         actor_id=event.actor_id,
-        process_id=f"{event.process_id}:{event.process_start_time_ns}:{event.executable_hash}",
+        process_id=process_identity,
         action=event.access_kind.value,
         observed_at=event.observed_at,
         provenance=(
@@ -83,7 +90,8 @@ def ingest_decoy_event(beacon: DecoyBeacon, event: DecoyKernelEvent) -> DecoyIng
             f"gid:{event.gid}",
             f"object:{event.object_path}",
         ),
-        expected_actor=expected_actor,
+        expected_actor=expected_identity,
+        accessor_binding_verified=expected_identity,
     )
     return DecoyIngestDecision(True, "DECOY_EVENT_ACCEPTED_AS_EVIDENCE", (), touch)
 
@@ -94,6 +102,8 @@ def instrumentation_invariants() -> dict:
         "process_identity_bound_to_lifetime": True,
         "executable_hash_required": True,
         "audit_sequence_required": True,
+        "caller_actor_label_cannot_suppress_decoy": True,
+        "expected_accessor_requires_exact_process_identity": True,
         "touch_is_not_final_malicious_judgment": True,
         "authority_granted": False,
     }

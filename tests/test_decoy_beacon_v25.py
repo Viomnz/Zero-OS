@@ -2,6 +2,9 @@ from zero_os.decoy_beacon import DecoyBeacon, DecoyBeaconState, DecoyTouch, eval
 from zero_os.decoy_beacon_response import respond_to_decoy_touch
 
 
+EXPECTED_PROCESS = "9001:123456:abc123"
+
+
 def _beacon(**overrides):
     base = dict(
         beacon_id="decoy-root-manifest",
@@ -9,6 +12,7 @@ def _beacon(**overrides):
         apparent_role="root_authority_index",
         protected_location="/.zero_os/decoys/root-authority.json",
         expected_accessors=("zero-os-decoy-maintenance",),
+        expected_process_identities=(),
         created_at="2026-08-10T20:00:00-07:00",
         expires_at="2026-08-20T20:00:00-07:00",
         evidence_sink="protected-contradiction-ledger",
@@ -25,11 +29,12 @@ def _touch(**overrides):
     base = dict(
         beacon_id="decoy-root-manifest",
         actor_id="unknown-agent",
-        process_id="pid-9001",
+        process_id=EXPECTED_PROCESS,
         action="read",
         observed_at="2026-08-10T20:10:00-07:00",
         provenance=("kernel-file-watch", "process-identity-monitor"),
         expected_actor=False,
+        accessor_binding_verified=False,
     )
     base.update(overrides)
     return DecoyTouch(**base)
@@ -47,13 +52,22 @@ def test_unexpected_touch_is_evidence_not_guilt():
     assert response.final_malicious_judgment is False
 
 
-def test_expected_maintenance_touch_does_not_escalate():
-    touch = _touch(actor_id="zero-os-decoy-maintenance", expected_actor=True)
-    verdict, response = respond_to_decoy_touch(_beacon(), touch)
+def test_exact_kernel_bound_maintenance_touch_does_not_escalate():
+    touch = _touch(expected_actor=True, accessor_binding_verified=True)
+    verdict, response = respond_to_decoy_touch(
+        _beacon(expected_process_identities=(EXPECTED_PROCESS,)), touch
+    )
     assert verdict.suspicious is False
     assert verdict.status == "EXPECTED_DECOY_ACCESS"
     assert response.contest_process_authority is False
     assert response.revoke_protected_data_export is False
+
+
+def test_friendly_maintenance_label_alone_cannot_suppress_tripwire():
+    touch = _touch(actor_id="zero-os-decoy-maintenance", expected_actor=True)
+    verdict, response = respond_to_decoy_touch(_beacon(), touch)
+    assert verdict.suspicious is True
+    assert response.contest_process_authority is True
 
 
 def test_decoy_with_real_secret_is_invalid():
