@@ -6,6 +6,8 @@ from pathlib import Path
 
 from zero_os.authority_root_of_trust import AuthorityAttestation
 from zero_os.capability_lease import require_scope
+from zero_os.containment_sink_enforcement import evaluate_sensitive_sink
+from zero_os.live_containment_state import LiveContainmentRegistry
 from zero_os.protected_data_authority import (
     CompromiseState,
     DataOperation,
@@ -59,10 +61,22 @@ def read_protected_bytes(
     cwd: str,
     *,
     principal_id: str,
+    process_identity: str,
+    containment: LiveContainmentRegistry,
     data_id: str,
     grant: AuthorityAttestation,
+    expected_containment_revision: int | None = None,
     compromise: CompromiseState | None = None,
 ) -> bytes:
+    sink = evaluate_sensitive_sink(
+        containment=containment,
+        process_identity=process_identity,
+        operation="protected_read",
+        expected_revision=expected_containment_revision,
+    )
+    if not sink.allowed:
+        raise PermissionError(";".join(sink.reasons) or sink.status)
+
     lease = require_scope("protected_data:read", cwd=cwd)
     if not bool(lease.get("ok", False)):
         raise PermissionError(str(lease.get("reason", "protected_data_read_capability_missing")))
@@ -83,6 +97,17 @@ def read_protected_bytes(
     )
     if not bool(verdict.get("ok", False)):
         raise PermissionError(str(verdict.get("reason", "protected_data_grant_denied")))
+
+    # Re-read at the final release point. A contradiction may have arrived while
+    # the grant/file checks were running.
+    final_sink = evaluate_sensitive_sink(
+        containment=containment,
+        process_identity=process_identity,
+        operation="protected_read",
+        expected_revision=sink.containment_revision,
+    )
+    if not final_sink.allowed:
+        raise PermissionError(";".join(final_sink.reasons) or final_sink.status)
     return payload
 
 
@@ -90,19 +115,31 @@ def authorize_protected_export(
     cwd: str,
     *,
     principal_id: str,
+    process_identity: str,
+    containment: LiveContainmentRegistry,
     data_id: str,
     destination: str,
     channel: DataChannel,
     grant: AuthorityAttestation,
+    expected_containment_revision: int | None = None,
     compromise: CompromiseState | None = None,
 ) -> dict:
+    sink = evaluate_sensitive_sink(
+        containment=containment,
+        process_identity=process_identity,
+        operation=f"{channel.value}_export" if channel != DataChannel.LOCAL_FILE else "protected_export",
+        expected_revision=expected_containment_revision,
+    )
+    if not sink.allowed:
+        return {"ok": False, "status": "DATA_FLOW_DENIED", "reason": ";".join(sink.reasons) or sink.status}
+
     lease = require_scope("protected_data:export", cwd=cwd)
     if not bool(lease.get("ok", False)):
         return {"ok": False, "status": "DATA_FLOW_DENIED", "reason": str(lease.get("reason", "protected_data_export_capability_missing"))}
     subject, path = load_subject(cwd, data_id)
     if not path.exists() or _sha256(path.read_bytes()) != subject.state_revision:
         return {"ok": False, "status": "DATA_FLOW_DENIED", "reason": "protected_data_revision_contradiction"}
-    return authorize_data_flow(
+    verdict = authorize_data_flow(
         cwd,
         DataFlowRequest(
             principal_id=principal_id,
@@ -114,3 +151,15 @@ def authorize_protected_export(
             compromise=compromise or CompromiseState(),
         ),
     )
+    if not bool(verdict.get("ok", False)):
+        return verdict
+
+    final_sink = evaluate_sensitive_sink(
+        containment=containment,
+        process_identity=process_identity,
+        operation=f"{channel.value}_export" if channel != DataChannel.LOCAL_FILE else "protected_export",
+        expected_revision=sink.containment_revision,
+    )
+    if not final_sink.allowed:
+        return {"ok": False, "status": "DATA_FLOW_DENIED", "reason": ";".join(final_sink.reasons) or final_sink.status}
+    return {**verdict, "containment_revision": final_sink.containment_revision}
