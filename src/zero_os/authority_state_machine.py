@@ -72,12 +72,18 @@ class TransitionDecision:
     reason: str
 
 
+def _coerce_state(value: AuthorityArtifactState | str) -> AuthorityArtifactState:
+    if isinstance(value, AuthorityArtifactState):
+        return value
+    return AuthorityArtifactState(str(value))
+
+
 def check_transition(
     from_state: AuthorityArtifactState | str,
     to_state: AuthorityArtifactState | str,
 ) -> TransitionDecision:
-    source = AuthorityArtifactState(str(from_state))
-    target = AuthorityArtifactState(str(to_state))
+    source = _coerce_state(from_state)
+    target = _coerce_state(to_state)
     if source in _TERMINAL:
         return TransitionDecision(False, source, target, "terminal_authority_state_cannot_transition")
     if target not in _ALLOWED[source]:
@@ -86,7 +92,7 @@ def check_transition(
 
 
 def verify_transition_sequence(states: Iterable[AuthorityArtifactState | str]) -> dict:
-    sequence = [AuthorityArtifactState(str(item)) for item in states]
+    sequence = [_coerce_state(item) for item in states]
     if not sequence:
         return {"ok": False, "reason": "authority_state_sequence_empty"}
     if sequence[0] != AuthorityArtifactState.PROPOSED:
