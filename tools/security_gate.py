@@ -14,7 +14,7 @@ def run(cmd: list[str]) -> int:
 
 
 def suites_for_profile(profile: str) -> list[list[str]]:
-    focused_security_suite = [
+    focused_unittest_suite = [
         sys.executable,
         "-m",
         "unittest",
@@ -27,15 +27,20 @@ def suites_for_profile(profile: str) -> list[list[str]]:
         "tests.test_zero_ai_gate",
         "-q",
     ]
-    if profile == "ci":
-        return [focused_security_suite]
-    if profile == "maturity":
-        return [focused_security_suite]
+    focused_pytest_regressions = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_sink_enforcement_v28.py",
+        "tests/test_zero_os_cleanup_v30.py",
+    ]
+    if profile in {"ci", "maturity"}:
+        return [focused_unittest_suite, focused_pytest_regressions]
     if profile == "full":
-        return [
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-q"],
-            focused_security_suite,
-        ]
+        # Pytest executes both unittest.TestCase suites and plain pytest tests,
+        # so the full profile can no longer silently skip function-style tests.
+        return [[sys.executable, "-m", "pytest", "-q", "tests"]]
     raise ValueError(f"unsupported security gate profile: {profile}")
 
 
@@ -45,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         "--profile",
         choices=("ci", "maturity", "full"),
         default="maturity",
-        help="Gate profile to run. 'full' preserves the older broad test-discover behavior.",
+        help="Gate profile to run. 'full' executes the complete pytest suite, including unittest-compatible tests.",
     )
     args = parser.parse_args(argv)
     suites = suites_for_profile(args.profile)
