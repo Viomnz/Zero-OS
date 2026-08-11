@@ -25,6 +25,8 @@ _DEFAULT_ACTION_TIERS = {
     "github_issue_act": "approval_required", "github_pr_act": "approval_required", "github_issue_reply_post": "approval_required",
     "github_pr_reply_post": "approval_required", "self_upgrade": "approval_required", "policy_change": "approval_required",
     "authority_change": "approval_required", "credential_change": "approval_required",
+    "protected_data_read": "safe_auto", "protected_data_export": "safe_auto", "network_export": "safe_auto",
+    "clipboard_export": "safe_auto", "removable_export": "safe_auto", "ipc_data_export": "safe_auto",
 }
 
 _TIER_SPECS = {
@@ -104,7 +106,7 @@ def _sensitive_capability_authority(cwd: str, kind: str) -> dict | None:
         return {"ok": False, "reason": "constitutional_capability_lease_binding_mismatch", "required_scope": capability.required_scope, "risk": capability.risk}
     if capability.required_scope not in lease.scopes:
         return {"ok": False, "reason": "constitutional_capability_scope_missing", "required_scope": capability.required_scope, "risk": capability.risk, "lease_scopes": sorted(lease.scopes)}
-    return {"ok": True, "reason": "v8_attested_constitutional_capability_lease_present", "required_scope": capability.required_scope, "risk": capability.risk, "principal_id": lease.principal_id, "issuer_id": lease.attestation.issuer_id}
+    return {"ok": True, "reason": "attested_constitutional_capability_lease_present", "required_scope": capability.required_scope, "risk": capability.risk, "principal_id": lease.principal_id, "issuer_id": lease.attestation.issuer_id}
 
 
 def classify_action(cwd: str, action_kind: str) -> dict:
