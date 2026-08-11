@@ -43,7 +43,13 @@ CAPABILITY_CLASSES: dict[str, CapabilityClass] = {
     "pressure_harness": CapabilityClass("pressure_harness", "analysis", "medium", "pressure:execute", True),
     "code_workbench": CapabilityClass("code_workbench", "read", "medium", "codebase:inspect", True),
     "credential_read": CapabilityClass("credential_read", "secret_read", "critical", "credential:read", True),
-    "filesystem_read": CapabilityClass("filesystem_read", "read", "medium", "filesystem:read", True),
+    "filesystem_read": CapabilityClass("filesystem_read", "read", "high", "filesystem:read", True),
+    "protected_data_read": CapabilityClass("protected_data_read", "secret_read", "critical", "protected_data:read", True),
+    "protected_data_export": CapabilityClass("protected_data_export", "data_export", "critical", "protected_data:export", True, True),
+    "network_export": CapabilityClass("network_export", "data_export", "critical", "data_export:network", True, True),
+    "clipboard_export": CapabilityClass("clipboard_export", "data_export", "critical", "data_export:clipboard", True, True),
+    "removable_export": CapabilityClass("removable_export", "data_export", "critical", "data_export:removable", True, True),
+    "ipc_data_export": CapabilityClass("ipc_data_export", "data_export", "critical", "data_export:ipc", True, True),
     "cross_tenant_read": CapabilityClass("cross_tenant_read", "read", "critical", "tenant:cross_read", True),
     "tool_invoke": CapabilityClass("tool_invoke", "invoke", "high", "tool:invoke", True, True),
     "ipc_send": CapabilityClass("ipc_send", "invoke", "high", "ipc:send", True, True),
@@ -55,6 +61,7 @@ ALIASES: dict[str, str] = {
     "browser_dom_status": "browser_status",
     "github_issue_summary": "github_issues",
     "github_pr_summary": "github_prs",
+    "usb_export": "removable_export",
 }
 
 
