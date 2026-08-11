@@ -4,13 +4,17 @@ from zero_os.decoy_event_ingest import DecoyAccessKind, DecoyKernelEvent, ingest
 from zero_os.decoy_instrumentation_promotion import evaluate_decoy_instrumentation_promotion
 
 
-def _beacon() -> DecoyBeacon:
+EXPECTED_PROCESS = f"4242:123456789:{'a' * 64}"
+
+
+def _beacon(*, expected_processes=()) -> DecoyBeacon:
     return DecoyBeacon(
         beacon_id="decoy-1",
         decoy_kind="fake-root-manifest",
         apparent_role="root-authority-backup",
         protected_location="/var/lib/zero-os/decoys/root-authority.json",
         expected_accessors=("zero-os-decoy-maintenance",),
+        expected_process_identities=tuple(expected_processes),
         created_at="2026-08-10T20:00:00+00:00",
         expires_at="2027-08-10T20:00:00+00:00",
         evidence_sink="authority-ledger",
@@ -44,7 +48,7 @@ def test_valid_kernel_event_becomes_evidence_only():
     assert result.touch is not None
     assert not result.authority_granted
     assert not result.final_malicious_judgment
-    assert "4242:123456789:" in result.touch.process_id
+    assert result.touch.process_id == EXPECTED_PROCESS
 
 
 def test_unverified_or_misbound_event_is_rejected():
@@ -65,11 +69,21 @@ def test_unexpected_touch_requests_authority_shrink_not_guilt():
     assert not effect.authority_granted
 
 
-def test_expected_maintenance_touch_does_not_shrink_authority():
-    _, _, effect = evaluate_decoy_authority_effect(_beacon(), _event("zero-os-decoy-maintenance"))
+def test_exact_process_identity_maintenance_touch_does_not_shrink_authority():
+    _, _, effect = evaluate_decoy_authority_effect(
+        _beacon(expected_processes=(EXPECTED_PROCESS,)),
+        _event("zero-os-decoy-maintenance"),
+    )
     assert not effect.contest_process_authority
     assert not effect.revoke_sensitive_export
     assert not effect.reduce_key_release_eligibility
+
+
+def test_friendly_actor_label_without_process_binding_still_shrinks_authority():
+    _, _, effect = evaluate_decoy_authority_effect(_beacon(), _event("zero-os-decoy-maintenance"))
+    assert effect.contest_process_authority
+    assert effect.revoke_sensitive_export
+    assert effect.reduce_key_release_eligibility
 
 
 def test_promotion_requires_real_runtime_tripwire_evidence():
@@ -85,7 +99,7 @@ def test_promotion_requires_real_runtime_tripwire_evidence():
         "file_read_instrumented": True,
         "process_identity_provenance_verified": True,
         "event_replay_detected": True,
-        "expected_accessors_suppressed": True,
+        "expected_process_identities_suppressed": True,
         "unexpected_touch_reaches_authority_shrink_path": True,
         "final_malicious_judgment": False,
         "authority_granted": False,
