@@ -7,6 +7,8 @@ from pathlib import Path
 _REQUIRED_FILES = (
     "src/zero_os/firmware_pure_logic.py",
     "src/zero_os/firmware_reality_checkpoint.py",
+    "src/zero_os/hardware_attestation.py",
+    "src/zero_os/hardware_recovery_authority.py",
     "src/zero_os/kernel_rnd/boot_trust.py",
     "src/zero_os/protected_correction_plane.py",
 )
@@ -33,6 +35,21 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
+def _audit_no_os_authority_mint(path: Path, base: Path, findings: list[dict]) -> None:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError):
+        findings.append({"path": str(path.relative_to(base)), "line": 0, "reason": "firmware_or_hardware_boundary_unparseable"})
+        return
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _call_name(node) in _FORBIDDEN_AUTHORITY_NAMES:
+            findings.append({
+                "path": str(path.relative_to(base)),
+                "line": int(getattr(node, "lineno", 0)),
+                "reason": "firmware_or_hardware_layer_attempted_to_mint_os_final_authority",
+            })
+
+
 def audit_firmware_integration(root: str | Path) -> dict:
     base = Path(root).resolve()
     findings: list[dict] = []
@@ -44,17 +61,16 @@ def audit_firmware_integration(root: str | Path) -> dict:
 
     kernel = base / "src/zero_os/firmware_pure_logic.py"
     if kernel.exists():
-        try:
-            text = kernel.read_text(encoding="utf-8", errors="replace")
-            tree = ast.parse(text)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call) and _call_name(node) in _FORBIDDEN_AUTHORITY_NAMES:
-                    findings.append({"path": str(kernel.relative_to(base)), "line": int(getattr(node, "lineno", 0)), "reason": "firmware_layer_attempted_to_mint_os_final_authority"})
-            for required in _REQUIRED_INVARIANT_TEXT:
-                if required not in text:
-                    findings.append({"path": str(kernel.relative_to(base)), "line": 0, "reason": f"firmware_invariant_missing:{required}"})
-        except (OSError, SyntaxError):
-            findings.append({"path": str(kernel.relative_to(base)), "line": 0, "reason": "firmware_kernel_unparseable"})
+        text = kernel.read_text(encoding="utf-8", errors="replace")
+        _audit_no_os_authority_mint(kernel, base, findings)
+        for required in _REQUIRED_INVARIANT_TEXT:
+            if required not in text:
+                findings.append({"path": str(kernel.relative_to(base)), "line": 0, "reason": f"firmware_invariant_missing:{required}"})
+
+    for rel in ("src/zero_os/hardware_attestation.py", "src/zero_os/hardware_recovery_authority.py"):
+        path = base / rel
+        if path.exists():
+            _audit_no_os_authority_mint(path, base, findings)
 
     correction = base / "src/zero_os/protected_correction_plane.py"
     if correction.exists():
@@ -79,10 +95,13 @@ def audit_firmware_integration(root: str | Path) -> dict:
         "finding_count": len(findings),
         "limitations": [
             "static integration is not hardware attestation",
+            "attestation signature verification must be supplied by a real TPM UEFI or hardware-backed adapter",
             "TPM Secure Enclave HSM provisioning requires deployment evidence",
             "firmware implementation outside Python requires separate native audit",
             "hardware and firmware supply chain remain outside demonstrated scope",
         ],
         "path_logic_final_authority": False,
         "firmware_self_certification_permitted": False,
+        "hardware_attestation_grants_final_authority": False,
+        "ordinary_runtime_can_authorize_recovery": False,
     }
