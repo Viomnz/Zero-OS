@@ -30,6 +30,7 @@ class ExecutionAuthorityTicket:
     issued_at_utc: str
     expires_at_utc: str
     consumed: bool = False
+    sink_acknowledged: bool = False
 
 
 def _load(cwd: str) -> list[dict]:
@@ -71,7 +72,23 @@ def issue_execution_ticket(
     return ticket
 
 
+def _parse_utc(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | None = None) -> dict:
+    """Consume authority at the policy/runtime-kernel boundary.
+
+    Consumption is only stage one. Consequential mutation sinks should also call
+    acknowledge_consumed_execution_ticket so a direct/background call cannot
+    bypass the runtime boundary by invoking the implementation function itself.
+    """
     now = now_utc or _utc_now()
     rows = _load(cwd)
     selected = -1
@@ -79,13 +96,8 @@ def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | 
         row = rows[index]
         if bool(row.get("consumed", False)) or str(row.get("action_kind", "")) != str(action_kind):
             continue
-        try:
-            expiry = datetime.fromisoformat(str(row.get("expires_at_utc", "")).replace("Z", "+00:00"))
-        except ValueError:
-            continue
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
-        if now > expiry.astimezone(timezone.utc):
+        expiry = _parse_utc(str(row.get("expires_at_utc", "")))
+        if expiry is None or now > expiry:
             continue
         selected = index
         break
@@ -93,6 +105,51 @@ def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | 
         return {"ok": False, "reason": "execution_authority_ticket_missing_or_expired"}
     rows[selected]["consumed"] = True
     rows[selected]["consumed_at_utc"] = now.isoformat()
+    rows[selected].setdefault("sink_acknowledged", False)
     ticket = dict(rows[selected])
     _save(cwd, rows)
     return {"ok": True, "ticket": ticket}
+
+
+def acknowledge_consumed_execution_ticket(
+    cwd: str,
+    action_kind: str,
+    *,
+    now_utc: datetime | None = None,
+    max_handoff_seconds: int = 10,
+) -> dict:
+    """Acknowledge a just-consumed ticket once at the actual mutation sink.
+
+    This closes direct/background implementation bypasses. A ticket already used
+    by the runtime kernel can authorize exactly one sink handoff; a second sink
+    call or a stale handoff fails closed.
+    """
+    now = now_utc or _utc_now()
+    max_age = max(1, min(int(max_handoff_seconds), 60))
+    rows = _load(cwd)
+    selected = -1
+    for index in range(len(rows) - 1, -1, -1):
+        row = rows[index]
+        if str(row.get("action_kind", "")) != str(action_kind):
+            continue
+        if not bool(row.get("consumed", False)) or bool(row.get("sink_acknowledged", False)):
+            continue
+        consumed_at = _parse_utc(str(row.get("consumed_at_utc", "")))
+        expiry = _parse_utc(str(row.get("expires_at_utc", "")))
+        if consumed_at is None or expiry is None:
+            continue
+        if now > expiry:
+            continue
+        age = (now - consumed_at).total_seconds()
+        if age < 0 or age > max_age:
+            continue
+        selected = index
+        break
+    if selected < 0:
+        return {"ok": False, "reason": "fresh_consumed_ticket_handoff_missing"}
+
+    rows[selected]["sink_acknowledged"] = True
+    rows[selected]["sink_acknowledged_at_utc"] = now.isoformat()
+    ticket = dict(rows[selected])
+    _save(cwd, rows)
+    return {"ok": True, "ticket": ticket, "reason": "sink_handoff_acknowledged"}

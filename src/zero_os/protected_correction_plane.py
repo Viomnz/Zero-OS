@@ -75,6 +75,7 @@ def default_correction_plane() -> ProtectedCorrectionPlane:
                 "capability_kernel",
                 "correction_plane",
                 "release_promotion_policy",
+                "zero_os_source",
             }
         ),
         runtime_writers=frozenset(),

@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from zero_os.capability_lease import current_capability_lease
+from zero_os.capability_registry import capability_class
 from zero_os.mutation_registry import canonical_mutation_kind, is_known_mutation
 from zero_os.pure_logic_runtime_kernel import authorize_runtime_mutation
 
@@ -43,7 +45,7 @@ _DEFAULT_ACTION_TIERS = {
 
 _TIER_SPECS = {
     "observe_only": {"decision": "observe_only", "description": "Allowed only as read-only observation or status gathering.", "requires_rollback": False, "requires_approval": False},
-    "safe_auto": {"decision": "allow", "description": "May run automatically without approval.", "requires_rollback": False, "requires_approval": False},
+    "safe_auto": {"decision": "allow", "description": "May run automatically only when its capability class permits it.", "requires_rollback": False, "requires_approval": False},
     "guarded_auto": {"decision": "allow", "description": "May run automatically only if rollback and Pure Logic authority checks pass.", "requires_rollback": True, "requires_approval": False},
     "approval_required": {"decision": "approval_required", "description": "Requires explicit user approval and Pure Logic execution authority before execution.", "requires_rollback": True, "requires_approval": True},
     "forbidden": {"decision": "deny", "description": "Blocked by policy.", "requires_rollback": False, "requires_approval": False},
@@ -120,14 +122,54 @@ def set_action_tier(cwd: str, action_kind: str, tier: str) -> dict:
     return {"ok": True, "action_kind": normalized_kind, "tier": normalized_tier, "policy": policy_status(cwd)}
 
 
+def _sensitive_capability_authority(kind: str) -> dict | None:
+    capability = capability_class(kind)
+    if capability is None or capability.mode == "mutation":
+        return None
+    if not capability.sensitive and capability.risk not in {"high", "critical"}:
+        return None
+
+    lease = current_capability_lease()
+    if lease is None:
+        return {
+            "ok": False,
+            "reason": "constitutional_capability_lease_missing",
+            "required_scope": capability.required_scope,
+            "risk": capability.risk,
+        }
+    if not lease.active():
+        return {
+            "ok": False,
+            "reason": "constitutional_capability_lease_expired",
+            "required_scope": capability.required_scope,
+            "risk": capability.risk,
+        }
+    if capability.required_scope not in lease.scopes:
+        return {
+            "ok": False,
+            "reason": "constitutional_capability_scope_missing",
+            "required_scope": capability.required_scope,
+            "risk": capability.risk,
+            "lease_scopes": sorted(lease.scopes),
+        }
+    return {
+        "ok": True,
+        "reason": "v5_constitutional_capability_lease_present",
+        "required_scope": capability.required_scope,
+        "risk": capability.risk,
+        "principal_id": lease.principal_id,
+    }
+
+
 def classify_action(cwd: str, action_kind: str) -> dict:
     policy = policy_status(cwd)
     kind = canonical_mutation_kind(action_kind)
     configured = (policy.get("actions") or {}).get(kind)
     tier = str(configured or "forbidden")
     spec = dict((policy.get("tiers") or {}).get(tier) or _TIER_SPECS["forbidden"])
-    authority = {"ok": True, "reason": "read_only_or_non_mutating_tier"}
+    authority = {"ok": True, "reason": "low_risk_read_or_non_mutating_tier"}
     decision = str(spec.get("decision", "deny"))
+
     if tier in _MUTATING_TIERS or is_known_mutation(kind):
         kernel = authorize_runtime_mutation(cwd, kind)
         authority = {
@@ -139,6 +181,13 @@ def classify_action(cwd: str, action_kind: str) -> dict:
         }
         if not kernel.allowed:
             decision = "deny"
+    else:
+        sensitive = _sensitive_capability_authority(kind)
+        if sensitive is not None:
+            authority = sensitive
+            if not bool(sensitive.get("ok", False)):
+                decision = "deny"
+
     return {
         "decision": decision,
         "tier": tier,

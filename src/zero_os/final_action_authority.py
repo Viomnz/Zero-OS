@@ -9,6 +9,9 @@ from zero_os.authority_ledger import AuthorityLedger
 from zero_os.evidence_binding import EvidenceRecord, evidence_for_exact_claim, independent_support_count
 from zero_os.execution_authority_ticket import issue_execution_ticket
 from zero_os.mutation_registry import canonical_mutation_kind, mutation_class
+from zero_os.objective_authority import ObjectiveAuthorityLedger
+from zero_os.pure_logic_authority_kernel import ConstitutionalRequest, decide as constitutional_decide
+from zero_os.resource_law_budget import VerificationBudget
 
 
 @dataclass(frozen=True)
@@ -41,12 +44,11 @@ def authorize_action(
     now_utc: datetime | None = None,
     minimum_independent_groups: int = 2,
 ) -> ActionAuthorityDecision:
-    """Final authority boundary immediately before a state-changing action.
+    """Exact claim authority immediately before a state-changing action.
 
-    The action is denied unless exact-claim evidence, dependency integrity,
-    freshness, scope, contradictions, expiry, and revocation checks all survive.
-    Discovery confidence, LLM confidence, planner scores, and memory weights are
-    intentionally absent from this API.
+    This layer proves only claim/evidence authority. It cannot mint runtime
+    authority by itself. Mutation tickets additionally require the v5
+    constitutional authority kernel.
     """
     if not request.mutating:
         return ActionAuthorityDecision(True, "read_only", request.authority_id, request.required_scope, 0)
@@ -96,16 +98,28 @@ def authorize_and_issue_execution_ticket(
     *,
     ledger: AuthorityLedger,
     evidence: Iterable[EvidenceRecord],
+    constitutional_request: ConstitutionalRequest | None = None,
+    objective_ledger: ObjectiveAuthorityLedger | None = None,
+    verification_budget: VerificationBudget | None = None,
+    active_dependency_ids: Iterable[str] = (),
+    correction_plane_allows: bool = True,
+    legal_state_ok: bool = True,
     active_revocation_conditions: Iterable[str] = (),
     now_utc: datetime | None = None,
     minimum_independent_groups: int = 2,
     ttl_seconds: int = 30,
 ) -> dict[str, Any]:
-    """Authorize an exact mutation claim and mint a short-lived single-use ticket."""
+    """Mint a ticket only when exact claim authority AND v5 constitution survive.
+
+    This is the causal integration point between the old mutation runtime and the
+    v5 Pure Logic Authority Kernel. Missing constitutional context fails closed.
+    Discovery confidence, planner scores, memory weights, and self-reported
+    success are intentionally not accepted here.
+    """
     canonical_kind = canonical_mutation_kind(action_kind)
     spec = mutation_class(canonical_kind)
     if request.mutating and spec is None:
-        return {"ok": False, "reason": "unknown_mutation_kind", "decision": None, "ticket": None}
+        return {"ok": False, "reason": "unknown_mutation_kind", "decision": None, "constitutional_decision": None, "ticket": None}
     if request.mutating and request.required_scope != spec.required_scope:
         return {
             "ok": False,
@@ -113,8 +127,72 @@ def authorize_and_issue_execution_ticket(
             "required_scope": spec.required_scope,
             "requested_scope": request.required_scope,
             "decision": None,
+            "constitutional_decision": None,
             "ticket": None,
         }
+
+    if request.mutating and (constitutional_request is None or objective_ledger is None or verification_budget is None):
+        return {
+            "ok": False,
+            "reason": "constitutional_context_missing",
+            "decision": None,
+            "constitutional_decision": None,
+            "ticket": None,
+        }
+
+    constitutional = None
+    if request.mutating:
+        assert constitutional_request is not None
+        assert objective_ledger is not None
+        assert verification_budget is not None
+        if constitutional_request.action_scope != request.required_scope:
+            return {
+                "ok": False,
+                "reason": "constitutional_scope_mismatch",
+                "required_scope": request.required_scope,
+                "constitutional_scope": constitutional_request.action_scope,
+                "decision": None,
+                "constitutional_decision": None,
+                "ticket": None,
+            }
+        if constitutional_request.authority_id != request.authority_id:
+            return {
+                "ok": False,
+                "reason": "constitutional_authority_mismatch",
+                "decision": None,
+                "constitutional_decision": None,
+                "ticket": None,
+            }
+        if constitutional_request.requested_capability != canonical_kind:
+            return {
+                "ok": False,
+                "reason": "constitutional_capability_mismatch",
+                "expected_capability": canonical_kind,
+                "constitutional_capability": constitutional_request.requested_capability,
+                "decision": None,
+                "constitutional_decision": None,
+                "ticket": None,
+            }
+
+        constitutional = constitutional_decide(
+            request=constitutional_request,
+            authority_ledger=ledger,
+            objective_ledger=objective_ledger,
+            budget=verification_budget,
+            active_dependency_ids=active_dependency_ids,
+            correction_plane_allows=correction_plane_allows,
+            legal_state_ok=legal_state_ok,
+        )
+        if not constitutional.allowed:
+            return {
+                "ok": False,
+                "reason": "constitutional_authority_denied",
+                "decision": None,
+                "constitutional_decision": constitutional,
+                "ticket": None,
+            }
+        if constitutional.required_evidence_groups > max(1, int(minimum_independent_groups)):
+            minimum_independent_groups = constitutional.required_evidence_groups
 
     decision = authorize_action(
         request,
@@ -125,9 +203,10 @@ def authorize_and_issue_execution_ticket(
         minimum_independent_groups=minimum_independent_groups,
     )
     if not decision.allowed:
-        return {"ok": False, "decision": decision, "ticket": None}
+        return {"ok": False, "decision": decision, "constitutional_decision": constitutional, "ticket": None}
     if not request.mutating:
-        return {"ok": True, "decision": decision, "ticket": None}
+        return {"ok": True, "decision": decision, "constitutional_decision": constitutional, "ticket": None}
+
     ticket = issue_execution_ticket(
         cwd,
         action_kind=canonical_kind,
@@ -137,9 +216,9 @@ def authorize_and_issue_execution_ticket(
         state_revision=request.state_revision,
         ttl_seconds=ttl_seconds,
     )
-    return {"ok": True, "decision": decision, "ticket": ticket}
+    return {"ok": True, "decision": decision, "constitutional_decision": constitutional, "ticket": ticket}
 
 
 def authorize_action_and_mint_ticket(*args, **kwargs):
-    """Compatibility name used by the Zero-OS migration tests and callers."""
+    """Compatibility name; semantics are v5 constitutional and fail closed."""
     return authorize_and_issue_execution_ticket(*args, **kwargs)

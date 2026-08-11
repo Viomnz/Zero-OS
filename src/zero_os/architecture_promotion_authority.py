@@ -25,7 +25,14 @@ def evaluate_architecture_promotion(
     identified_capability_bypasses: int,
     demonstrated_scope: Iterable[str],
     unresolved_scope: Iterable[str],
+    runtime_integration_report: dict | None = None,
 ) -> ArchitecturePromotionDecision:
+    """Promotion authority for the architecture itself.
+
+    A constitutional design is not promoted merely because its modules exist.
+    The identified runtime paths must also demonstrate that they actually depend
+    on the authority kernel. One known bypass remains a veto.
+    """
     reasons: list[str] = []
     correction = correction_plane.architecture_revision_allowed(candidate)
     if not correction.allowed:
@@ -38,6 +45,16 @@ def evaluate_architecture_promotion(
         reasons.append("identified_authority_bypass_present")
     if int(identified_capability_bypasses) > 0:
         reasons.append("identified_capability_bypass_present")
+
+    integration = dict(runtime_integration_report or {})
+    if not integration:
+        reasons.append("runtime_authority_integration_not_audited")
+    elif not bool(integration.get("promotion_permitted", False)):
+        reasons.append("runtime_authority_integration_incomplete")
+        for item in list(integration.get("requirements", [])):
+            if not bool(dict(item or {}).get("satisfied", False)):
+                requirement_id = str(dict(item or {}).get("requirement_id", "unknown"))
+                reasons.append(f"runtime_integration_missing:{requirement_id}")
 
     demonstrated = tuple(sorted({str(x) for x in demonstrated_scope if str(x)}))
     unresolved = tuple(sorted({str(x) for x in unresolved_scope if str(x)}))
