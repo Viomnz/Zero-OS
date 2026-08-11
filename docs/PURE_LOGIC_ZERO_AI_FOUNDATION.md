@@ -2,6 +2,8 @@
 
 Status: current architecture foundation, provisional by design.
 
+Normative technical companion: `docs/PURE_LOGIC_ZERO_AI_TECHNICAL_SPEC.md`.
+
 ## Core identity
 
 Pure Logic is the foundational meta-reasoning discipline. Zero AI is the machine architecture that operationalizes Pure Logic across perception, reasoning, verification, memory, objectives, strategy, action, self-modeling, self-investigation, self-modification, and architectural evolution. Water Logic is the adaptive strategy layer. Zero OS is one operating-system embodiment and must not redefine the framework upstream.
