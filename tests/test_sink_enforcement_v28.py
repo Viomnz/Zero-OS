@@ -1,7 +1,7 @@
 from zero_os.containment_sink_enforcement import evaluate_sensitive_sink, sink_enforcement_invariants
 from zero_os.live_containment_state import LiveContainmentRegistry
 from zero_os.protected_data_broker_runtime import BrokerDecryptResponse
-from zero_os.protected_export_sinks import execute_protected_export
+from zero_os.protected_export_sinks import ExportAuthorizationEvidence, execute_protected_export
 from zero_os.sink_enforcement_audit import audit_sink_enforcement
 from zero_os.sink_enforcement_promotion import SinkEnforcementEvidence, evaluate_sink_enforcement_promotion
 
@@ -10,6 +10,21 @@ def _registry(identity="4242:123:abc"):
     registry = LiveContainmentRegistry()
     state = registry.register(identity)
     return registry, state
+
+
+def _export_authorization(state, *, channel="network", destination="network:approved.example", verified=True):
+    return ExportAuthorizationEvidence(
+        verified=verified,
+        status="DATA_FLOW_VERIFIED_IN_SCOPE" if verified else "DATA_FLOW_DENIED",
+        channel=channel,
+        destination=destination,
+        process_identity=state.process_identity,
+        data_id="secret-1",
+        authority_artifact_id="grant-1",
+        containment_revision=state.revision,
+        evidence_kind="protected_data_flow_verdict",
+        authority_granted=False,
+    )
 
 
 def test_contested_process_is_denied_at_sensitive_sink():
@@ -88,6 +103,7 @@ def test_independent_clearance_does_not_restore_sensitive_authority():
 def test_export_actuator_is_not_invoked_after_containment_revocation():
     registry, state = _registry()
     calls = []
+    authorization = _export_authorization(state)
     registry.contest(state.process_identity, "unexpected_decoy_beacon_access")
     result = execute_protected_export(
         containment=registry,
@@ -95,7 +111,7 @@ def test_export_actuator_is_not_invoked_after_containment_revocation():
         channel="network",
         destination="network:approved.example",
         payload=b"secret",
-        authorization_verified=True,
+        authorization=authorization,
         actuator=lambda destination, payload: calls.append((destination, payload)),
     )
     assert not result.ok
@@ -103,7 +119,7 @@ def test_export_actuator_is_not_invoked_after_containment_revocation():
     assert calls == []
 
 
-def test_export_actuator_requires_independent_authorization_even_when_containment_active():
+def test_export_actuator_requires_bound_authorization_evidence():
     registry, state = _registry()
     calls = []
     result = execute_protected_export(
@@ -112,7 +128,41 @@ def test_export_actuator_requires_independent_authorization_even_when_containmen
         channel="network",
         destination="network:approved.example",
         payload=b"secret",
-        authorization_verified=False,
+        authorization=_export_authorization(state, verified=False),
+        actuator=lambda destination, payload: calls.append((destination, payload)),
+    )
+    assert not result.ok
+    assert result.status == "EXPORT_SINK_DENIED_AUTHORITY_INVALID"
+    assert calls == []
+
+
+def test_export_authorization_cannot_be_reused_for_another_destination():
+    registry, state = _registry()
+    calls = []
+    result = execute_protected_export(
+        containment=registry,
+        process_identity=state.process_identity,
+        channel="network",
+        destination="network:evil.example",
+        payload=b"secret",
+        authorization=_export_authorization(state, destination="network:approved.example"),
+        actuator=lambda destination, payload: calls.append((destination, payload)),
+    )
+    assert not result.ok
+    assert calls == []
+
+
+def test_export_authorization_cannot_be_reused_by_another_process():
+    registry, first = _registry("p1")
+    second = registry.register("p2")
+    calls = []
+    result = execute_protected_export(
+        containment=registry,
+        process_identity=second.process_identity,
+        channel="network",
+        destination="network:approved.example",
+        payload=b"secret",
+        authorization=_export_authorization(first),
         actuator=lambda destination, payload: calls.append((destination, payload)),
     )
     assert not result.ok
