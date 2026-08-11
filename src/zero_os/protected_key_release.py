@@ -42,6 +42,7 @@ class KeyReleaseRequest:
     data_grant_id: str
     authority_artifact_id: str
     process_identity: str
+    containment_revision: int = 0
 
 
 @dataclass(frozen=True)
