@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import asdict, dataclass, field
 from typing import Iterable
 
@@ -56,11 +55,14 @@ class HardwareAttestationDecision:
 
 
 def _pcr_composite(rows: Iterable[PcrValue]) -> str:
-    payload = [
-        {"index": int(row.index), "digest_sha256": str(row.digest_sha256).lower()}
-        for row in sorted(rows, key=lambda item: int(item.index))
-    ]
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    ordered = sorted(rows, key=lambda item: int(item.index))
+    payload = bytearray()
+    for row in ordered:
+        digest = str(row.digest_sha256).lower()
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            return ""
+        payload.extend(bytes.fromhex(digest))
+    return hashlib.sha256(bytes(payload)).hexdigest() if payload else ""
 
 
 def verify_hardware_attestation(
@@ -98,7 +100,7 @@ def verify_hardware_attestation(
             reasons.append(f"pcr_digest_invalid:{index}")
 
     actual_composite = _pcr_composite(bundle.quoted_pcrs)
-    if actual_composite != str(bundle.quoted_pcr_composite_sha256).lower():
+    if not actual_composite or actual_composite != str(bundle.quoted_pcr_composite_sha256).lower():
         reasons.append("quoted_pcr_composite_mismatch")
     if policy.expected_measured_boot_root_sha256 and str(bundle.measured_boot_root_sha256).lower() != policy.expected_measured_boot_root_sha256.lower():
         reasons.append("measured_boot_root_mismatch")
