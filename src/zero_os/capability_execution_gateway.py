@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import asdict
 
+from zero_os.capability_lease import capability_lease_context, issue_capability_lease
+from zero_os.capability_registry import capability_class
 from zero_os.dynamic_capability_authority import CapabilityAuthorityContext
 from zero_os.pure_logic_capability_kernel import authorize_capability
 from zero_os.trust_graph import TrustNode
@@ -55,3 +58,64 @@ def gate_action(cwd: str, kind: str, *, plan_context: dict | None = None, revers
         "required_scope": decision.required_scope,
         "response": asdict(decision.response),
     }
+
+
+def _lease_scopes(kind: str, required_scope: str) -> set[str]:
+    scopes = {str(required_scope)} if str(required_scope) else set()
+    capability = capability_class(kind)
+    if capability is None:
+        return scopes
+    if capability.mode == "network_read":
+        scopes.add("network:fetch")
+    elif capability.mode == "secret_read":
+        scopes.add("credential:read")
+    elif capability.mode == "invoke":
+        scopes.add("tool:invoke")
+    elif capability.mode == "device":
+        scopes.add("device:access")
+    elif capability.name == "filesystem_read":
+        scopes.add("filesystem:read")
+    elif capability.mode == "mutation":
+        if capability.external_side_effect:
+            scopes.add("network:write")
+        if capability.name in {"code_change", "self_repair", "recover", "store_install", "self_upgrade", "policy_change", "authority_change"}:
+            scopes.add("filesystem:write")
+    return scopes
+
+
+@contextmanager
+def authorized_capability_context(
+    cwd: str,
+    kind: str,
+    *,
+    plan_context: dict | None = None,
+    reversible: bool = True,
+    blast_radius: str = "local",
+    ttl_seconds: int = 30,
+):
+    gate = gate_action(
+        cwd,
+        kind,
+        plan_context=plan_context,
+        reversible=reversible,
+        blast_radius=blast_radius,
+    )
+    if not gate["allowed"]:
+        yield gate
+        return
+
+    context = context_from_plan(plan_context)
+    principal_id = context.principal_id if context is not None else "zero-os"
+    lease = issue_capability_lease(
+        principal_id,
+        _lease_scopes(kind, gate["required_scope"]),
+        ttl_seconds=ttl_seconds,
+    )
+    with capability_lease_context(lease):
+        payload = dict(gate)
+        payload["lease"] = {
+            "principal_id": lease.principal_id,
+            "scopes": sorted(lease.scopes),
+            "expires_at_utc": lease.expires_at_utc,
+        }
+        yield payload
