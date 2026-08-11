@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from zero_os.authority_root_of_trust import AuthorityAttestation, verify_attestation
+from zero_os.authority_runtime_trace import record_event
 
 
 def _utc_now() -> datetime:
@@ -57,7 +58,6 @@ def _save(cwd: str, rows: list[dict]) -> None:
 
 
 def issue_execution_ticket(*args, **kwargs):
-    """Legacy arbitrary minting is forbidden in v8."""
     raise PermissionError("execution tickets may only be minted by the authority root issuer")
 
 
@@ -121,6 +121,22 @@ def _row_attestation_valid(cwd: str, row: dict, action_kind: str) -> tuple[bool,
     return (True, "attested_execution_ticket_exact_match") if exact else (False, "execution_ticket_binding_mismatch")
 
 
+def _trace_ticket(cwd: str, row: dict, event_kind: str, payload: dict) -> None:
+    record_event(
+        cwd,
+        trace_id=str(row.get("ticket_id", "")),
+        event_kind=event_kind,
+        principal_id=str(row.get("principal_id", "")),
+        authority_id=str(row.get("authority_id", "")),
+        objective_id=str(row.get("objective_id", "")),
+        action_kind=str(row.get("action_kind", "")),
+        subject_id=str(row.get("subject_id", "")),
+        state_revision=str(row.get("state_revision", "")),
+        artifact_id=str(row.get("ticket_id", "")),
+        payload=payload,
+    )
+
+
 def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | None = None) -> dict:
     now = now_utc or _utc_now()
     rows = _load(cwd)
@@ -146,7 +162,8 @@ def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | 
     rows[selected].setdefault("sink_acknowledged", False)
     ticket = dict(rows[selected])
     _save(cwd, rows)
-    return {"ok": True, "ticket": ticket, "reason": "attested_execution_ticket_consumed"}
+    _trace_ticket(cwd, ticket, "runtime_consume", {"required_scope": ticket.get("required_scope"), "consumed_at_utc": now.isoformat()})
+    return {"ok": True, "ticket": ticket, "reason": "attested_execution_ticket_consumed", "trace_id": ticket.get("ticket_id")}
 
 
 def acknowledge_consumed_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | None = None, max_handoff_seconds: int = 10) -> dict:
@@ -180,4 +197,5 @@ def acknowledge_consumed_execution_ticket(cwd: str, action_kind: str, *, now_utc
     rows[selected]["sink_acknowledged_at_utc"] = now.isoformat()
     ticket = dict(rows[selected])
     _save(cwd, rows)
-    return {"ok": True, "ticket": ticket, "reason": "attested_sink_handoff_acknowledged"}
+    _trace_ticket(cwd, ticket, "sink_acknowledge", {"sink_acknowledged_at_utc": now.isoformat(), "max_handoff_seconds": max_age})
+    return {"ok": True, "ticket": ticket, "reason": "attested_sink_handoff_acknowledged", "trace_id": ticket.get("ticket_id")}
