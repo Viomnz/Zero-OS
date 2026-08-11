@@ -50,9 +50,9 @@ _REQUIREMENTS = (
         "critical",
     ),
     (
-        "world_model_projects_to_reality_ledger",
-        "src/zero_os/world_model.py",
-        ("reality_ledger",),
+        "governor_projects_world_model_to_reality_ledger",
+        "src/zero_os/decision_governor.py",
+        ("world_model_reality_projection", "authority_granted"),
         "high",
     ),
     (
