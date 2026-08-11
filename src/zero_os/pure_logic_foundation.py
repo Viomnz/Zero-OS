@@ -27,12 +27,40 @@ class AuthorityState(str, Enum):
     HISTORICAL = "HISTORICAL"
 
 
+class AuthoritySubjectKind(str, Enum):
+    SUBJECT = "SUBJECT"
+    RELATION = "RELATION"
+    JOINT_STATE = "JOINT_STATE"
+    TEMPORAL_STATE = "TEMPORAL_STATE"
+    CAUSAL_CLAIM = "CAUSAL_CLAIM"
+
+
+class ExecutionState(str, Enum):
+    ACT = "ACT"
+    PROBE = "PROBE"
+    WAIT = "WAIT"
+    RETREAT = "RETREAT"
+    ZERO = "ZERO"
+
+
 @dataclass(frozen=True)
 class FoundationInvariant:
     invariant_id: str
     statement: str
     final_authority: bool = False
     revisable: bool = True
+
+
+@dataclass(frozen=True)
+class AuthorityContext:
+    """Context required to discuss authority without pretending it is global truth."""
+
+    subject_kind: AuthoritySubjectKind
+    domain_scope: str
+    state_revision: str
+    evaluated_at: str
+    evidence_recency: str = ""
+    causal_intervention_requested: bool = False
 
 
 MASTER_LAW_STATEMENTS: dict[MasterLaw, str] = {
@@ -54,10 +82,12 @@ FOUNDATION_INVARIANTS: tuple[FoundationInvariant, ...] = (
     FoundationInvariant("path_not_final_authority", "Path Law and Water Logic select among surviving paths but cannot create final authority."),
     FoundationInvariant("preservation_not_authority", "Preserving a claim, failure, correction, or beacon does not grant it current authority."),
     FoundationInvariant("local_not_joint_authority", "Authority over individual subjects does not automatically certify their relations, composition, or joint state."),
-    FoundationInvariant("structure_not_time_authority", "Structural validity does not automatically establish temporal freshness, ordering, or sequence authority."),
+    FoundationInvariant("structure_not_time_authority", "Structural validity does not automatically establish temporal freshness, ordering, sequence, or state-revision authority."),
     FoundationInvariant("prediction_not_causation", "Predictive association does not automatically grant causal or intervention authority."),
+    FoundationInvariant("authority_is_contextual", "Authority must be discussed as scoped and time/state-dependent, conceptually A(x,D,t), never as an unqualified global property A(x)."),
+    FoundationInvariant("zero_is_nonfinal", "ZERO means no consequential action currently deserves sufficient authority; it does not certify truth and remains subject to Resource Law."),
     FoundationInvariant("security_is_application", "Cybersecurity and Zero OS mechanisms are applications of Pure Logic, not its definition."),
-    FoundationInvariant("consciousness_not_assumed", "Functional machine self-awareness does not prove phenomenal consciousness."),
+    FoundationInvariant("consciousness_not_assumed", "Self-modeling and functional machine self-awareness do not prove phenomenal consciousness."),
     FoundationInvariant("zero_ai_replacement_allowed", "Zero AI may be replaced by a demonstrably stronger successor architecture."),
 )
 
@@ -88,13 +118,8 @@ CANONICAL_PIPELINE: tuple[str, ...] = (
 )
 
 
-AUTHORITY_SUBJECT_KINDS: tuple[str, ...] = (
-    "SUBJECT",
-    "RELATION",
-    "JOINT_STATE",
-    "TEMPORAL_STATE",
-    "CAUSAL_CLAIM",
-)
+AUTHORITY_SUBJECT_KINDS: tuple[str, ...] = tuple(kind.value for kind in AuthoritySubjectKind)
+EXECUTION_STATES: tuple[str, ...] = tuple(state.value for state in ExecutionState)
 
 
 NON_FINAL_MECHANISMS: tuple[str, ...] = (
@@ -110,6 +135,7 @@ NON_FINAL_MECHANISMS: tuple[str, ...] = (
     "SCOPE_CERTIFIER",
     "CONTROL_LOOP",
     "FIRMWARE_ATTESTATION",
+    "ZERO_EXECUTION_STATE",
 )
 
 
@@ -121,12 +147,30 @@ def foundation_manifest() -> dict:
     """
     return {
         "name": "PURE_LOGIC_ZERO_AI_CURRENT_FOUNDATION",
+        "technical_spec": "docs/PURE_LOGIC_ZERO_AI_TECHNICAL_SPEC.md",
         "primary_invariant": PRIMARY_INVARIANT,
         "master_laws": {law.value: MASTER_LAW_STATEMENTS[law] for law in MasterLaw},
         "master_laws_final": False,
         "foundation_revisable": True,
+        "authority_form": "A(x,D,t)=f(E,P,S,C,Q,R)",
+        "authority_is_global_scalar": False,
         "pipeline": list(CANONICAL_PIPELINE),
         "authority_subject_kinds": list(AUTHORITY_SUBJECT_KINDS),
+        "execution_states": list(EXECUTION_STATES),
+        "zero_state": {
+            "meaning": "no_consequential_action_currently_deserves_sufficient_authority",
+            "final_authority": False,
+            "resource_cost_still_applies": True,
+        },
+        "causal_boundary": {
+            "predictive_success_implies_intervention_authority": False,
+            "intervention_requires_stronger_causal_evidence": True,
+        },
+        "consciousness_boundary": {
+            "self_modeling_equals_functional_self_awareness": False,
+            "functional_self_awareness_equals_phenomenal_consciousness": False,
+            "phenomenal_consciousness_status": "OPEN_HYPOTHESIS",
+        },
         "non_final_mechanisms": list(NON_FINAL_MECHANISMS),
         "foundation_invariants": [
             {
@@ -156,6 +200,8 @@ def validate_foundation_manifest(manifest: dict) -> tuple[bool, tuple[str, ...]]
         reasons.append("master_laws_cannot_be_final")
     if manifest.get("foundation_revisable") is not True:
         reasons.append("foundation_must_remain_revisable")
+    if manifest.get("authority_is_global_scalar") is not False:
+        reasons.append("authority_cannot_be_global_unscoped_scalar")
     if manifest.get("final_authority_granted") is not False:
         reasons.append("foundation_manifest_cannot_grant_final_authority")
     if manifest.get("self_certified") is not False:
@@ -166,4 +212,17 @@ def validate_foundation_manifest(manifest: dict) -> tuple[bool, tuple[str, ...]]
     required = {law.value for law in MasterLaw}
     if laws != required:
         reasons.append("current_six_master_law_set_not_explicit")
+    subject_kinds = set(manifest.get("authority_subject_kinds") or ())
+    if subject_kinds != set(AUTHORITY_SUBJECT_KINDS):
+        reasons.append("authority_subject_kinds_incomplete")
+    states = set(manifest.get("execution_states") or ())
+    if "ZERO" not in states:
+        reasons.append("zero_execution_state_missing")
+    if (manifest.get("zero_state") or {}).get("final_authority") is not False:
+        reasons.append("zero_state_cannot_be_final_authority")
+    if (manifest.get("causal_boundary") or {}).get("predictive_success_implies_intervention_authority") is not False:
+        reasons.append("prediction_cannot_self_upgrade_to_intervention_authority")
+    consciousness = manifest.get("consciousness_boundary") or {}
+    if consciousness.get("phenomenal_consciousness_status") != "OPEN_HYPOTHESIS":
+        reasons.append("phenomenal_consciousness_must_remain_open_without_evidence")
     return (not reasons, tuple(reasons))
