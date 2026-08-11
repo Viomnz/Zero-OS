@@ -61,6 +61,22 @@ def issue_execution_ticket(*args, **kwargs):
     raise PermissionError("execution tickets may only be minted by the authority root issuer")
 
 
+def _trace_ticket(cwd: str, row: dict, event_kind: str, payload: dict) -> None:
+    record_event(
+        cwd,
+        trace_id=str(row.get("ticket_id", "")),
+        event_kind=event_kind,
+        principal_id=str(row.get("principal_id", "")),
+        authority_id=str(row.get("authority_id", "")),
+        objective_id=str(row.get("objective_id", "")),
+        action_kind=str(row.get("action_kind", "")),
+        subject_id=str(row.get("subject_id", "")),
+        state_revision=str(row.get("state_revision", "")),
+        artifact_id=str(row.get("ticket_id", "")),
+        payload=payload,
+    )
+
+
 def ticket_from_attestation(cwd: str, attestation: AuthorityAttestation) -> ExecutionAuthorityTicket:
     verified = verify_attestation(cwd, attestation)
     if not verified.get("ok", False):
@@ -86,6 +102,7 @@ def ticket_from_attestation(cwd: str, attestation: AuthorityAttestation) -> Exec
     rows = _load(cwd)
     rows.append(asdict(ticket))
     _save(cwd, rows[-200:])
+    _trace_ticket(cwd, asdict(ticket), "runtime_activate", {"required_scope": ticket.required_scope})
     return ticket
 
 
@@ -119,22 +136,6 @@ def _row_attestation_valid(cwd: str, row: dict, action_kind: str) -> tuple[bool,
         and tuple(attestation.scopes) == (str(row.get("required_scope", "")),)
     )
     return (True, "attested_execution_ticket_exact_match") if exact else (False, "execution_ticket_binding_mismatch")
-
-
-def _trace_ticket(cwd: str, row: dict, event_kind: str, payload: dict) -> None:
-    record_event(
-        cwd,
-        trace_id=str(row.get("ticket_id", "")),
-        event_kind=event_kind,
-        principal_id=str(row.get("principal_id", "")),
-        authority_id=str(row.get("authority_id", "")),
-        objective_id=str(row.get("objective_id", "")),
-        action_kind=str(row.get("action_kind", "")),
-        subject_id=str(row.get("subject_id", "")),
-        state_revision=str(row.get("state_revision", "")),
-        artifact_id=str(row.get("ticket_id", "")),
-        payload=payload,
-    )
 
 
 def consume_execution_ticket(cwd: str, action_kind: str, *, now_utc: datetime | None = None) -> dict:
