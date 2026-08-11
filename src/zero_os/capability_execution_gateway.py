@@ -75,6 +75,11 @@ def _lease_scopes(kind: str, required_scope: str) -> set[str]:
         scopes.add("device:access")
     elif capability.name == "filesystem_read":
         scopes.add("filesystem:read")
+    elif capability.mode == "mutation":
+        if capability.external_side_effect:
+            scopes.add("network:write")
+        if capability.name in {"code_change", "self_repair", "recover", "store_install", "self_upgrade", "policy_change", "authority_change"}:
+            scopes.add("filesystem:write")
     return scopes
 
 
