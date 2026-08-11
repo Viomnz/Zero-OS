@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from ipaddress import ip_address
 from urllib.parse import urlparse
 
-from zero_os.capability_lease import active_lease
+from zero_os.capability_lease import current_capability_lease
 
 
 @dataclass(frozen=True)
@@ -36,16 +36,16 @@ def evaluate_egress(url: str, *, headers: dict[str, str] | None = None, write: b
     if not host:
         return EgressDecision(False, "network_host_missing", host, scheme)
 
-    lease = active_lease()
+    lease = current_capability_lease()
     if lease is None:
         return EgressDecision(False, "capability_lease_missing", host, scheme)
+    if not lease.active():
+        return EgressDecision(False, "capability_lease_expired", host, scheme)
 
     required_scope = "network:write" if write else "network:read"
     if required_scope not in lease.scopes:
         return EgressDecision(False, "network_scope_missing", host, scheme)
 
-    # Destination binding is optional only for legacy leases. New leases should
-    # carry host:<hostname> or host:* explicitly. A specific host cannot be reused.
     host_scope = f"host:{host}"
     if "host:*" not in lease.scopes and host_scope not in lease.scopes:
         return EgressDecision(False, "destination_scope_missing", host, scheme)
@@ -55,8 +55,6 @@ def evaluate_egress(url: str, *, headers: dict[str, str] | None = None, write: b
     if credential_bearing and "credential:transmit" not in lease.scopes:
         return EgressDecision(False, "credential_transmit_scope_missing", host, scheme, True)
 
-    # Private/local destinations need an explicit local-network scope to reduce
-    # SSRF-style authority expansion from public network permission.
     if _is_local_or_private_host(host) and "network:local" not in lease.scopes:
         return EgressDecision(False, "local_network_scope_missing", host, scheme, credential_bearing)
 
