@@ -6,6 +6,7 @@ from pathlib import Path
 from zero_os.authority_issuer_boundary import IssuerBoundaryStatus, current_software_issuer_status
 from zero_os.authority_runtime_integration_audit import audit_authority_runtime_integration
 from zero_os.authority_runtime_trace import verify_trace_chain
+from zero_os.path_law_authority_guard import audit_path_law_non_authority
 from zero_os.security_control_plane import verify_history_chain
 from zero_os.security_control_plane_audit import audit_security_control_plane
 
@@ -22,6 +23,7 @@ def evaluate_v10_promotion(
     base = Path(root).resolve()
     integration = audit_authority_runtime_integration(base)
     security = audit_security_control_plane(base)
+    path_law = audit_path_law_non_authority(base)
     trace_chain = verify_trace_chain(str(base))
     control_history = verify_history_chain(str(base))
     issuer = issuer_status or current_software_issuer_status()
@@ -31,6 +33,8 @@ def evaluate_v10_promotion(
         blockers.append("authority_runtime_integration_failed")
     if not security.get("promotion_permitted", False):
         blockers.append("security_control_plane_incomplete")
+    if not path_law.get("promotion_permitted", False):
+        blockers.append("path_law_attempted_final_authority")
     if not trace_chain.get("ok", False):
         blockers.append("authority_trace_chain_invalid")
     if not control_history.get("ok", False):
@@ -52,6 +56,7 @@ def evaluate_v10_promotion(
         "blockers": blockers,
         "authority_integration": integration,
         "security_control_plane": security,
+        "path_law_non_authority": path_law,
         "authority_trace_chain": trace_chain,
         "security_control_history": control_history,
         "issuer_boundary": asdict(issuer),
@@ -60,6 +65,8 @@ def evaluate_v10_promotion(
         "fresh_adversarial_audit_passed": bool(fresh_adversarial_audit_passed),
         "formal_illegal_state_check_passed": bool(formal_illegal_state_check_passed),
         "discovery_confidence_can_override": False,
+        "path_logic_can_grant_final_authority": False,
+        "path_logic_role": "selection_only_after_independent_authority",
         "general_security_claim_permitted": False,
         "pure_logic_self_exemption_permitted": False,
     }
