@@ -1,26 +1,21 @@
-from zero_os.authority_root_of_trust import issue_attestation
-from zero_os.execution_authority_ticket import (
-    acknowledge_consumed_execution_ticket,
-    consume_execution_ticket,
-    ticket_from_attestation,
-)
+from datetime import datetime, timedelta, timezone
+
+from zero_os.authority_ledger import AuthorityLedger, AuthorityRecord
+from zero_os.authority_root_of_trust import issue_attestation_from_constitution
+from zero_os.execution_authority_ticket import acknowledge_consumed_execution_ticket, consume_execution_ticket, ticket_from_attestation
+from zero_os.objective_authority import ObjectiveAuthority, ObjectiveAuthorityLedger
+from zero_os.pure_logic_authority_kernel import ConstitutionalRequest, IdentityAuthority
+from zero_os.resource_law_budget import allocate_verification_budget
 from zero_os.self_repair import self_repair_run
 
 
 def _mint(cwd: str):
-    attestation = issue_attestation(
-        cwd,
-        artifact_kind="execution_ticket",
-        principal_id="operator",
-        authority_id="a1",
-        objective_id="obj1",
-        action_kind="self_repair",
-        subject_id="repair-1",
-        state_revision="r1",
-        scopes=("runtime:self_repair",),
-        constitutional_allowed=True,
-        constitutional_status="AUTHORIZED",
-    )
+    scope = "runtime:self_repair"
+    expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    authority = AuthorityLedger(); authority.put(AuthorityRecord("a1", "repair-1", "action_authority", "v", "r1", frozenset({scope}), "SURVIVED_IN_SCOPE", expires_at_utc=expires))
+    objectives = ObjectiveAuthorityLedger(); objectives.put(ObjectiveAuthority("obj1", "repair", ("test",), frozenset({scope}), status="SURVIVED_IN_SCOPE", expires_at_utc=expires))
+    request = ConstitutionalRequest(IdentityAuthority("operator", ("test",), True, frozenset({scope})), scope, "obj1", "a1", "self_repair", "high", True)
+    attestation, _ = issue_attestation_from_constitution(cwd, artifact_kind="execution_ticket", constitutional_request=request, authority_ledger=authority, objective_ledger=objectives, verification_budget=allocate_verification_budget(consequence="high", reversibility="high"), active_dependency_ids=(), subject_id="repair-1", state_revision="r1", scopes=(scope,))
     return ticket_from_attestation(cwd, attestation)
 
 
@@ -33,12 +28,9 @@ def test_sink_handoff_requires_prior_runtime_consumption(tmp_path):
 
 def test_sink_handoff_is_single_use(tmp_path):
     _mint(str(tmp_path))
-    consumed = consume_execution_ticket(str(tmp_path), "self_repair")
-    assert consumed["ok"] is True
-    first = acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")
-    second = acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")
-    assert first["ok"] is True
-    assert second["ok"] is False
+    assert consume_execution_ticket(str(tmp_path), "self_repair")["ok"] is True
+    assert acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")["ok"] is True
+    assert acknowledge_consumed_execution_ticket(str(tmp_path), "self_repair")["ok"] is False
 
 
 def test_background_self_repair_cannot_bypass_runtime_authority(tmp_path):
