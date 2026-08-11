@@ -45,6 +45,16 @@ class CorePolicy:
         """
         return self.privileged_identity_authority_required
 
+    @property
+    def survival_protocols(self) -> tuple[str, ...]:
+        """Legacy status-display alias for current constitutional invariants.
+
+        Older SystemCapability status output still asks for ``survival_protocols``.
+        Keeping this read-only alias avoids a stale-attribute crash without restoring
+        the superseded protocol set or granting it independent authority.
+        """
+        return self.constitutional_invariants
+
 
 CORE_POLICY = CorePolicy(
     runtime_core_protected=True,
