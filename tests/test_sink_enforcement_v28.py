@@ -1,6 +1,8 @@
 from zero_os.containment_sink_enforcement import evaluate_sensitive_sink, sink_enforcement_invariants
 from zero_os.live_containment_state import LiveContainmentRegistry
+from zero_os.protected_data_broker_runtime import BrokerDecryptResponse
 from zero_os.protected_export_sinks import execute_protected_export
+from zero_os.sink_enforcement_audit import audit_sink_enforcement
 from zero_os.sink_enforcement_promotion import SinkEnforcementEvidence, evaluate_sink_enforcement_promotion
 
 
@@ -117,6 +119,21 @@ def test_export_actuator_requires_independent_authorization_even_when_containmen
     assert calls == []
 
 
+def test_broker_response_defaults_fail_closed_without_broker_containment_proof():
+    response = BrokerDecryptResponse(
+        ok=True,
+        status="ok",
+        plaintext=b"x",
+        broker_id="b",
+        key_id="k",
+        data_id="d",
+        content_revision="r",
+        operation="read",
+    )
+    assert not response.containment_enforced_by_broker
+    assert response.containment_revision == 0
+
+
 def test_sink_promotion_blocks_software_only_claim():
     decision = evaluate_sink_enforcement_promotion(SinkEnforcementEvidence(
         protected_read_rechecks_live_containment=True,
@@ -132,6 +149,11 @@ def test_sink_promotion_blocks_software_only_claim():
     ))
     assert not decision.promote
     assert "real_runtime_enforcement_not_demonstrated" in decision.reasons
+
+
+def test_static_sink_audit_catches_required_bindings():
+    report = audit_sink_enforcement(".")
+    assert report.passed, report.reasons
 
 
 def test_path_logic_remains_non_authoritative_at_sink():
