@@ -26,6 +26,9 @@ class DecoyBeacon:
     state: DecoyBeaconState = DecoyBeaconState.ARMED
     contains_real_secret: bool = False
     grants_authority: bool = False
+    # Legacy actor labels remain descriptive only. Suppression requires an exact
+    # kernel-bound process identity, never a caller-controlled friendly name.
+    expected_process_identities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,7 @@ class DecoyTouch:
     observed_at: str
     provenance: tuple[str, ...]
     expected_actor: bool = False
+    accessor_binding_verified: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,14 +68,6 @@ def evaluate_decoy_touch(beacon: DecoyBeacon, touch: DecoyTouch) -> DecoyVerdict
         reasons.append("decoy_expired")
     if not touch.provenance:
         reasons.append("touch_provenance_missing")
-    if touch.expected_actor or touch.actor_id in set(beacon.expected_accessors):
-        return DecoyVerdict(
-            suspicious=False,
-            status="EXPECTED_DECOY_ACCESS",
-            reasons=tuple(reasons),
-            authority_delta="NONE",
-            quarantine_eligible=False,
-        )
     if reasons:
         return DecoyVerdict(
             suspicious=False,
@@ -80,6 +76,17 @@ def evaluate_decoy_touch(beacon: DecoyBeacon, touch: DecoyTouch) -> DecoyVerdict
             authority_delta="NONE",
             quarantine_eligible=False,
         )
+
+    expected_identity = touch.process_id in set(beacon.expected_process_identities)
+    if touch.expected_actor and touch.accessor_binding_verified and expected_identity:
+        return DecoyVerdict(
+            suspicious=False,
+            status="EXPECTED_DECOY_ACCESS",
+            reasons=(),
+            authority_delta="NONE",
+            quarantine_eligible=False,
+        )
+
     return DecoyVerdict(
         suspicious=True,
         status="DECOY_BEACON_TOUCHED",
@@ -97,5 +104,7 @@ def decoy_invariants(beacon: DecoyBeacon) -> dict:
         "contains_real_secret": beacon.contains_real_secret,
         "grants_authority": beacon.grants_authority,
         "touch_is_evidence_not_guilt": True,
+        "friendly_actor_label_cannot_suppress_tripwire": True,
+        "expected_access_requires_kernel_bound_process_identity": True,
         "path_logic_final_authority": False,
     }
