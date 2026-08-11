@@ -8,6 +8,16 @@ from zero_os.objective_authority import ObjectiveAuthorityLedger
 from zero_os.resource_law_budget import VerificationBudget
 
 
+_AUTONOMOUS_CAPABILITIES = frozenset({
+    "self_repair",
+    "self_upgrade",
+    "run_runtime",
+    "autonomous_action",
+    "autonomous_rollout",
+    "goal_progress",
+})
+
+
 @dataclass(frozen=True)
 class IdentityAuthority:
     principal_id: str
@@ -27,6 +37,14 @@ class ConstitutionalRequest:
     consequence: str
     reversible: bool
     contradictions: tuple[str, ...] = field(default_factory=tuple)
+    # Autonomous controllers must first survive the common Pure Logic control-loop
+    # contract. These fields are evidence for constitutional eligibility, not final
+    # execution authority. Path/control logic still cannot mint capability authority.
+    controller_id: str = ""
+    controller_eligible: bool = False
+    controller_loop_state: str = ""
+    controller_authority_state: str = ""
+    controller_scope: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -36,6 +54,12 @@ class ConstitutionalDecision:
     reasons: tuple[str, ...]
     verification_depth: int
     required_evidence_groups: int
+
+
+def _requires_control_loop(request: ConstitutionalRequest) -> bool:
+    capability = str(request.requested_capability or "").strip().lower()
+    provenance = {str(item).strip().lower() for item in request.actor.provenance}
+    return capability in _AUTONOMOUS_CAPABILITIES or "autonomous_controller" in provenance
 
 
 def decide(
@@ -69,6 +93,18 @@ def decide(
     if budget.require_reversible_path and not request.reversible:
         reasons.append("required_reversible_path_missing")
 
+    if _requires_control_loop(request):
+        if not request.controller_id:
+            reasons.append("autonomous_controller_identity_missing")
+        if not request.controller_eligible:
+            reasons.append("autonomous_control_loop_not_eligible")
+        if request.controller_loop_state != "READY":
+            reasons.append("autonomous_control_loop_not_ready")
+        if request.controller_authority_state in {"CONTESTED", "DEGRADED", "QUARANTINED", "REVOKED", "UNTESTED", ""}:
+            reasons.append("autonomous_controller_authority_insufficient")
+        if request.action_scope not in set(request.controller_scope):
+            reasons.append("autonomous_controller_scope_mismatch")
+
     # Authentication is consequence-sensitive rather than a global boolean.
     if request.consequence in {"high", "critical"} and not request.actor.authenticated:
         reasons.append("strong_identity_evidence_required")
@@ -94,4 +130,6 @@ def constitutional_invariants() -> tuple[str, ...]:
         "critical_actions_require_independent_outcome_verification",
         "authority_expiry_and_revocation_are_enforced",
         "unknown_remains_unknown_until discriminating evidence exists",
+        "autonomous_actions_require_common_control_loop_eligibility",
+        "control_loop_eligibility_never_mints_final_authority",
     )
