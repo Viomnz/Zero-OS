@@ -60,9 +60,13 @@ def gate_action(cwd: str, kind: str, *, plan_context: dict | None = None, revers
     }
 
 
-def _lease_scopes(kind: str, required_scope: str) -> set[str]:
+def _lease_scopes(kind: str, required_scope: str, plan_context: dict | None = None) -> set[str]:
     scopes = {str(required_scope)} if str(required_scope) else set()
     capability = capability_class(kind)
+    context_payload = dict((plan_context or {}).get("capability_context") or {})
+    granted = {str(x) for x in context_payload.get("granted_scopes", []) if str(x)}
+    permitted_hosts = {str(x).strip().lower() for x in context_payload.get("permitted_hosts", []) if str(x).strip()}
+
     if capability is None:
         return scopes
     if capability.mode == "network_read":
@@ -80,6 +84,12 @@ def _lease_scopes(kind: str, required_scope: str) -> set[str]:
             scopes.add("network:write")
         if capability.name in {"code_change", "self_repair", "recover", "store_install", "self_upgrade", "policy_change", "authority_change"}:
             scopes.add("filesystem:write")
+
+    for host in permitted_hosts:
+        scopes.add(f"host:{host}")
+    for special in {"host:*", "network:local", "credential:transmit"}:
+        if special in granted:
+            scopes.add(special)
     return scopes
 
 
@@ -108,7 +118,7 @@ def authorized_capability_context(
     principal_id = context.principal_id if context is not None else "zero-os"
     lease = issue_capability_lease(
         principal_id,
-        _lease_scopes(kind, gate["required_scope"]),
+        _lease_scopes(kind, gate["required_scope"], plan_context),
         ttl_seconds=ttl_seconds,
     )
     with capability_lease_context(lease):
