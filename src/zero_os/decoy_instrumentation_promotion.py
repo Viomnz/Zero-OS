@@ -23,6 +23,8 @@ def evaluate_decoy_instrumentation_promotion(*, instrumentation_report: dict, au
         "process_identity_bound_to_lifetime",
         "executable_hash_required",
         "audit_sequence_required",
+        "caller_actor_label_cannot_suppress_decoy",
+        "expected_accessor_requires_exact_process_identity",
         "touch_is_not_final_malicious_judgment",
     )
     for key in required_inst:
@@ -48,7 +50,7 @@ def evaluate_decoy_instrumentation_promotion(*, instrumentation_report: dict, au
         "file_read_instrumented",
         "process_identity_provenance_verified",
         "event_replay_detected",
-        "expected_accessors_suppressed",
+        "expected_process_identities_suppressed",
         "unexpected_touch_reaches_authority_shrink_path",
     )
     if not runtime:
