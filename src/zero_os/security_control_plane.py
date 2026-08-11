@@ -97,10 +97,24 @@ def load_state(cwd: str) -> SecurityControlState:
 
 
 def _persist(cwd: str, state: SecurityControlState, event: dict[str, Any]) -> None:
-    _state_path(cwd).write_text(json.dumps(asdict(state), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    record = {"time_utc": _utc_now(), "state_digest": state.digest(), **event}
+    record = {
+        "time_utc": _utc_now(),
+        "revision": state.revision,
+        "previous_digest": state.previous_digest,
+        "state_digest": state.digest(),
+        **event,
+    }
+    # History first, state second. If the state write fails, history contains an
+    # unapplied candidate revision and verification will contest it rather than
+    # silently accepting a state transition with no record.
     with _history_path(cwd).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
+        handle.flush()
+        try:
+            os.fsync(handle.fileno())
+        except OSError:
+            pass
+    _state_path(cwd).write_text(json.dumps(asdict(state), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _authorized_security_change(cwd: str) -> dict:
@@ -119,81 +133,53 @@ def _new_key(cwd: str, purpose: str, generation: int) -> Path:
     return path
 
 
-def _apply_mutation(
-    cwd: str,
-    mutation: str,
-    payload: dict[str, Any],
-    *,
-    antivirus_policy: dict[str, Any],
-    suppressions: list[dict[str, Any]],
-    firewall_policy: dict[str, Any],
-    recovery_policy: dict[str, Any],
-    feed_generation: int,
-    authority_generation: int,
-) -> tuple[int, int]:
-    if mutation == "set_antivirus_policy":
-        key = str(payload.get("key", ""))
-        if not key:
-            raise ValueError("security_policy_key_missing")
-        antivirus_policy[key] = payload.get("value")
-    elif mutation == "add_suppression":
-        item = dict(payload.get("item") or {})
-        if not item.get("signature_id"):
-            raise ValueError("suppression_signature_missing")
-        suppressions.append(item)
-    elif mutation == "remove_suppression":
-        suppression_id = str(payload.get("id", ""))
-        suppressions[:] = [x for x in suppressions if str(x.get("id", "")) != suppression_id]
-    elif mutation == "set_firewall_policy":
-        key = str(payload.get("key", ""))
-        if not key:
-            raise ValueError("firewall_policy_key_missing")
-        firewall_policy[key] = payload.get("value")
-    elif mutation == "set_recovery_policy":
-        key = str(payload.get("key", ""))
-        if not key:
-            raise ValueError("recovery_policy_key_missing")
-        recovery_policy[key] = payload.get("value")
-    elif mutation == "rotate_feed_key":
-        feed_generation += 1
-        _new_key(cwd, "antivirus_feed", feed_generation)
-    elif mutation == "rotate_authority_key":
-        authority_generation += 1
-        _new_key(cwd, "authority", authority_generation)
-    else:
-        raise ValueError(f"unknown_security_control_mutation:{mutation}")
-    return feed_generation, authority_generation
-
-
-def mutate_batch(cwd: str, operations: Iterable[dict[str, Any]]) -> dict:
-    handoff = _authorized_security_change(cwd)
-    if not handoff.get("ok"):
-        return {"ok": False, "reason": "security_control_plane_authority_missing", "handoff": handoff}
-    current = load_state(cwd)
+def _plan_mutations(current: SecurityControlState, operations: list[dict[str, Any]]) -> tuple[SecurityControlState, list[tuple[str, int]]]:
     antivirus_policy = dict(current.antivirus_policy)
     suppressions = list(current.suppressions)
     firewall_policy = dict(current.firewall_policy)
     recovery_policy = dict(current.recovery_policy)
     feed_generation = current.feed_key_generation
     authority_generation = current.authority_key_generation
-    normalized = [dict(item or {}) for item in operations]
-    try:
-        for operation in normalized:
-            feed_generation, authority_generation = _apply_mutation(
-                cwd,
-                str(operation.get("mutation", "")),
-                dict(operation.get("payload") or {}),
-                antivirus_policy=antivirus_policy,
-                suppressions=suppressions,
-                firewall_policy=firewall_policy,
-                recovery_policy=recovery_policy,
-                feed_generation=feed_generation,
-                authority_generation=authority_generation,
-            )
-    except (ValueError, RuntimeError) as exc:
-        return {"ok": False, "reason": str(exc)}
+    key_creations: list[tuple[str, int]] = []
 
-    updated = SecurityControlState(
+    for operation in operations:
+        mutation = str(operation.get("mutation", ""))
+        payload = dict(operation.get("payload") or {})
+        if mutation == "set_antivirus_policy":
+            key = str(payload.get("key", ""))
+            if not key:
+                raise ValueError("security_policy_key_missing")
+            antivirus_policy[key] = payload.get("value")
+        elif mutation == "add_suppression":
+            item = dict(payload.get("item") or {})
+            if not item.get("signature_id"):
+                raise ValueError("suppression_signature_missing")
+            suppressions.append(item)
+        elif mutation == "remove_suppression":
+            suppression_id = str(payload.get("id", ""))
+            if not suppression_id:
+                raise ValueError("suppression_id_missing")
+            suppressions = [x for x in suppressions if str(x.get("id", "")) != suppression_id]
+        elif mutation == "set_firewall_policy":
+            key = str(payload.get("key", ""))
+            if not key:
+                raise ValueError("firewall_policy_key_missing")
+            firewall_policy[key] = payload.get("value")
+        elif mutation == "set_recovery_policy":
+            key = str(payload.get("key", ""))
+            if not key:
+                raise ValueError("recovery_policy_key_missing")
+            recovery_policy[key] = payload.get("value")
+        elif mutation == "rotate_feed_key":
+            feed_generation += 1
+            key_creations.append(("antivirus_feed", feed_generation))
+        elif mutation == "rotate_authority_key":
+            authority_generation += 1
+            key_creations.append(("authority", authority_generation))
+        else:
+            raise ValueError(f"unknown_security_control_mutation:{mutation}")
+
+    planned = SecurityControlState(
         revision=current.revision + 1,
         antivirus_policy=antivirus_policy,
         suppressions=tuple(suppressions),
@@ -204,9 +190,52 @@ def mutate_batch(cwd: str, operations: Iterable[dict[str, Any]]) -> dict:
         updated_at_utc=_utc_now(),
         previous_digest=current.digest(),
     )
-    digest = hashlib.sha256(json.dumps(normalized, sort_keys=True, default=str).encode()).hexdigest()
-    _persist(cwd, updated, {"mutation": "batch", "operation_count": len(normalized), "payload_digest": digest})
-    return {"ok": True, "revision": updated.revision, "digest": updated.digest(), "state": asdict(updated), "operation_count": len(normalized)}
+    return planned, key_creations
+
+
+def mutate_batch(cwd: str, operations: Iterable[dict[str, Any]]) -> dict:
+    normalized = [dict(item or {}) for item in operations]
+    if not normalized:
+        return {"ok": False, "reason": "security_control_operations_missing"}
+    current = load_state(cwd)
+    try:
+        planned, key_creations = _plan_mutations(current, normalized)
+    except ValueError as exc:
+        return {"ok": False, "reason": str(exc)}
+
+    # Validate first, consume authority second. Malformed requests cannot burn an
+    # otherwise valid single-use authority handoff.
+    handoff = _authorized_security_change(cwd)
+    if not handoff.get("ok"):
+        return {"ok": False, "reason": "security_control_plane_authority_missing", "handoff": handoff}
+
+    created: list[Path] = []
+    try:
+        for purpose, generation in key_creations:
+            created.append(_new_key(cwd, purpose, generation))
+        payload_digest = hashlib.sha256(json.dumps(normalized, sort_keys=True, default=str).encode()).hexdigest()
+        _persist(cwd, planned, {
+            "mutation": "batch",
+            "operation_count": len(normalized),
+            "payload_digest": payload_digest,
+            "authority_trace_id": str((handoff.get("ticket") or {}).get("ticket_id", "")),
+        })
+    except Exception as exc:
+        for path in created:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {"ok": False, "reason": f"security_control_commit_failed:{type(exc).__name__}"}
+
+    return {
+        "ok": True,
+        "revision": planned.revision,
+        "digest": planned.digest(),
+        "state": asdict(planned),
+        "operation_count": len(normalized),
+        "trace_id": str((handoff.get("ticket") or {}).get("ticket_id", "")),
+    }
 
 
 def mutate_state(cwd: str, mutation: str, payload: dict[str, Any]) -> dict:
@@ -228,9 +257,46 @@ def control_key(cwd: str, purpose: str, generation: int | None = None) -> bytes:
 
 def verify_history_chain(cwd: str) -> dict:
     state = load_state(cwd)
+    path = _history_path(cwd)
     if state.revision <= 1:
-        return {"ok": True, "reason": "initial_revision", "revision": state.revision}
-    lines = _history_path(cwd).read_text(encoding="utf-8", errors="replace").splitlines() if _history_path(cwd).exists() else []
-    if len(lines) < state.revision - 1:
-        return {"ok": False, "reason": "security_control_history_incomplete", "revision": state.revision}
-    return {"ok": True, "reason": "security_control_history_present", "revision": state.revision, "history_records": len(lines)}
+        return {"ok": True, "reason": "initial_revision", "revision": state.revision, "history_records": 0}
+    if not path.exists():
+        return {"ok": False, "reason": "security_control_history_missing", "revision": state.revision}
+
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except Exception:
+            return {"ok": False, "reason": "security_control_history_json_invalid", "revision": state.revision}
+        if isinstance(row, dict):
+            rows.append(row)
+    if len(rows) < state.revision - 1:
+        return {"ok": False, "reason": "security_control_history_incomplete", "revision": state.revision, "history_records": len(rows)}
+
+    relevant = rows[-(state.revision - 1):]
+    expected_revision = 2
+    previous_digest = ""
+    for index, row in enumerate(relevant):
+        revision = int(row.get("revision", 0) or 0)
+        if revision != expected_revision:
+            return {"ok": False, "reason": "security_control_history_revision_gap", "expected_revision": expected_revision, "observed_revision": revision}
+        row_previous = str(row.get("previous_digest", ""))
+        if index > 0 and row_previous != previous_digest:
+            return {"ok": False, "reason": "security_control_history_chain_mismatch", "revision": revision}
+        previous_digest = str(row.get("state_digest", ""))
+        if not previous_digest:
+            return {"ok": False, "reason": "security_control_history_digest_missing", "revision": revision}
+        expected_revision += 1
+
+    if previous_digest != state.digest():
+        return {"ok": False, "reason": "security_control_head_digest_mismatch", "revision": state.revision}
+    if relevant[-1].get("previous_digest") != state.previous_digest:
+        return {"ok": False, "reason": "security_control_previous_digest_mismatch", "revision": state.revision}
+    return {
+        "ok": True,
+        "reason": "security_control_history_chain_verified",
+        "revision": state.revision,
+        "history_records": len(rows),
+        "head_digest": state.digest(),
+    }
