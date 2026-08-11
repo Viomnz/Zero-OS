@@ -7,6 +7,7 @@ from zero_os.authority_issuer_boundary import IssuerBoundaryStatus
 from zero_os.authority_root_of_trust import asymmetric_crypto_available
 from zero_os.authority_runtime_integration_audit import audit_authority_runtime_integration
 from zero_os.authority_runtime_trace import verify_trace_chain
+from zero_os.control_loop_integration_audit import audit_control_loop_integration
 from zero_os.external_authority_issuer import assess_external_issuer
 from zero_os.formal_authority_model_check import model_check_authority_state_machine
 from zero_os.path_law_semantic_guard import audit_path_law_semantic_non_authority
@@ -27,6 +28,7 @@ def evaluate_v10_promotion(
     integration = audit_authority_runtime_integration(base)
     security = audit_security_control_plane(base)
     path_law = audit_path_law_semantic_non_authority(base)
+    control_loops = audit_control_loop_integration(base)
     trace_chain = verify_trace_chain(str(base))
     control_history = verify_history_chain(str(base))
     issuer = issuer_status or assess_external_issuer(str(base))
@@ -37,6 +39,7 @@ def evaluate_v10_promotion(
     if not integration.get("promotion_permitted", False): blockers.append("authority_runtime_integration_failed")
     if not security.get("promotion_permitted", False): blockers.append("security_control_plane_incomplete")
     if not path_law.get("promotion_permitted", False): blockers.append("path_law_semantic_authority_reachability")
+    if not control_loops.get("promotion_permitted", False): blockers.append("autonomous_control_loop_authority_integration_incomplete")
     if not trace_chain.get("ok", False): blockers.append("authority_trace_chain_invalid")
     if not control_history.get("ok", False): blockers.append("security_control_history_invalid")
     if not asymmetric_root: blockers.append("asymmetric_authority_root_unavailable")
@@ -54,6 +57,7 @@ def evaluate_v10_promotion(
         "authority_integration": integration,
         "security_control_plane": security,
         "path_law_non_authority": path_law,
+        "control_loop_authority": control_loops,
         "authority_trace_chain": trace_chain,
         "security_control_history": control_history,
         "asymmetric_authority_root_available": asymmetric_root,
@@ -66,6 +70,8 @@ def evaluate_v10_promotion(
         "discovery_confidence_can_override": False,
         "path_logic_can_grant_final_authority": False,
         "path_logic_role": "selection_only_after_independent_authority",
+        "control_loop_can_mint_final_authority": False,
+        "controller_uncertainty_can_expand_irreversible_authority": False,
         "general_security_claim_permitted": False,
         "pure_logic_self_exemption_permitted": False,
     }

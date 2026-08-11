@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from zero_os.global_runtime_network import node_register as grn_node_register, node_discovery as grn_node_discovery
+from zero_os.pure_logic_control_loop import (
+    CandidateAction,
+    ControllerAuthorityState,
+    ControllerContract,
+    FeedbackSource,
+    LoopTier,
+    StateEstimate,
+    authorize_control_step,
+)
 from zero_os.rcrp import status as rcrp_status
 from zero_os.serp import analyze as serp_analyze, status as serp_status, telemetry_submit as serp_telemetry_submit
 
@@ -32,6 +41,8 @@ def _default_state() -> dict:
             "last_simulation": {},
             "last_rollout": {},
             "last_validation": {},
+            "controller_authority": ControllerAuthorityState.PROVISIONAL.value,
+            "control_history": [],
         },
         "ai_optimization": {
             "enabled": True,
@@ -56,11 +67,14 @@ def _load(cwd: str) -> dict:
         _save(cwd, d)
         return d
     try:
-        return json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        d = json.loads(p.read_text(encoding="utf-8", errors="replace"))
     except Exception:
         d = _default_state()
-        _save(cwd, d)
-        return d
+    default = _default_state()
+    d.setdefault("governance", default["governance"])
+    for key, value in default["governance"].items():
+        d["governance"].setdefault(key, value)
+    return d
 
 
 def _save(cwd: str, state: dict) -> None:
@@ -105,7 +119,13 @@ def ai_optimize(cwd: str) -> dict:
     s["ai_optimization"]["last_summary"] = g
     s["ai_optimization"]["recommendations"] = recs
     _save(cwd, s)
-    return {"ok": True, "summary": g, "recommendations": recs}
+    return {
+        "ok": True,
+        "summary": g,
+        "recommendations": recs,
+        "authority_granted": False,
+        "epistemic_role": "discovery_only_until_control_loop_and_capability_authority_survive",
+    }
 
 
 def governance_propose(cwd: str, component: str, strategy: str) -> dict:
@@ -113,7 +133,7 @@ def governance_propose(cwd: str, component: str, strategy: str) -> dict:
     p = {"component": component.strip().lower(), "strategy": strategy.strip(), "proposed_utc": _utc_now()}
     s["governance"]["last_proposal"] = p
     _save(cwd, s)
-    return {"ok": True, "proposal": p}
+    return {"ok": True, "proposal": p, "authority_granted": False}
 
 
 def governance_simulate(cwd: str) -> dict:
@@ -121,23 +141,108 @@ def governance_simulate(cwd: str) -> dict:
     prop = s["governance"]["last_proposal"]
     if not prop:
         return {"ok": False, "reason": "no proposal"}
-    # deterministic simulation gate for control-plane
+    # Simulation is discovery evidence only. It cannot certify rollout authority.
     sim = {"proposal": prop, "pass_rate": 0.97, "result": "pass", "simulated_utc": _utc_now()}
     s["governance"]["last_simulation"] = sim
     _save(cwd, s)
-    return {"ok": True, "simulation": sim}
+    return {"ok": True, "simulation": sim, "scope_certified": False, "authority_granted": False}
 
 
-def governance_rollout(cwd: str, percent: int) -> dict:
+def governance_rollout(
+    cwd: str,
+    percent: int,
+    *,
+    objective_authorized: bool = False,
+    controller_authority: ControllerAuthorityState | str = ControllerAuthorityState.PROVISIONAL,
+    state_uncertainty: float = 1.0,
+) -> dict:
+    """Request rollout eligibility through the Pure Logic Control Loop Kernel.
+
+    This function still does not mint final execution/capability authority. A
+    successful control decision only allows the rollout controller to request
+    the independently scoped deployment capability from the Authority Kernel.
+    """
     s = _load(cwd)
     sim = s["governance"]["last_simulation"]
     if not sim or sim.get("result") != "pass":
         return {"ok": False, "reason": "simulation not passed"}
+
+    now = datetime.now(timezone.utc)
     pct = max(1, min(100, int(percent)))
-    ro = {"percent": pct, "rolled_out_utc": _utc_now(), "status": "staged" if pct < 100 else "global"}
-    s["governance"]["last_rollout"] = ro
+    action_id = "governance_rollout"
+    feedback = FeedbackSource(
+        source_id="ecosystem_simulator",
+        provenance="autonomous_runtime_ecosystem:governance_simulate",
+        method_family="isolated_simulation",
+        lineage=("autonomous_runtime_ecosystem",),
+        fresh_until_utc=(now + timedelta(minutes=5)).isoformat(),
+        demonstrated_scope=("simulation:governance_rollout",),
+        reliability=float(sim.get("pass_rate", 0.0) or 0.0),
+    )
+    contract = ControllerContract(
+        controller_id="autonomous_runtime_ecosystem",
+        objective_id="ecosystem_governance",
+        authority_id="controller:ecosystem_governance",
+        scope=("deploy:ecosystem_rollout",),
+        allowed_actions=(action_id,),
+        max_blast="subsystem" if pct < 100 else "system",
+        expires_at_utc=(now + timedelta(minutes=10)).isoformat(),
+        revocation_conditions=("CONTROL_OSCILLATION", "sensor_provenance_failed", "objective_revoked"),
+        expected_response_min_seconds=1.0,
+        expected_response_max_seconds=60.0,
+        max_uncertainty_for_irreversible_action=0.15,
+        loop_tier=LoopTier.OPERATIONAL,
+    )
+    estimate = StateEstimate(
+        state_id="governance_simulation",
+        value=str(sim.get("result", "unknown")),
+        uncertainty=max(0.0, min(1.0, float(state_uncertainty))),
+        sources=(feedback,),
+        observed_at_utc=now.isoformat(),
+    )
+    action = CandidateAction(
+        action_id=action_id,
+        capability_scope="deploy:ecosystem_rollout",
+        predicted_outcome="rollout_staged_and_healthy",
+        reversible=pct < 100,
+        blast="subsystem" if pct < 100 else "system",
+        requested_at_utc=now.isoformat(),
+    )
+    try:
+        authority_state = controller_authority if isinstance(controller_authority, ControllerAuthorityState) else ControllerAuthorityState(str(controller_authority))
+    except ValueError:
+        authority_state = ControllerAuthorityState.CONTESTED
+    decision = authorize_control_step(
+        contract=contract,
+        controller_authority=authority_state,
+        objective_authorized=bool(objective_authorized),
+        estimate=estimate,
+        action=action,
+        history=(),
+    )
+    s["governance"]["controller_authority"] = decision.controller_authority.value
+    if not decision.allowed:
+        _save(cwd, s)
+        return {
+            "ok": False,
+            "reason": decision.reason,
+            "loop_state": decision.loop_state.value,
+            "controller_authority": decision.controller_authority.value,
+            "authority_granted": False,
+            "investigation_required": decision.investigation_required,
+        }
+
+    # Pure Logic boundary: eligibility is not final authority. The live rollout
+    # is withheld until the independent capability/execution authority chain is wired.
     _save(cwd, s)
-    return {"ok": True, "rollout": ro}
+    return {
+        "ok": False,
+        "reason": "control_loop_eligible_but_final_deployment_authority_not_supplied",
+        "loop_state": decision.loop_state.value,
+        "controller_authority": decision.controller_authority.value,
+        "eligible_capability_scope": decision.permitted_capability_scope,
+        "authority_granted": False,
+    }
 
 
 def governance_validate(cwd: str) -> dict:
@@ -147,10 +252,16 @@ def governance_validate(cwd: str) -> dict:
     rollout = s["governance"]["last_rollout"]
     if not rollout:
         return {"ok": False, "reason": "no rollout"}
-    val = {"nodes_validated": total, "rollout": rollout, "result": "pass" if total >= 1 else "warn", "validated_utc": _utc_now()}
+    val = {
+        "nodes_validated": total,
+        "rollout": rollout,
+        "result": "pass" if total >= 1 else "warn",
+        "validated_utc": _utc_now(),
+        "independent_outcome_authority": False,
+    }
     s["governance"]["last_validation"] = val
     _save(cwd, s)
-    return {"ok": True, "validation": val}
+    return {"ok": True, "validation": val, "authority_granted": False}
 
 
 def ecosystem_grade(cwd: str) -> dict:
@@ -177,7 +288,7 @@ def ecosystem_grade(cwd: str) -> dict:
     score = sum(weights[k] for k, ok in checks.items() if ok)
     tier = "A+" if score >= 95 else "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 65 else "D"
     gaps = [k for k, ok in checks.items() if not ok]
-    return {"ok": True, "ecosystem_score": score, "ecosystem_tier": tier, "checks": checks, "gaps": gaps}
+    return {"ok": True, "ecosystem_score": score, "ecosystem_tier": tier, "checks": checks, "gaps": gaps, "authority_granted": False}
 
 
 def maximize(cwd: str) -> dict:
@@ -187,8 +298,10 @@ def maximize(cwd: str) -> dict:
     node_register(cwd, "archive", "archive-node", "linux", "normal")
     governance_propose(cwd, "scheduler", "sched_global_v2")
     governance_simulate(cwd)
-    governance_rollout(cwd, 100)
+    rollout = governance_rollout(cwd, 100)
+    if not rollout.get("ok", False):
+        return {"ok": False, "reason": rollout.get("reason"), "rollout": rollout, "authority_granted": False}
     governance_validate(cwd)
     serp_telemetry_submit(cwd, "max-node", "us-west", 68.0, 55.0, 62.0, 85.0, 40.0)
     ai_optimize(cwd)
-    return {"ok": True, "grade": ecosystem_grade(cwd)}
+    return {"ok": True, "grade": ecosystem_grade(cwd), "authority_granted": False}
