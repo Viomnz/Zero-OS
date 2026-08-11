@@ -7,6 +7,8 @@ from pathlib import Path
 from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
 from zero_os.antivirus import monitor_set
 from zero_os.cure_firewall_agent import run_cure_firewall_agent
+from zero_os.execution_authority_ticket import acknowledge_consumed_execution_ticket
+from zero_os.independent_outcome_verifier import OutcomeEvidence, verify_outcome
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, os_readiness
 from zero_os.runtime_smart_logic import recovery_decision
 from zero_os.triad_balance import triad_ops_set, triad_ops_status, triad_ops_tick
@@ -28,7 +30,10 @@ def self_repair_status(cwd: str) -> dict:
         "interval_seconds": 180,
         "last_tick_utc": "",
         "last_ok": None,
+        "last_mechanism_ok": None,
+        "last_outcome_verified": None,
         "last_actions": [],
+        "authority_model": "v5_constitutional_ticket_plus_sink_handoff",
     }
     p = _state_path(cwd)
     if not p.exists():
@@ -53,7 +58,45 @@ def self_repair_set(cwd: str, enabled: bool, interval_seconds: int | None = None
     return st
 
 
+def _outcome_evidence(readiness_after: dict, triad: dict) -> list[OutcomeEvidence]:
+    readiness_score = float(readiness_after.get("score", 0.0) or 0.0)
+    triad_ok = bool(triad.get("ok", False))
+    triad_balanced = bool((triad.get("report") or {}).get("balanced", False))
+    return [
+        OutcomeEvidence(
+            source_id="runtime_readiness_probe",
+            method_family="readiness_state_probe",
+            observed_state=f"readiness:{readiness_score}",
+            supports_expected=readiness_score >= 60.0,
+            lineage=("os_readiness",),
+        ),
+        OutcomeEvidence(
+            source_id="triad_state_probe",
+            method_family="triad_runtime_probe",
+            observed_state=f"triad_ok:{triad_ok}:balanced:{triad_balanced}",
+            supports_expected=triad_ok and triad_balanced,
+            lineage=("triad_balance",),
+        ),
+    ]
+
+
 def self_repair_run(cwd: str) -> dict:
+    """Run bounded repair only after a v5-authorized runtime handoff.
+
+    The runtime kernel consumes the execution ticket first. This implementation
+    must acknowledge that exact recent handoff once, so daemon/background/direct
+    calls cannot invoke the repair implementation on their own authority.
+    """
+    handoff = acknowledge_consumed_execution_ticket(cwd, "self_repair", max_handoff_seconds=10)
+    if not bool(handoff.get("ok", False)):
+        return {
+            "ok": False,
+            "blocked": True,
+            "reason": "constitutional_self_repair_handoff_missing",
+            "authority": handoff,
+            "actions": [],
+        }
+
     health_before = capture_health_snapshot(cwd)
     actions: list[str] = []
     readiness_before = os_readiness(cwd)
@@ -77,15 +120,24 @@ def self_repair_run(cwd: str) -> dict:
     triad = triad_ops_tick(cwd)
     actions.append("triad_ops:tick")
 
-    run_cure_firewall_agent(cwd, pressure=85, verify=True)
+    firewall = run_cure_firewall_agent(cwd, pressure=85, verify=True)
     actions.append("cure_firewall_agent:run")
 
     readiness_after = os_readiness(cwd)
-    ok = bool(triad.get("ok", False)) and readiness_after.get("score", 0) >= 60
+    mechanism_ok = bool(triad.get("ok", False)) and bool(firewall.get("ok", True)) and float(readiness_after.get("score", 0) or 0) >= 60.0
+    outcome = verify_outcome(
+        actor_id="self_repair",
+        expected_state="bounded_runtime_repair_healthy",
+        evidence=_outcome_evidence(readiness_after, triad),
+        required_independent_groups=2,
+    )
+    ok = mechanism_ok and outcome.verified
 
     st = self_repair_status(cwd)
     st["last_tick_utc"] = _utc_now()
     st["last_ok"] = ok
+    st["last_mechanism_ok"] = mechanism_ok
+    st["last_outcome_verified"] = outcome.verified
     st["last_actions"] = actions
     _state_path(cwd).write_text(json.dumps(st, indent=2) + "\n", encoding="utf-8")
     autonomy_record(
@@ -96,13 +148,19 @@ def self_repair_run(cwd: str) -> dict:
         rollback_used=False,
         recovery_seconds=8.0 if ok else 45.0,
         blast_radius="system",
-        verification_passed=ok,
+        verification_passed=outcome.verified,
         health_before=health_before,
         health_after=capture_health_snapshot(cwd),
     )
 
     return {
         "ok": ok,
+        "mechanism_ok": mechanism_ok,
+        "outcome_verified": outcome.verified,
+        "outcome_status": outcome.status,
+        "outcome_independent_groups": outcome.independent_groups,
+        "outcome_contradictions": list(outcome.contradictions),
+        "authority": handoff,
         "actions": actions,
         "readiness_before": readiness_before.get("score", 0),
         "readiness_after": readiness_after.get("score", 0),
@@ -117,4 +175,11 @@ def self_repair_tick(cwd: str) -> dict:
     if not st.get("enabled", False):
         return {"ok": False, "ran": False, "reason": "self repair disabled"}
     out = self_repair_run(cwd)
+    if not bool(out.get("ok", False)):
+        return {
+            "ok": False,
+            "ran": False,
+            "reason": str(out.get("reason", "self_repair_not_authorized_or_verified")),
+            "result": out,
+        }
     return {"ok": True, "ran": True, "result": out}
