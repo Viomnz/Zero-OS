@@ -9,6 +9,9 @@ _REQUIRED_FILES = (
     "src/zero_os/firmware_reality_checkpoint.py",
     "src/zero_os/hardware_attestation.py",
     "src/zero_os/hardware_recovery_authority.py",
+    "src/zero_os/tpm_quote_verifier.py",
+    "src/zero_os/tpm_event_log_adapter.py",
+    "src/zero_os/tpm_hardware_adapter.py",
     "src/zero_os/kernel_rnd/boot_trust.py",
     "src/zero_os/protected_correction_plane.py",
 )
@@ -67,10 +70,28 @@ def audit_firmware_integration(root: str | Path) -> dict:
             if required not in text:
                 findings.append({"path": str(kernel.relative_to(base)), "line": 0, "reason": f"firmware_invariant_missing:{required}"})
 
-    for rel in ("src/zero_os/hardware_attestation.py", "src/zero_os/hardware_recovery_authority.py"):
+    for rel in (
+        "src/zero_os/hardware_attestation.py",
+        "src/zero_os/hardware_recovery_authority.py",
+        "src/zero_os/tpm_quote_verifier.py",
+        "src/zero_os/tpm_event_log_adapter.py",
+        "src/zero_os/tpm_hardware_adapter.py",
+    ):
         path = base / rel
         if path.exists():
             _audit_no_os_authority_mint(path, base, findings)
+
+    adapter = base / "src/zero_os/tpm_hardware_adapter.py"
+    if adapter.exists():
+        text = adapter.read_text(encoding="utf-8", errors="replace")
+        for invariant in (
+            "raw_tpm_evidence_is_not_boot_authority",
+            "quote_signature_and_event_log_are_verified_independently",
+            "event_log_reconstruction_must_match_quoted_pcrs",
+            "adapter_cannot_mint_zero_os_authority",
+        ):
+            if invariant not in text:
+                findings.append({"path": str(adapter.relative_to(base)), "line": 0, "reason": f"tpm_adapter_invariant_missing:{invariant}"})
 
     correction = base / "src/zero_os/protected_correction_plane.py"
     if correction.exists():
@@ -95,7 +116,7 @@ def audit_firmware_integration(root: str | Path) -> dict:
         "finding_count": len(findings),
         "limitations": [
             "static integration is not hardware attestation",
-            "attestation signature verification must be supplied by a real TPM UEFI or hardware-backed adapter",
+            "TPM wire-format parsing and vendor-specific event decoding require deployment adapters",
             "TPM Secure Enclave HSM provisioning requires deployment evidence",
             "firmware implementation outside Python requires separate native audit",
             "hardware and firmware supply chain remain outside demonstrated scope",
@@ -103,5 +124,6 @@ def audit_firmware_integration(root: str | Path) -> dict:
         "path_logic_final_authority": False,
         "firmware_self_certification_permitted": False,
         "hardware_attestation_grants_final_authority": False,
+        "tpm_adapter_grants_boot_authority": False,
         "ordinary_runtime_can_authorize_recovery": False,
     }
