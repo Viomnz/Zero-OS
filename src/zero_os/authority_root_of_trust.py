@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Iterable
 from uuid import uuid4
 
+from zero_os.authority_ledger import AuthorityLedger
+from zero_os.objective_authority import ObjectiveAuthorityLedger
+from zero_os.pure_logic_authority_kernel import ConstitutionalRequest, decide as constitutional_decide
+from zero_os.resource_law_budget import VerificationBudget
+
 
 ISSUER_ID = "zero-os-authority-root-v8"
 SCHEMA_VERSION = 1
@@ -91,37 +96,50 @@ def verify_attestation(cwd: str, attestation: AuthorityAttestation, *, now_utc: 
         expires = expires.replace(tzinfo=timezone.utc)
     if (now_utc or _utc_now()) > expires.astimezone(timezone.utc):
         return {"ok": False, "reason": "authority_attestation_expired"}
-    if attestation.constitutional_status not in {"AUTHORIZED", "ALLOW", "SURVIVED_IN_SCOPE"}:
+    if attestation.constitutional_status != "PROVISIONAL_SCOPED_AUTHORITY":
         return {"ok": False, "reason": "authority_attestation_constitutional_status_invalid"}
     return {"ok": True, "reason": "authority_attestation_verified", "issuer_id": attestation.issuer_id}
 
 
-def issue_attestation(
+def issue_attestation_from_constitution(
     cwd: str,
     *,
     artifact_kind: str,
-    principal_id: str,
-    authority_id: str,
-    objective_id: str,
-    action_kind: str,
+    constitutional_request: ConstitutionalRequest,
+    authority_ledger: AuthorityLedger,
+    objective_ledger: ObjectiveAuthorityLedger,
+    verification_budget: VerificationBudget,
+    active_dependency_ids: Iterable[str],
     subject_id: str,
     state_revision: str,
     scopes: Iterable[str],
-    constitutional_allowed: bool,
-    constitutional_status: str,
+    correction_plane_allows: bool = True,
+    legal_state_ok: bool = True,
     ttl_seconds: int = 30,
-) -> AuthorityAttestation:
-    """Privileged software issuer boundary.
+) -> tuple[AuthorityAttestation, object]:
+    """Recompute constitutional authority inside the issuer boundary.
 
-    Callers must arrive here only after the Pure Logic constitutional decision has
-    survived. This function refuses to attest a denied decision. Sinks verify the
-    resulting HMAC over every authority-bearing field rather than trusting object
-    presence. The issuer secret is random and mode-restricted, but same-privilege
-    hostile code remains outside the demonstrated trust scope until process/hardware
-    isolation exists.
+    Callers do not pass `allowed=True`. The issuer independently evaluates the
+    request against the supplied authority/objective ledgers and verification
+    budget, then signs the exact resulting principal/action/state/scope binding.
+    A same-privilege attacker that can rewrite these ledgers, steal this process's
+    key, or modify the verifier remains outside the demonstrated software-only
+    trust scope until process/OS/hardware isolation exists.
     """
-    if not constitutional_allowed:
-        raise PermissionError("constitutional authority denied")
+    decision = constitutional_decide(
+        request=constitutional_request,
+        authority_ledger=authority_ledger,
+        objective_ledger=objective_ledger,
+        budget=verification_budget,
+        active_dependency_ids=active_dependency_ids,
+        correction_plane_allows=correction_plane_allows,
+        legal_state_ok=legal_state_ok,
+    )
+    if not decision.allowed:
+        raise PermissionError("constitutional authority denied by root issuer")
+    requested_scopes = tuple(sorted({str(x) for x in scopes if str(x)}))
+    if constitutional_request.action_scope not in requested_scopes:
+        raise PermissionError("issuer scope does not contain constitutional action scope")
     now = _utc_now()
     ttl = max(1, min(int(ttl_seconds), 300))
     unsigned = {
@@ -129,17 +147,17 @@ def issue_attestation(
         "issuer_id": ISSUER_ID,
         "artifact_kind": str(artifact_kind),
         "artifact_id": str(uuid4()),
-        "principal_id": str(principal_id),
-        "authority_id": str(authority_id),
-        "objective_id": str(objective_id),
-        "action_kind": str(action_kind),
+        "principal_id": constitutional_request.actor.principal_id,
+        "authority_id": constitutional_request.authority_id,
+        "objective_id": constitutional_request.objective_id,
+        "action_kind": constitutional_request.requested_capability,
         "subject_id": str(subject_id),
         "state_revision": str(state_revision),
-        "scopes": tuple(sorted({str(x) for x in scopes if str(x)})),
+        "scopes": requested_scopes,
         "issued_at_utc": now.isoformat(),
         "expires_at_utc": (now + timedelta(seconds=ttl)).isoformat(),
         "nonce": secrets.token_hex(16),
-        "constitutional_status": str(constitutional_status or "AUTHORIZED"),
+        "constitutional_status": decision.status,
     }
     signature = hmac.new(_issuer_secret(cwd), _canonical(unsigned), hashlib.sha256).hexdigest()
-    return AuthorityAttestation(**unsigned, signature=signature)
+    return AuthorityAttestation(**unsigned, signature=signature), decision
