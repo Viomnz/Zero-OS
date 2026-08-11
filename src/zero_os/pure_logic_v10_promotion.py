@@ -34,6 +34,7 @@ def _tpm_adapter_verified(report: dict | None) -> bool:
         and str(payload.get("status", "")) == "TPM_ADAPTER_EVIDENCE_VERIFIED_IN_SCOPE"
         and not list(payload.get("reasons", []) or [])
         and bool(payload.get("quote_signature_verified", False))
+        and bool(payload.get("quote_claims_verified", False))
         and bool(payload.get("event_log_verified", False))
         and payload.get("authority_granted", False) is False
         and payload.get("boot_authority_granted", False) is False
