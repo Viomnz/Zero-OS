@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from zero_os.capability_lease import require_scope
+from zero_os.network_egress_policy import evaluate_egress
 
 
 class CapabilityDenied(PermissionError):
@@ -17,7 +18,11 @@ def _require(scope: str) -> None:
 
 
 def network_open(req: Request | str, *, timeout: int = 10, write: bool = False):
-    _require("network:write" if write else "network:fetch")
+    url = req.full_url if isinstance(req, Request) else str(req)
+    headers = dict(req.header_items()) if isinstance(req, Request) else {}
+    decision = evaluate_egress(url, headers=headers, write=write)
+    if not decision.allowed:
+        raise CapabilityDenied(f"{decision.reason}:{decision.host or decision.scheme}")
     return urlopen(req, timeout=timeout)
 
 

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.request
 
 from english_understanding import human_response_from_understanding
+from zero_os.net_client import request_text
 
 
 def _remote_chat(prompt: str) -> str | None:
@@ -19,26 +19,29 @@ def _remote_chat(prompt: str) -> str | None:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
     }
-    req = urllib.request.Request(
-        url=url,
+    result = request_text(
+        url,
+        method="POST",
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             **({"Authorization": f"Bearer {token}"} if token else {}),
         },
-        method="POST",
+        timeout=max(1, int(timeout_s)),
+        retries=0,
     )
+    if not result.get("ok", False):
+        return None
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            raw = json.loads(resp.read().decode("utf-8", errors="replace"))
-        choices = raw.get("choices", [])
-        if not choices:
-            return None
-        msg = choices[0].get("message", {})
-        text = str(msg.get("content", "")).strip()
-        return text or None
+        raw = json.loads(str(result.get("body", "")))
     except Exception:
         return None
+    choices = raw.get("choices", []) if isinstance(raw, dict) else []
+    if not choices:
+        return None
+    msg = choices[0].get("message", {})
+    text = str(msg.get("content", "")).strip()
+    return text or None
 
 
 def generate_primary_response(prompt: str, understanding: dict) -> str:
