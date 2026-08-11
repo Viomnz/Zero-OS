@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -27,11 +28,20 @@ class QuoteSignatureDecision:
     status: str
     reasons: tuple[str, ...]
     attestation_key_id: str
+    public_key_fingerprint: str = ""
     authority_granted: bool = False
 
 
 def crypto_available() -> bool:
     return bool(_CRYPTO_AVAILABLE)
+
+
+def _key_fingerprint(public_key) -> str:
+    der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return "sha256:" + hashlib.sha256(der).hexdigest()
 
 
 def verify_quote_signature(evidence: QuoteSignatureEvidence) -> QuoteSignatureDecision:
@@ -57,6 +67,10 @@ def verify_quote_signature(evidence: QuoteSignatureEvidence) -> QuoteSignatureDe
         reasons.append("attestation_public_key_invalid")
         return QuoteSignatureDecision(False, "QUOTE_SIGNATURE_CONTESTED", tuple(reasons), evidence.attestation_key_id)
 
+    fingerprint = _key_fingerprint(public_key)
+    if evidence.attestation_key_id != fingerprint:
+        reasons.append("attestation_key_identity_mismatch")
+
     if not reasons:
         try:
             if evidence.algorithm == "rsa_pss_sha256":
@@ -81,5 +95,6 @@ def verify_quote_signature(evidence: QuoteSignatureEvidence) -> QuoteSignatureDe
         status="QUOTE_SIGNATURE_VERIFIED" if not reasons else "QUOTE_SIGNATURE_CONTESTED",
         reasons=tuple(reasons),
         attestation_key_id=evidence.attestation_key_id,
+        public_key_fingerprint=fingerprint,
         authority_granted=False,
     )
