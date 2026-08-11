@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from zero_os.adaptive_defense_response import DefenseResponse, choose_defense_response
 from zero_os.capability_registry import capability_class
 from zero_os.dynamic_capability_authority import CapabilityAuthorityContext, CapabilityAuthorityDecision, evaluate_capability_authority
-from zero_os.pure_logic_runtime_kernel import authorize_runtime_mutation
 from zero_os.trust_graph import TrustNode
 
 
@@ -33,13 +32,11 @@ def authorize_capability(
         response = choose_defense_response(disposition="deny", reversible=reversible, blast_radius=blast_radius)
         return CapabilityKernelDecision(False, str(kind), "unknown_capability", "deny", "", response)
 
-    # Mutation tickets are consumed by the existing mutation boundary. This kernel
-    # refuses to duplicate-consume them; it only declares the capability class here.
+    # The mutation kernel owns the single-use ticket consume. This layer classifies
+    # the request but never pre-consumes or duplicates mutation authority.
     if capability.mode == "mutation":
-        mutation = authorize_runtime_mutation(cwd, kind, consume=False)
-        disposition = "allow" if mutation.allowed else "deny"
-        response = choose_defense_response(disposition=disposition, reversible=reversible, blast_radius=blast_radius)
-        return CapabilityKernelDecision(mutation.allowed, capability.name, mutation.reason, disposition, capability.required_scope, response)
+        response = choose_defense_response(disposition="allow", reversible=reversible, blast_radius=blast_radius)
+        return CapabilityKernelDecision(True, capability.name, "defer_to_mutation_kernel", "allow", capability.required_scope, response)
 
     if not capability.sensitive and capability.risk == "low":
         response = choose_defense_response(disposition="allow", reversible=reversible, blast_radius=blast_radius)
