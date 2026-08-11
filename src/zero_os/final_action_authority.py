@@ -6,7 +6,7 @@ from typing import Any, Iterable
 
 from zero_os.authority_integrity_audit import audit_authority_integrity
 from zero_os.authority_ledger import AuthorityLedger
-from zero_os.authority_root_of_trust import issue_attestation
+from zero_os.authority_root_of_trust import issue_attestation_from_constitution
 from zero_os.evidence_binding import EvidenceRecord, evidence_for_exact_claim, independent_support_count
 from zero_os.execution_authority_ticket import ticket_from_attestation
 from zero_os.mutation_registry import canonical_mutation_kind, mutation_class
@@ -119,23 +119,27 @@ def authorize_and_issue_execution_ticket(
     if not request.mutating:
         return {"ok": True, "decision": decision, "constitutional_decision": constitutional, "ticket": None}
 
-    assert constitutional_request is not None and constitutional is not None
-    attestation = issue_attestation(
-        cwd,
-        artifact_kind="execution_ticket",
-        principal_id=constitutional_request.actor.principal_id,
-        authority_id=request.authority_id,
-        objective_id=constitutional_request.objective_id,
-        action_kind=canonical_kind,
-        subject_id=request.subject_id,
-        state_revision=request.state_revision,
-        scopes=(spec.required_scope,),
-        constitutional_allowed=constitutional.allowed,
-        constitutional_status="AUTHORIZED",
-        ttl_seconds=ttl_seconds,
-    )
+    assert constitutional_request is not None and objective_ledger is not None and verification_budget is not None
+    try:
+        attestation, issuer_decision = issue_attestation_from_constitution(
+            cwd,
+            artifact_kind="execution_ticket",
+            constitutional_request=constitutional_request,
+            authority_ledger=ledger,
+            objective_ledger=objective_ledger,
+            verification_budget=verification_budget,
+            active_dependency_ids=active_dependency_ids,
+            subject_id=request.subject_id,
+            state_revision=request.state_revision,
+            scopes=(spec.required_scope,),
+            correction_plane_allows=correction_plane_allows,
+            legal_state_ok=legal_state_ok,
+            ttl_seconds=ttl_seconds,
+        )
+    except PermissionError as exc:
+        return {"ok": False, "reason": f"root_issuer_denied:{exc}", "decision": decision, "constitutional_decision": constitutional, "ticket": None}
     ticket = ticket_from_attestation(cwd, attestation)
-    return {"ok": True, "decision": decision, "constitutional_decision": constitutional, "ticket": ticket, "issuer_id": attestation.issuer_id}
+    return {"ok": True, "decision": decision, "constitutional_decision": constitutional, "issuer_decision": issuer_decision, "ticket": ticket, "issuer_id": attestation.issuer_id}
 
 
 def authorize_action_and_mint_ticket(*args, **kwargs):
