@@ -26,15 +26,21 @@ _REQUIREMENTS = (
         "critical",
     ),
     (
-        "main_executor_uses_constitution",
+        "main_executor_calls_authority_policy",
         "src/zero_os/unified_action_engine.py",
-        ("pure_logic_authority_kernel", "ConstitutionalRequest"),
+        ("classify_action",),
         "critical",
     ),
     (
-        "self_repair_uses_correction_plane",
+        "authority_policy_requires_v5_for_sensitive_access",
+        "src/zero_os/agent_permission_policy.py",
+        ("constitutional_capability_lease_missing", "authorize_runtime_mutation", "current_capability_lease"),
+        "critical",
+    ),
+    (
+        "self_repair_requires_ticket_handoff_and_independent_outcome",
         "src/zero_os/self_repair.py",
-        ("protected_correction_plane", "independent_outcome_verifier"),
+        ("acknowledge_consumed_execution_ticket", "independent_outcome_verifier"),
         "critical",
     ),
     (
