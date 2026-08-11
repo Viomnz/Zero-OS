@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import time
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from zero_os.secure_primitives import CapabilityDenied, network_open
 
 
 def request_text(
@@ -25,7 +27,8 @@ def request_text(
     for i in range(attempts):
         try:
             req = Request(url, data=data, method=method.upper(), headers=hdrs)
-            with urlopen(req, timeout=timeout) as resp:
+            write = method.upper() not in {"GET", "HEAD", "OPTIONS"} or data is not None
+            with network_open(req, timeout=timeout, write=write) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
                 status = int(getattr(resp, "status", 200))
                 ctype = str(resp.headers.get("Content-Type", ""))
@@ -36,11 +39,20 @@ def request_text(
                     "body": body,
                     "attempts": i + 1,
                 }
+        except CapabilityDenied as exc:
+            return {
+                "ok": False,
+                "status": 0,
+                "content_type": "",
+                "body": "",
+                "error": str(exc),
+                "reason": "pure_logic_capability_denied",
+                "attempts": i + 1,
+            }
         except HTTPError as exc:
             try:
                 status = int(getattr(exc, "code", 0) or 0)
                 payload = exc.read().decode("utf-8", errors="replace") if hasattr(exc, "read") else ""
-                # Retry on transient server/network class errors.
                 if status >= 500 and i < attempts - 1:
                     time.sleep(backoff_seconds * (2**i))
                     continue
