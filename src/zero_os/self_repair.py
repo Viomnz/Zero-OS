@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from zero_os.autonomous_fix_gate import autonomy_record, capture_health_snapshot
+from zero_os.autonomous_fix_gate import autonomy_evaluate, autonomy_record, capture_health_snapshot
 from zero_os.antivirus import monitor_set
 from zero_os.cure_firewall_agent import run_cure_firewall_agent
 from zero_os.readiness import apply_beginner_os_fix, apply_missing_fix, os_readiness
@@ -29,6 +29,7 @@ def self_repair_status(cwd: str) -> dict:
         "last_tick_utc": "",
         "last_ok": None,
         "last_actions": [],
+        "last_authority": {},
     }
     p = _state_path(cwd)
     if not p.exists():
@@ -53,12 +54,54 @@ def self_repair_set(cwd: str, enabled: bool, interval_seconds: int | None = None
     return st
 
 
-def self_repair_run(cwd: str) -> dict:
+def self_repair_run(cwd: str, *, authority_evidence: list[dict] | None = None) -> dict:
+    """Run self repair only after independent scope certification.
+
+    Legacy callers that provide no authority evidence are intentionally held for
+    review rather than receiving mutation rights from confidence or readiness.
+    """
     health_before = capture_health_snapshot(cwd)
-    actions: list[str] = []
     readiness_before = os_readiness(cwd)
     logic = recovery_decision(cwd, True, readiness_before.get("score", 0) >= 40, "system")
 
+    gate = autonomy_evaluate(
+        cwd,
+        action="self repair run",
+        blast_radius="system",
+        reversible=True,
+        evidence_count=len(authority_evidence or []),
+        contradictory_signals=0,
+        independent_verifiers=len({str(item.get("independent_group", "")) for item in (authority_evidence or []) if item.get("independent_group")}),
+        checks={
+            "readiness_observed": readiness_before.get("score", 0) >= 0,
+            "health_snapshot_available": bool(health_before),
+        },
+        planner_confidence=float(logic.get("confidence", 0.0) or 0.0),
+        planner_risk_level="high",
+        planner_execution_mode="safe",
+        planner_strategy="self_repair",
+        authority_evidence=list(authority_evidence or []),
+        proposer_source="self_repair",
+    )
+
+    if gate.get("decision") != "allow":
+        st = self_repair_status(cwd)
+        st["last_tick_utc"] = _utc_now()
+        st["last_ok"] = False
+        st["last_actions"] = []
+        st["last_authority"] = dict(gate.get("authority") or {})
+        _state_path(cwd).write_text(json.dumps(st, indent=2) + "\n", encoding="utf-8")
+        return {
+            "ok": False,
+            "blocked": True,
+            "reason": gate.get("decision_reason", "authority_missing"),
+            "actions": [],
+            "readiness_before": readiness_before.get("score", 0),
+            "smart_logic": logic,
+            "authority_gate": gate,
+        }
+
+    actions: list[str] = []
     if readiness_before.get("score", 0) < 100:
         r = apply_missing_fix(cwd)
         if r.get("created_count", 0) > 0:
@@ -87,6 +130,7 @@ def self_repair_run(cwd: str) -> dict:
     st["last_tick_utc"] = _utc_now()
     st["last_ok"] = ok
     st["last_actions"] = actions
+    st["last_authority"] = dict(gate.get("authority") or {})
     _state_path(cwd).write_text(json.dumps(st, indent=2) + "\n", encoding="utf-8")
     autonomy_record(
         cwd,
@@ -103,18 +147,20 @@ def self_repair_run(cwd: str) -> dict:
 
     return {
         "ok": ok,
+        "blocked": False,
         "actions": actions,
         "readiness_before": readiness_before.get("score", 0),
         "readiness_after": readiness_after.get("score", 0),
         "triad_ok": triad.get("ok", False),
         "triad_balanced": triad.get("report", {}).get("balanced", False),
         "smart_logic": logic,
+        "authority_gate": gate,
     }
 
 
-def self_repair_tick(cwd: str) -> dict:
+def self_repair_tick(cwd: str, *, authority_evidence: list[dict] | None = None) -> dict:
     st = self_repair_status(cwd)
     if not st.get("enabled", False):
         return {"ok": False, "ran": False, "reason": "self repair disabled"}
-    out = self_repair_run(cwd)
-    return {"ok": True, "ran": True, "result": out}
+    out = self_repair_run(cwd, authority_evidence=authority_evidence)
+    return {"ok": bool(out.get("ok", False)), "ran": not bool(out.get("blocked", False)), "result": out}
