@@ -1,0 +1,5 @@
+{
+  "apps": [
+    {"name":"Zero OS Shell","path":"zero_os_shell.html"}
+  ]
+}
