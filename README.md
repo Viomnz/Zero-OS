@@ -4,9 +4,9 @@
 
 **Pure Logic is the foundational reasoning framework behind Zero AI and Zero-OS.**
 
-### [Read the Complete Pure Logic Master PDF](publication/Pure%20Logic%20%E2%80%94%20Complete%20Philosophy,%20Principles,%20Practice,%20and%20Machine%20Architecture.pdf)
+### [Read the Complete Pure Logic Master PDF](publication/Pure_Logic_Framework_Refined.pdf)
 
-**Master Edition 1.0 · 134 pages · Creator: Viomnz**
+**Expanded master framework with canonical refinements · 144 pages · Creator: Viomnz**
 
 > **Logic serves reality. Reality never serves logic.**
 
@@ -14,11 +14,13 @@ Pure Logic is a reality-first framework for reasoning, learning, decision-making
 
 The master framework includes the six Master Laws: **Reality, Survival, Investigation, Plurality, Path, and Resource**, together with Contradiction Memory, Reality Ledger, verifier independence, Active Reality Probing, Water Logic, Unknown versus Unmapped reasoning, Ontology Foundry, Logic Foundry, objective revision, recursive authority revocation, execution gates, Zero State, offline replay, and recursive self-modification.
 
+[Implementation alignment and verified gaps](docs/PURE_LOGIC_ALIGNMENT.md) · [Exact PDF source record](publication/pure_logic_source.json)
+
 ### Publication resources
 - [Master publication record](publication/PURE_LOGIC_PUBLICATION.md)
 - [Zenodo submission metadata](publication/ZENODO_SUBMISSION.md)
 - [arXiv technical paper seed](publication/ARXIV_TECHNICAL_PAPER_SEED.md)
-- [Complete Pure Logic PDF](publication/Pure%20Logic%20%E2%80%94%20Complete%20Philosophy,%20Principles,%20Practice,%20and%20Machine%20Architecture.pdf)
+- [Complete Pure Logic PDF](publication/Pure_Logic_Framework_Refined.pdf)
 
 ## Zero AI / Zero-OS
 

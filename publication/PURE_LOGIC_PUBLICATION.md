@@ -17,8 +17,23 @@ The framework includes the six Master Laws (Reality, Survival, Investigation, Pl
 ## Relationship to Zero AI / Zero-OS
 Pure Logic is the foundational meta-reasoning discipline. Zero AI is the machine architecture intended to implement Pure Logic across perception, memory, verification, objectives, planning, strategy, self-investigation, self-modification, experimentation, and long-term learning. Zero-OS is an implementation/research environment for enforcing and testing parts of that architecture.
 
-## Master PDF
-The canonical PDF is committed in this repository at:
+## Current implementation source
+
+The current source is the user's supplied 144-page expanded framework, including
+sections 285-287 (canonical refinements and open formalization work):
+
+[Pure_Logic_Framework_Refined.pdf](Pure_Logic_Framework_Refined.pdf)
+
+SHA-256: `5cbee3ace1d5d9fd1c66273eebc264d36cbb3579acab3210fa87371cdbc11bf2`
+
+File size: `1,588,602 bytes`. Source identity is also recorded in
+[pure_logic_source.json](pure_logic_source.json).
+
+Text comparison found the earlier framework text preserved, with the canonical
+refinements appended. No DOI or external archival deposit is asserted here.
+
+## Historical Master Edition 1.0 PDF
+The preserved 134-page archival PDF is committed at:
 
 `publication/Pure Logic — Complete Philosophy, Principles, Practice, and Machine Architecture.pdf`
 

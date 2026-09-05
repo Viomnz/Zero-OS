@@ -5,11 +5,12 @@ from typing import Any
 from zero_os.pure_logic_authority import certify_candidate
 from zero_os.zero_engine_adapters import zero_engine_adapters
 
-_MUTATING_ACTIONS = {"backup", "failover_apply", "revalidate", "verify"}
+_READ_ONLY_ACTIONS = {"observe", "hold_for_review"}
 
 
 def zero_engine_action_is_mutating(action: str) -> bool:
-    return str(action or "observe").strip() in _MUTATING_ACTIONS
+    # Newly registered actions must not gain observation authority by omission.
+    return str(action or "observe").strip() not in _READ_ONLY_ACTIONS
 
 
 def decide_maintenance_action(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -50,7 +51,8 @@ def _authority_for(name: str, decision: dict[str, Any], facts: dict[str, Any]) -
             "reasons": ["read_only_action"],
             "discovery_confidence_ignored_for_scope": True,
         }
-    evidence = list((facts.get("authority_evidence") or {}).get(name, []))
+    evidence_by_adapter = facts.get("authority_evidence") or {}
+    evidence = evidence_by_adapter.get(name, []) if isinstance(evidence_by_adapter, dict) else None
     return certify_candidate(
         {"source": name, "scope": [f"mutation:{action}"]},
         evidence,

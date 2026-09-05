@@ -1,0 +1,24 @@
+{
+  "path": "publication/Pure_Logic_Framework_Refined.pdf",
+  "sha256": "5cbee3ace1d5d9fd1c66273eebc264d36cbb3579acab3210fa87371cdbc11bf2",
+  "size_bytes": 1588602,
+  "pages": 144,
+  "description": "User-supplied expanded master framework including sections 285-287",
+  "previous_path": "publication/Pure Logic \u2014 Complete Philosophy, Principles, Practice, and Machine Architecture.pdf",
+  "previous_sha256": "944345e77be866a8a3caf588d181d21daa976b8cac12a34b9149fe8275ff9d13",
+  "hierarchy": [
+    "Reality",
+    "Pure Logic",
+    "Six Master Laws",
+    "Zero AI",
+    "implementations"
+  ],
+  "master_laws": [
+    "Reality",
+    "Survival",
+    "Investigation",
+    "Plurality",
+    "Path",
+    "Resource"
+  ]
+}
