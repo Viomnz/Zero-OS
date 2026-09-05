@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from zero_os.zero_engine import zero_engine_status, zero_engine_tick
+from zero_os.recovery import zero_ai_backup_status
 from zero_os.zero_engine_adapters import ZeroEngineAdapter, register_zero_engine_adapter, unregister_zero_engine_adapter
 
 
@@ -58,14 +59,16 @@ class ZeroEngineTests(unittest.TestCase):
         self.assertIn("pressure", status["adapter_names"])
         self.assertIn("self_derivation", status["adapter_names"])
 
-    def test_zero_engine_creates_recovery_baseline_when_missing(self) -> None:
+    def test_zero_engine_holds_recovery_without_independent_authority(self) -> None:
         report = zero_engine_tick(str(self.base), force=True, runtime_context={"continuity_ready": True, "pressure_ready": True})
         recovery = report["latest_report"]["subsystems"]["recovery"]
 
-        self.assertTrue(recovery["ran"])
+        self.assertFalse(recovery["ran"])
         self.assertEqual("backup", recovery["decision"]["action"])
-        self.assertTrue(recovery["result"]["ok"])
-        self.assertTrue((self.base / ".zero_os" / "production" / "snapshots").exists())
+        self.assertTrue(recovery["blocked_by_authority"])
+        self.assertEqual("zero", recovery["control_state"])
+        self.assertEqual(0, report["latest_report"]["mutation_budget"]["executed_mutation_count"])
+        self.assertEqual(0, zero_ai_backup_status(str(self.base))["snapshot_count"])
 
     def test_zero_engine_uses_registered_adapters(self) -> None:
         register_zero_engine_adapter(

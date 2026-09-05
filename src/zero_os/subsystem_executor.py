@@ -2,12 +2,30 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from math import isfinite
 from time import perf_counter
 from typing import Any, Callable
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _permits_mutation(authority: Any, action: str) -> bool:
+    """Consume a scoped decision from the control plane, never discovery confidence.
+
+    This is an in-process gate. Its caller and adapters must be trusted; a plain
+    dictionary is not authenticated evidence or protection from hostile Python.
+    """
+    if not isinstance(authority, dict) or authority.get("status") != "provisional":
+        return False
+    score = authority.get("authority")
+    scope = authority.get("demonstrated_scope")
+    return (
+        type(score) in (int, float) and 0.0 < score <= 1.0 and isfinite(score)
+        and isinstance(scope, (list, tuple, set, frozenset))
+        and f"mutation:{action}" in scope
+    )
 
 
 def execute_subsystem_adapters(
@@ -121,11 +139,13 @@ def _execute_decision_plane(
 
     decision_block = dict(decide_all(cwd, facts, runtime_context) or {})
     decisions = dict(decision_block.get("decisions") or {})
+    authorities = dict(decision_block.get("authority") or {})
     subsystem_reports: dict[str, Any] = {}
     updated_state: dict[str, Any] = {}
     ran_count = 0
     executed_mutation_count = 0
     deferred_mutation_count = 0
+    blocked_mutation_count = 0
     now_utc = _utc_now()
     due_mutating_candidates: list[tuple[str, dict[str, Any]]] = []
 
@@ -137,14 +157,19 @@ def _execute_decision_plane(
         if due_predicate(str(adapter_state.get("last_run_utc", "")), interval_seconds, force) and mutation_action_predicate(action):
             due_mutating_candidates.append((name, dict(decisions.get(name) or {})))
 
+    authorized_candidates = [
+        (name, decision) for name, decision in due_mutating_candidates
+        if name not in scan_errors and not decision.get("blockers")
+        and _permits_mutation(authorities.get(name), str(decision.get("action", "observe")))
+    ]
     mutation_winner_name = ""
-    if due_mutating_candidates:
+    if authorized_candidates:
         mutation_winner_name = str(
             max(
-                due_mutating_candidates,
+                authorized_candidates,
                 key=lambda item: (
                     {"backup": 2, "failover_apply": 3, "revalidate": 1, "verify": 1}.get(str(item[1].get("action", "observe")), 0),
-                    float(item[1].get("confidence", 0.0) or 0.0),
+                    float(authorities[item[0]]["authority"]),
                     str(item[0]),
                 ),
             )[0]
@@ -170,6 +195,32 @@ def _execute_decision_plane(
             updated_state[name] = adapter_state
             continue
         action = str(decision.get("action", "observe") or "observe")
+        if mutation_action_predicate(action) and (
+            name in scan_errors or decision.get("blockers")
+            or not _permits_mutation(authorities.get(name), action)
+        ):
+            subsystem_reports[name] = {
+                "ok": True,
+                "ran": False,
+                "reason": "mutation requires uncontradicted independent scope authority",
+                "decision": decision,
+                "authority": authorities.get(name, {}),
+                "facts": fact_report,
+                "blocked_by_authority": True,
+                "control_state": "zero",
+                "next_action": "investigate",
+            }
+            # Preserve the proposal and denial; a hold must not look like a run.
+            adapter_state["last_decision"] = decision
+            adapter_state["last_authority_hold"] = {
+                "time_utc": now_utc, "action": action,
+                "authority": authorities.get(name, {}),
+                "scan_error": scan_errors.get(name),
+                "blockers": decision.get("blockers", []),
+            }
+            updated_state[name] = adapter_state
+            blocked_mutation_count += 1
+            continue
         if mutation_action_predicate(action) and mutation_winner_name and name != mutation_winner_name:
             subsystem_reports[name] = {
                 "ok": True,
@@ -216,5 +267,7 @@ def _execute_decision_plane(
         "mutation_winner_subsystem": mutation_winner_name,
         "executed_mutation_count": executed_mutation_count,
         "deferred_mutation_count": deferred_mutation_count,
+        "blocked_mutation_count": blocked_mutation_count,
+        "authorized_mutating_candidate_count": len(authorized_candidates),
         "due_mutating_candidate_count": len(due_mutating_candidates),
     }
